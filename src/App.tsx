@@ -19,6 +19,7 @@ import Connections from "./pages/Connections";
 import ConnectionDetails from "./pages/ConnectionDetails";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
+import RackOccupancy from "./pages/RackOccupancy";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -134,6 +135,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <Users />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/rack-occupancy" 
+              element={
+                <ProtectedRoute>
+                  <RackOccupancy />
                 </ProtectedRoute>
               } 
             />

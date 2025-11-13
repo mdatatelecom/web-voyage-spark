@@ -6,6 +6,7 @@ import { ConnectionDialog } from '@/components/connections/ConnectionDialog';
 import { useConnections } from '@/hooks/useConnections';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { ExportButton } from '@/components/export/ExportButton';
 
 export default function Connections() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -36,10 +37,34 @@ export default function Connections() {
               Gerencie todas as conexões de rede
             </p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Conexão
-          </Button>
+          <div className="flex gap-2">
+            {connections && connections.length > 0 && (
+              <ExportButton
+                data={connections.map(conn => ({
+                  'Código': conn.connection_code,
+                  'Status': conn.status,
+                  'Equipamento A': conn.equipment_a_name,
+                  'Porta A': conn.port_a_name,
+                  'Rack A': conn.rack_a_name,
+                  'Equipamento B': conn.equipment_b_name,
+                  'Porta B': conn.port_b_name,
+                  'Rack B': conn.rack_b_name,
+                  'Tipo de Cabo': conn.cable_type,
+                  'Comprimento (m)': conn.cable_length_meters || '-',
+                  'Cor': conn.cable_color || '-',
+                  'Data Instalação': conn.installed_at 
+                    ? new Date(conn.installed_at).toLocaleDateString('pt-BR')
+                    : '-',
+                }))}
+                filename="conexoes"
+                sheetName="Conexões"
+              />
+            )}
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Conexão
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

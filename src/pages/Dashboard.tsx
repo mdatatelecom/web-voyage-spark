@@ -2,10 +2,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building, Cable, Network, Server, LogOut, Package } from 'lucide-react';
+import { Building, Cable, Network, Server, LogOut, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { RackOccupancyChart } from '@/components/dashboard/RackOccupancyChart';
+import { EquipmentTypeChart } from '@/components/dashboard/EquipmentTypeChart';
+import { ConnectionStatusChart } from '@/components/dashboard/ConnectionStatusChart';
+import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
+import { usePortUsageStats } from '@/hooks/useDashboardStats';
 export default function Dashboard() {
   const {
     user,
@@ -47,6 +52,8 @@ export default function Dashboard() {
       };
     }
   });
+
+  const { data: portStats } = usePortUsageStats();
   return <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -134,34 +141,79 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div className="mt-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mt-8">
           <Card>
-            <CardHeader>
-              <CardTitle>Estatísticas Rápidas</CardTitle>
-              <CardDescription>Visão geral da sua infraestrutura</CardDescription>
+            <CardHeader className="pb-3">
+              <CardDescription>Prédios</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">{stats?.buildings || 0}</p>
-                  <p className="text-sm text-muted-foreground">Prédios</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">{stats?.racks || 0}</p>
-                  <p className="text-sm text-muted-foreground">Racks</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">{stats?.equipment || 0}</p>
-                  <p className="text-sm text-muted-foreground">Equipamentos</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">{stats?.connections || 0}</p>
-                  <p className="text-sm text-muted-foreground">Conexões</p>
-                </div>
+              <div className="text-3xl font-bold text-primary">{stats?.buildings || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Racks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">{stats?.racks || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Equipamentos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">{stats?.equipment || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Conexões</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">{stats?.connections || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Portas Disponíveis</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {portStats?.available || 0}
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                de {portStats?.total || 0} totais
+              </p>
             </CardContent>
           </Card>
         </div>
+
+        <div className="grid gap-6 md:grid-cols-2 mt-8">
+          <RackOccupancyChart />
+          <EquipmentTypeChart />
+          <ConnectionStatusChart />
+          <PortUsageChart />
+        </div>
+
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Relatórios
+            </CardTitle>
+            <CardDescription>Acesse relatórios detalhados</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => navigate('/rack-occupancy')}
+            >
+              Ver Relatório de Ocupação de Racks
+            </Button>
+          </CardContent>
+        </Card>
       </main>
     </div>;
 }

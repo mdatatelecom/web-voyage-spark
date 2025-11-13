@@ -6,6 +6,7 @@ import { EquipmentDialog } from '@/components/equipment/EquipmentDialog';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { ExportButton } from '@/components/export/ExportButton';
 
 export default function Equipment() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -37,10 +38,32 @@ export default function Equipment() {
               Gerencie todos os equipamentos de rede
             </p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Equipamento
-          </Button>
+          <div className="flex gap-2">
+            {equipment && equipment.length > 0 && (
+              <ExportButton
+                data={equipment.map(eq => ({
+                  'Nome': eq.name,
+                  'Tipo': eq.type,
+                  'Fabricante': eq.manufacturer || '-',
+                  'Modelo': eq.model || '-',
+                  'Hostname': eq.hostname || '-',
+                  'IP': eq.ip_address || '-',
+                  'Serial': eq.serial_number || '-',
+                  'Rack': eq.rack?.name || '-',
+                  'Posição': eq.position_u_start && eq.position_u_end 
+                    ? `U${eq.position_u_start}-${eq.position_u_end}` 
+                    : '-',
+                  'Total Portas': eq.ports?.[0]?.count || 0,
+                }))}
+                filename="equipamentos"
+                sheetName="Equipamentos"
+              />
+            )}
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Equipamento
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

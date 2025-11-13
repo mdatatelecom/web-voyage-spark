@@ -128,6 +128,10 @@ export const Breadcrumb = () => {
       breadcrumbs.push({ label: 'Usuários', path: '/users' });
     }
 
+    if (pathSegments[0] === 'rack-occupancy') {
+      breadcrumbs.push({ label: 'Relatório de Ocupação', path: '/rack-occupancy' });
+    }
+
     return breadcrumbs;
   };
 
