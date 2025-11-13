@@ -140,6 +140,21 @@ export const Breadcrumb = () => {
       breadcrumbs.push({ label: 'Configurações de Alertas', path: '/alert-settings' });
     }
 
+    if (pathSegments[0] === 'labels') {
+      breadcrumbs.push({ label: 'Etiquetas', path: '/labels' });
+    }
+
+    if (pathSegments[0] === 'system') {
+      breadcrumbs.push({ label: 'Sistema', path: '/system' });
+    }
+
+    if (pathSegments[0] === 'settings') {
+      breadcrumbs.push({ label: 'Configurações', path: '/settings' });
+      if (pathSegments[1] === 'notifications') {
+        breadcrumbs.push({ label: 'Notificações', path: '/settings/notifications' });
+      }
+    }
+
     return breadcrumbs;
   };
 

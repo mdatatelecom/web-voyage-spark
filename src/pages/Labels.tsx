@@ -2,6 +2,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -16,13 +17,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useLabels } from '@/hooks/useLabels';
-import { Download, Printer, Trash2, MoreHorizontal, Eye } from 'lucide-react';
+import { useConnections } from '@/hooks/useConnections';
+import { Download, Printer, Trash2, MoreHorizontal, Eye, QrCode, ArrowRight, TestTube, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { LabelDialog } from '@/components/labels/LabelDialog';
 
 export default function Labels() {
   const { labels, isLoading, markPrinted, deleteLabel } = useLabels();
+  const { connections } = useConnections();
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'printed' | 'unprinted'>('all');
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
+  const [showLabelDialog, setShowLabelDialog] = useState(false);
 
   const handlePrint = (label: any) => {
     const printWindow = window.open('', '_blank');
@@ -84,6 +100,39 @@ export default function Labels() {
     link.click();
   };
 
+  const handleTestGeneration = () => {
+    if (!connections) return;
+    
+    // Buscar primeira conexão sem etiqueta
+    const connectionWithoutLabel = connections.find(conn => 
+      !labels?.some(label => label.connection_id === conn.id)
+    );
+
+    if (connectionWithoutLabel) {
+      setSelectedConnection(connectionWithoutLabel.id);
+      setShowLabelDialog(true);
+    }
+  };
+
+  // Estatísticas
+  const totalLabels = labels?.length || 0;
+  const printedLabels = labels?.filter(l => l.print_count > 0).length || 0;
+  const totalPrints = labels?.reduce((sum, l) => sum + l.print_count, 0) || 0;
+  const lastGenerated = labels?.[0]?.generated_at;
+
+  // Filtros
+  const filteredLabels = labels?.filter(label => {
+    const matchesSearch = label.connection?.connection_code
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesFilter = 
+      filterStatus === 'all' ||
+      (filterStatus === 'printed' && label.print_count > 0) ||
+      (filterStatus === 'unprinted' && label.print_count === 0);
+    
+    return matchesSearch && matchesFilter;
+  });
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -102,22 +151,69 @@ export default function Labels() {
           </p>
         </div>
 
+        {/* Estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground">Total de Etiquetas</div>
+            <div className="text-3xl font-bold">{totalLabels}</div>
+          </Card>
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground">Etiquetas Impressas</div>
+            <div className="text-3xl font-bold">{printedLabels}</div>
+          </Card>
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground">Total de Impressões</div>
+            <div className="text-3xl font-bold">{totalPrints}</div>
+          </Card>
+          <Card className="p-4">
+            <div className="text-sm text-muted-foreground">Última Geração</div>
+            <div className="text-sm font-semibold">
+              {lastGenerated ? new Date(lastGenerated).toLocaleDateString('pt-BR') : '-'}
+            </div>
+          </Card>
+        </div>
+
+        {/* Filtros */}
+        {totalLabels > 0 && (
+          <Card className="p-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Buscar por código de conexão..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="printed">Impressas</SelectItem>
+                  <SelectItem value="unprinted">Não Impressas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+        )}
+
+        {/* Tabela ou Estado Vazio */}
         <Card className="p-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código da Conexão</TableHead>
-                <TableHead>Tipo de Cabo</TableHead>
-                <TableHead>Gerado em</TableHead>
-                <TableHead>Gerado por</TableHead>
-                <TableHead>Impressões</TableHead>
-                <TableHead>Última Impressão</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {labels && labels.length > 0 ? (
-                labels.map((label) => (
+          {filteredLabels && filteredLabels.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código da Conexão</TableHead>
+                  <TableHead>Tipo de Cabo</TableHead>
+                  <TableHead>Gerado em</TableHead>
+                  <TableHead>Impressões</TableHead>
+                  <TableHead>Última Impressão</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLabels.map((label) => (
                   <TableRow key={label.id}>
                     <TableCell>
                       <Button
@@ -133,9 +229,6 @@ export default function Labels() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(label.generated_at).toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      -
                     </TableCell>
                     <TableCell>
                       <Badge variant={label.print_count > 0 ? 'default' : 'secondary'}>
@@ -180,18 +273,71 @@ export default function Labels() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                    Nenhuma etiqueta gerada ainda
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-12 space-y-6">
+              <div className="flex justify-center">
+                <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center">
+                  <QrCode className="w-12 h-12 text-muted-foreground" />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold">Nenhuma etiqueta gerada ainda</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Gere etiquetas QR Code para suas conexões e encontre-as aqui
+                </p>
+              </div>
+
+              <div className="space-y-3 max-w-md mx-auto">
+                <div className="text-left space-y-2">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
+                      1
+                    </div>
+                    <p className="text-sm">Vá para a página de <strong>Conexões</strong></p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
+                      2
+                    </div>
+                    <p className="text-sm">Clique em <strong>"Gerar Etiqueta"</strong> no card da conexão</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
+                      3
+                    </div>
+                    <p className="text-sm">A etiqueta aparecerá aqui automaticamente</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-center pt-4">
+                <Button onClick={() => navigate('/connections')}>
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  Ir para Conexões
+                </Button>
+                {connections && connections.length > 0 && (
+                  <Button variant="outline" onClick={handleTestGeneration}>
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Testar Geração
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
+
+      {selectedConnection && connections && (
+        <LabelDialog
+          open={showLabelDialog}
+          onOpenChange={setShowLabelDialog}
+          connection={connections.find(c => c.id === selectedConnection)}
+        />
+      )}
     </AppLayout>
   );
 }

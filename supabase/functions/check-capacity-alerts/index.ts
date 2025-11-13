@@ -42,6 +42,9 @@ Deno.serve(async (req) => {
 
     console.log('Alert settings:', settings);
 
+    let alertsCreated = 0;
+    const createdAlerts: any[] = [];
+
     // Check rack occupancy
     const { data: racks, error: racksError } = await supabaseClient
       .from('racks')
@@ -93,24 +96,28 @@ Deno.serve(async (req) => {
         if (!existingAlert) {
           console.log(`Creating ${severity} alert for rack ${rack.name}`);
 
+          const alertData = {
+            type: 'rack_capacity',
+            severity,
+            status: 'active',
+            title: `Rack ${rack.name} com alta ocupação`,
+            message: `O rack ${rack.name} atingiu ${occupancyPercentage.toFixed(1)}% de ocupação (${occupiedUs}/${rack.size_u}U). Limite: ${threshold}%`,
+            related_entity_id: rack.id,
+            related_entity_type: 'rack',
+            threshold_value: threshold,
+            current_value: occupancyPercentage,
+          };
+
           const { error: insertError } = await supabaseClient
             .from('alerts')
-            .insert({
-              type: 'rack_capacity',
-              severity,
-              status: 'active',
-              title: `Rack ${rack.name} com alta ocupação`,
-              message: `O rack ${rack.name} atingiu ${occupancyPercentage.toFixed(1)}% de ocupação (${occupiedUs}/${rack.size_u}U). Limite: ${threshold}%`,
-              related_entity_id: rack.id,
-              related_entity_type: 'rack',
-              threshold_value: threshold,
-              current_value: occupancyPercentage,
-            });
+            .insert(alertData);
 
           if (insertError) {
             console.error('Error creating alert:', insertError);
           } else {
             console.log('Alert created successfully');
+            alertsCreated++;
+            createdAlerts.push(alertData);
           }
         } else {
           console.log(`Alert already exists for rack ${rack.name}`);
@@ -167,24 +174,28 @@ Deno.serve(async (req) => {
         if (!existingAlert) {
           console.log(`Creating ${severity} alert for equipment ${eq.name}`);
 
+          const alertData = {
+            type: 'port_capacity',
+            severity,
+            status: 'active',
+            title: `Equipamento ${eq.name} com portas próximas do limite`,
+            message: `O equipamento ${eq.name} está com ${usagePercentage.toFixed(1)}% das portas em uso (${inUsePorts}/${totalPorts}). Limite: ${threshold}%`,
+            related_entity_id: eq.id,
+            related_entity_type: 'equipment',
+            threshold_value: threshold,
+            current_value: usagePercentage,
+          };
+
           const { error: insertError } = await supabaseClient
             .from('alerts')
-            .insert({
-              type: 'port_capacity',
-              severity,
-              status: 'active',
-              title: `Equipamento ${eq.name} com portas próximas do limite`,
-              message: `O equipamento ${eq.name} está com ${usagePercentage.toFixed(1)}% das portas em uso (${inUsePorts}/${totalPorts}). Limite: ${threshold}%`,
-              related_entity_id: eq.id,
-              related_entity_type: 'equipment',
-              threshold_value: threshold,
-              current_value: usagePercentage,
-            });
+            .insert(alertData);
 
           if (insertError) {
             console.error('Error creating alert:', insertError);
           } else {
             console.log('Alert created successfully');
+            alertsCreated++;
+            createdAlerts.push(alertData);
           }
         } else {
           console.log(`Alert already exists for equipment ${eq.name}`);
@@ -192,10 +203,84 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`Created/updated ${alertsCreated} alerts`);
+
+    // Send email notifications for critical alerts
+    const criticalAlerts = createdAlerts.filter(a => a.severity === 'critical');
+    if (criticalAlerts.length > 0) {
+      console.log(`Sending email notifications for ${criticalAlerts.length} critical alerts`);
+      
+      // Get admin users with email notifications enabled
+      const { data: adminRoles } = await supabaseClient
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (adminRoles && adminRoles.length > 0) {
+        const adminIds = adminRoles.map(r => r.user_id);
+        
+        // Get admin profiles
+        const { data: admins } = await supabaseClient
+          .from('profiles')
+          .select('id')
+          .in('id', adminIds);
+
+        if (admins) {
+          for (const admin of admins) {
+            // Check notification settings
+            const { data: settings } = await supabaseClient
+              .from('notification_settings')
+              .select('*')
+              .eq('user_id', admin.id)
+              .single();
+
+            // Send if settings allow or if no settings (default to send)
+            const shouldSend = !settings || 
+              (settings.email_enabled && settings.alert_critical);
+
+            if (shouldSend) {
+              // Get admin email
+              const { data: { user } } = await supabaseClient.auth.admin.getUserById(admin.id);
+              
+              if (user?.email) {
+                const targetEmail = settings?.email_address || user.email;
+                
+                // Send email for each critical alert
+                for (const alert of criticalAlerts) {
+                  try {
+                    await supabaseClient.functions.invoke('send-alert-email', {
+                      body: {
+                        email: targetEmail,
+                        alert: {
+                          title: alert.title,
+                          message: alert.message,
+                          severity: alert.severity,
+                          type: alert.type,
+                          related_entity_type: alert.related_entity_type,
+                          related_entity_id: alert.related_entity_id,
+                        },
+                      },
+                    });
+                    console.log(`Email sent to ${targetEmail} for alert ${alert.title}`);
+                  } catch (emailError) {
+                    console.error(`Failed to send email to ${targetEmail}:`, emailError);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     console.log('Capacity alert check completed successfully');
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Capacity alerts checked successfully' }),
+      JSON.stringify({ 
+        success: true, 
+        alertsCreated,
+        message: `Capacity check completed. ${alertsCreated} alerts created/updated.`
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

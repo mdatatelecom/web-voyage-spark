@@ -408,6 +408,42 @@ export type Database = {
           },
         ]
       }
+      notification_settings: {
+        Row: {
+          alert_critical: boolean
+          alert_info: boolean
+          alert_warning: boolean
+          created_at: string
+          email_address: string | null
+          email_enabled: boolean
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_critical?: boolean
+          alert_info?: boolean
+          alert_warning?: boolean
+          created_at?: string
+          email_address?: string | null
+          email_enabled?: boolean
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_critical?: boolean
+          alert_info?: boolean
+          alert_warning?: boolean
+          created_at?: string
+          email_address?: string | null
+          email_enabled?: boolean
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ports: {
         Row: {
           created_at: string

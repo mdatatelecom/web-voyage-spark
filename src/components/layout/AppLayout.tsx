@@ -1,11 +1,12 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useLabels } from '@/hooks/useLabels';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Breadcrumb } from './Breadcrumb';
@@ -19,6 +20,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { roles, isAdmin, isTechnician } = useUserRole();
+  const { labels } = useLabels();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -27,13 +29,15 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   };
 
   const menuItems = [
-    { label: 'Dashboard', icon: Home, path: '/dashboard', visible: true },
-    { label: 'Localizações', icon: Building2, path: '/buildings', visible: true },
-    { label: 'Racks', icon: Package, path: '/racks', visible: true },
-    { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: isAdmin || isTechnician },
-    { label: 'Conexões', icon: Network, path: '/connections', visible: isAdmin || isTechnician },
-    { label: 'Etiquetas', icon: Tag, path: '/labels', visible: isAdmin || isTechnician },
-    { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin },
+    { label: 'Dashboard', icon: Home, path: '/dashboard', visible: true, badge: undefined },
+    { label: 'Localizações', icon: Building2, path: '/buildings', visible: true, badge: undefined },
+    { label: 'Racks', icon: Package, path: '/racks', visible: true, badge: undefined },
+    { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: isAdmin || isTechnician, badge: undefined },
+    { label: 'Conexões', icon: Network, path: '/connections', visible: isAdmin || isTechnician, badge: undefined },
+    { label: 'Etiquetas', icon: Tag, path: '/labels', visible: isAdmin || isTechnician, badge: labels?.length },
+    { label: 'Alertas', icon: Bell, path: '/alerts', visible: true, badge: undefined },
+    { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin, badge: undefined },
+    { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin, badge: undefined },
   ];
 
   return (
@@ -79,11 +83,16 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                 <Button
                   key={item.path}
                   variant="ghost"
-                  className="justify-start gap-2"
+                  className="justify-start gap-2 relative"
                   onClick={() => navigate(item.path)}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {item.badge}
+                    </Badge>
+                  )}
                 </Button>
               );
             })}

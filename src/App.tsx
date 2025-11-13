@@ -19,6 +19,8 @@ import Connections from "./pages/Connections";
 import ConnectionDetails from "./pages/ConnectionDetails";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
+import System from "./pages/System";
+import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
 import AlertSettings from "./pages/AlertSettings";
@@ -161,6 +163,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <AlertSettings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/system" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <System />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings/notifications" 
+              element={
+                <ProtectedRoute>
+                  <NotificationSettings />
                 </ProtectedRoute>
               } 
             />
