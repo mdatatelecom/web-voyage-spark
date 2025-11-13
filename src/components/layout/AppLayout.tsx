@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +34,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Racks', icon: Package, path: '/racks', visible: true, badge: undefined },
     { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: isAdmin || isTechnician, badge: undefined },
     { label: 'Conexões', icon: Network, path: '/connections', visible: isAdmin || isTechnician, badge: undefined },
+    { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
     { label: 'Etiquetas', icon: Tag, path: '/labels', visible: isAdmin || isTechnician, badge: labels?.length },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: true, badge: undefined },
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin, badge: undefined },

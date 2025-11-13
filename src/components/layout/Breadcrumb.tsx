@@ -155,6 +155,10 @@ export const Breadcrumb = () => {
       }
     }
 
+    if (pathSegments[0] === 'scan') {
+      breadcrumbs.push({ label: 'Scanner QR Code', path: '/scan' });
+    }
+
     return breadcrumbs;
   };
 

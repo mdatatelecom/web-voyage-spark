@@ -17,6 +17,7 @@ import Equipment from "./pages/Equipment";
 import EquipmentDetails from "./pages/EquipmentDetails";
 import Connections from "./pages/Connections";
 import ConnectionDetails from "./pages/ConnectionDetails";
+import QRScanner from "./pages/QRScanner";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import System from "./pages/System";
@@ -118,13 +119,21 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/connections/:id" 
+            <Route
+              path="/connections/:id"
               element={
                 <ProtectedRoute>
                   <ConnectionDetails />
                 </ProtectedRoute>
-              } 
+              }
+            />
+            <Route
+              path="/scan"
+              element={
+                <ProtectedRoute>
+                  <QRScanner />
+                </ProtectedRoute>
+              }
             />
             <Route 
               path="/labels" 
