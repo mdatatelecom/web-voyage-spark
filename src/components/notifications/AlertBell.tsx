@@ -9,10 +9,14 @@ import {
 import { useAlerts } from '@/hooks/useAlerts';
 import { useNavigate } from 'react-router-dom';
 import { AlertList } from './AlertList';
+import { useRealtimeAlerts } from '@/hooks/useRealtimeAlerts';
 
 export const AlertBell = () => {
   const { activeCount } = useAlerts();
   const navigate = useNavigate();
+  
+  // Subscribe to realtime alerts
+  useRealtimeAlerts();
 
   return (
     <Popover>

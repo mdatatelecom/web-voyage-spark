@@ -136,6 +136,10 @@ export const Breadcrumb = () => {
       breadcrumbs.push({ label: 'Alertas', path: '/alerts' });
     }
 
+    if (pathSegments[0] === 'alert-settings') {
+      breadcrumbs.push({ label: 'Configurações de Alertas', path: '/alert-settings' });
+    }
+
     return breadcrumbs;
   };
 

@@ -171,7 +171,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <Server className="h-8 w-8 text-primary mb-2" />
               <CardTitle>Equipamentos</CardTitle>
@@ -180,13 +180,17 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" disabled={!isAdmin && !isTechnician}>
+              <Button 
+                className="w-full" 
+                disabled={!isAdmin && !isTechnician}
+                onClick={() => navigate('/equipment')}
+              >
                 Gerenciar Equipamentos
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <Cable className="h-8 w-8 text-primary mb-2" />
               <CardTitle>Conexões</CardTitle>
@@ -195,7 +199,11 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" disabled={!isAdmin && !isTechnician}>
+              <Button 
+                className="w-full" 
+                disabled={!isAdmin && !isTechnician}
+                onClick={() => navigate('/connections')}
+              >
                 Ver Conexões
               </Button>
             </CardContent>

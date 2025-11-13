@@ -1,11 +1,16 @@
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAlerts } from '@/hooks/useAlerts';
-import { AlertList } from '@/components/notifications/AlertList';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAlerts } from '@/hooks/useAlerts';
+import { useUserRole } from '@/hooks/useUserRole';
+import { AlertList } from '@/components/notifications/AlertList';
 
 export default function Alerts() {
+  const navigate = useNavigate();
+  const { isAdmin } = useUserRole();
   const { alerts: activeAlerts } = useAlerts({ status: 'active' });
   const { alerts: acknowledgedAlerts } = useAlerts({ status: 'acknowledged' });
   const { alerts: resolvedAlerts } = useAlerts({ status: 'resolved' });
@@ -13,11 +18,19 @@ export default function Alerts() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Alertas de Capacidade</h1>
-          <p className="text-muted-foreground">
-            Gerenciamento de alertas de ocupação de racks e portas
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Alertas</h1>
+            <p className="text-muted-foreground">
+              Gerencie alertas de capacidade do sistema
+            </p>
+          </div>
+          {isAdmin && (
+            <Button variant="outline" onClick={() => navigate('/alert-settings')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Configurar Alertas
+            </Button>
+          )}
         </div>
 
         <Tabs defaultValue="active" className="w-full">
@@ -42,21 +55,15 @@ export default function Alerts() {
           </TabsList>
 
           <TabsContent value="active" className="mt-6">
-            <Card>
-              <AlertList />
-            </Card>
+            <AlertList />
           </TabsContent>
 
           <TabsContent value="acknowledged" className="mt-6">
-            <Card>
-              <AlertList />
-            </Card>
+            <AlertList />
           </TabsContent>
 
           <TabsContent value="resolved" className="mt-6">
-            <Card>
-              <AlertList />
-            </Card>
+            <AlertList />
           </TabsContent>
         </Tabs>
       </div>

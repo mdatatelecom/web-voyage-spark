@@ -21,6 +21,7 @@ import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
+import AlertSettings from "./pages/AlertSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -152,6 +153,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Alerts />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/alert-settings" 
+              element={
+                <ProtectedRoute>
+                  <AlertSettings />
                 </ProtectedRoute>
               } 
             />

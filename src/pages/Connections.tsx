@@ -1,17 +1,26 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Plus, Cable } from 'lucide-react';
+import { Plus, Cable, QrCode } from 'lucide-react';
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog';
 import { useConnections } from '@/hooks/useConnections';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { ExportButton } from '@/components/export/ExportButton';
+import { LabelDialog } from '@/components/labels/LabelDialog';
 
 export default function Connections() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState<any>(null);
   const { connections, isLoading } = useConnections();
   const navigate = useNavigate();
+
+  const handleGenerateLabel = (conn: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedConnection(conn);
+    setLabelDialogOpen(true);
+  };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -86,6 +95,14 @@ export default function Connections() {
                       {conn.status}
                     </Badge>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => handleGenerateLabel(conn, e)}
+                  >
+                    <QrCode className="w-4 h-4 mr-2" />
+                    Gerar Etiqueta
+                  </Button>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-4 text-sm">
@@ -143,6 +160,13 @@ export default function Connections() {
       </div>
 
       <ConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      {selectedConnection && (
+        <LabelDialog
+          open={labelDialogOpen}
+          onOpenChange={setLabelDialogOpen}
+          connection={selectedConnection}
+        />
+      )}
     </AppLayout>
   );
 }
