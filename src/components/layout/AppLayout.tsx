@@ -7,8 +7,6 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useLabels } from '@/hooks/useLabels';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 
@@ -18,13 +16,12 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician } = useUserRole();
   const { labels } = useLabels();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast.success('Logout realizado com sucesso!');
+    await signOut();
     navigate('/auth');
   };
 

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Network } from 'lucide-react';
+import { Network, QrCode } from 'lucide-react';
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,6 +102,20 @@ export default function Auth() {
                 </form>
               </TabsContent>
             </Tabs>
+            
+            <div className="mt-6 pt-6 border-t">
+              <div className="text-center text-sm text-muted-foreground mb-3">
+                Precisa verificar uma conexão rapidamente?
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate('/scan?mode=public')}
+              >
+                <QrCode className="mr-2 h-4 w-4" />
+                Escanear QR Code
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

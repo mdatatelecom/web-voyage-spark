@@ -4,16 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useQRScanner } from '@/hooks/useQRScanner';
 import { ScanResultDialog } from '@/components/qr-scanner/ScanResultDialog';
+import { PublicScanResultDialog } from '@/components/qr-scanner/PublicScanResultDialog';
 import { ArrowLeft, QrCode, Camera, RotateCw, AlertCircle, History, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function QRScanner() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const isPublicMode = searchParams.get('mode') === 'public';
   const scannerRef = useRef<Html5Qrcode | undefined>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
@@ -65,6 +70,14 @@ export default function QRScanner() {
     scannerRef.current = scanner;
   };
 
+  const handleBack = () => {
+    if (isPublicMode) {
+      navigate('/auth');
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="min-h-screen bg-background pb-20">
@@ -75,7 +88,7 @@ export default function QRScanner() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate(-1)}
+                onClick={handleBack}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -83,6 +96,7 @@ export default function QRScanner() {
                 <h1 className="text-xl font-bold flex items-center gap-2">
                   <QrCode className="h-5 w-5" />
                   Scanner QR Code
+                  {isPublicMode && <span className="text-sm text-muted-foreground">(Público)</span>}
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   Aponte a câmera para o QR Code
@@ -206,13 +220,23 @@ export default function QRScanner() {
         </div>
 
         {/* Result Dialog */}
-        {scanResult && (
+        {scanResult && !isPublicMode && user && (
           <ScanResultDialog
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
             connection={scanResult.connection}
             connectionCode={scanResult.data.code}
             onScanAgain={handleScanAgain}
+          />
+        )}
+        
+        {/* Public Mode Result Dialog */}
+        {scanResult && (isPublicMode || !user) && (
+          <PublicScanResultDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            connectionCode={scanResult.data.code}
+            connectionId={scanResult.data.id}
           />
         )}
       </div>

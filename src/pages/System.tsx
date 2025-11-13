@@ -82,6 +82,7 @@ export default function System() {
           <TabsList>
             <TabsTrigger value="status">Status do Sistema</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
+            <TabsTrigger value="scans">Analytics de Scans</TabsTrigger>
             <TabsTrigger value="tests">Testes Manuais</TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>

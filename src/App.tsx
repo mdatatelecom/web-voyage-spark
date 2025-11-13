@@ -21,6 +21,7 @@ import QRScanner from "./pages/QRScanner";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import System from "./pages/System";
+import ScanAnalytics from "./pages/ScanAnalytics";
 import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
@@ -184,7 +185,15 @@ const App = () => (
               } 
             />
             <Route 
-              path="/settings/notifications" 
+              path="/analytics/scans" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <ScanAnalytics />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings/notifications"
               element={
                 <ProtectedRoute>
                   <NotificationSettings />
