@@ -101,9 +101,31 @@ export const Breadcrumb = () => {
       }
     }
 
-    if (pathSegments[0] === 'racks' && params.rackId) {
-      breadcrumbs.push({ label: 'Racks', path: '/racks' });
-      breadcrumbs.push({ label: rack?.name || 'Rack', path: `/racks/${params.rackId}` });
+    if (pathSegments[0] === 'racks') {
+      if (params.rackId) {
+        breadcrumbs.push({ label: 'Racks', path: '/racks' });
+        breadcrumbs.push({ label: rack?.name || 'Rack', path: `/racks/${params.rackId}` });
+      } else {
+        breadcrumbs.push({ label: 'Racks', path: '/racks' });
+      }
+    }
+
+    if (pathSegments[0] === 'equipment' && params.id) {
+      breadcrumbs.push({ label: 'Equipamentos', path: '/equipment' });
+      breadcrumbs.push({ label: 'Detalhes', path: location.pathname });
+    }
+
+    if (pathSegments[0] === 'connections' && params.id) {
+      breadcrumbs.push({ label: 'Conexões', path: '/connections' });
+      breadcrumbs.push({ label: 'Detalhes', path: location.pathname });
+    }
+
+    if (pathSegments[0] === 'labels') {
+      breadcrumbs.push({ label: 'Etiquetas', path: '/labels' });
+    }
+
+    if (pathSegments[0] === 'users') {
+      breadcrumbs.push({ label: 'Usuários', path: '/users' });
     }
 
     return breadcrumbs;

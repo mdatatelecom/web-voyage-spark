@@ -59,15 +59,27 @@ export default function Racks() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Racks</h1>
-            <p className="text-muted-foreground">Gerencie os racks desta sala</p>
+            <p className="text-muted-foreground">
+              {roomId ? 'Gerencie os racks desta sala' : 'Visualize todos os racks do sistema'}
+            </p>
           </div>
-          {isAdmin && (
+          {isAdmin && roomId && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Rack
             </Button>
           )}
         </div>
+
+        {!roomId && (
+          <Card className="bg-muted/50">
+            <CardContent className="py-4">
+              <p className="text-sm text-muted-foreground">
+                💡 Para criar novos racks, navegue até a sala específica através de Localizações {'>'} Prédio {'>'} Andar {'>'} Sala
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Grid */}
         {isLoading ? (

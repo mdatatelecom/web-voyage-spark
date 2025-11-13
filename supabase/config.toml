@@ -1,1 +1,7 @@
 project_id = "gszsufxjstgpsxikgeeb"
+
+[functions.admin-list-users]
+verify_jwt = true
+
+[functions.admin-find-user-by-email]
+verify_jwt = true

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConnectionDiagram } from '@/components/connections/ConnectionDiagram';
+import { LabelDialog } from '@/components/labels/LabelDialog';
 import { Edit, Unplug, QrCode, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -33,6 +34,7 @@ export default function ConnectionDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [newStatus, setNewStatus] = useState('');
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
 
   const { data: connection, isLoading } = useQuery({
     queryKey: ['connection', id],
@@ -157,7 +159,7 @@ export default function ConnectionDetails() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setLabelDialogOpen(true)}>
               <QrCode className="w-4 h-4 mr-2" />
               Gerar Etiqueta
             </Button>
@@ -240,6 +242,12 @@ export default function ConnectionDetails() {
             {new Date(connection.installed_at).toLocaleString('pt-BR')} - Conexão criada
           </p>
         </Card>
+
+        <LabelDialog
+          open={labelDialogOpen}
+          onOpenChange={setLabelDialogOpen}
+          connection={connection}
+        />
       </div>
     </AppLayout>
   );

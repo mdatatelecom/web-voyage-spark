@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PortManageDialog } from '@/components/equipment/PortManageDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, Plus, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
@@ -23,6 +24,8 @@ export default function EquipmentDetails() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const portsPerPage = 20;
+  const [portDialogOpen, setPortDialogOpen] = useState(false);
+  const [selectedPort, setSelectedPort] = useState<any>(null);
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: ['equipment', id],
@@ -153,7 +156,10 @@ export default function EquipmentDetails() {
               <Edit className="w-4 h-4 mr-2" />
               Editar Equipamento
             </Button>
-            <Button>
+            <Button onClick={() => {
+              setSelectedPort(null);
+              setPortDialogOpen(true);
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Portas
             </Button>
@@ -303,7 +309,10 @@ export default function EquipmentDetails() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Editar Porta</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedPort(port);
+                              setPortDialogOpen(true);
+                            }}>Editar Porta</DropdownMenuItem>
                             <DropdownMenuItem>Alterar Status</DropdownMenuItem>
                             {port.status === 'in_use' && port.connection && (
                               <DropdownMenuItem
@@ -346,6 +355,13 @@ export default function EquipmentDetails() {
             </Card>
           </div>
         </div>
+
+        <PortManageDialog
+          open={portDialogOpen}
+          onOpenChange={setPortDialogOpen}
+          equipmentId={id!}
+          port={selectedPort}
+        />
       </div>
     </AppLayout>
   );

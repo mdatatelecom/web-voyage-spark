@@ -17,6 +17,8 @@ import Equipment from "./pages/Equipment";
 import EquipmentDetails from "./pages/EquipmentDetails";
 import Connections from "./pages/Connections";
 import ConnectionDetails from "./pages/ConnectionDetails";
+import Labels from "./pages/Labels";
+import Users from "./pages/Users";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +74,14 @@ const App = () => (
               } 
             />
             <Route 
+              path="/racks" 
+              element={
+                <ProtectedRoute>
+                  <Racks />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/racks/:rackId" 
               element={
                 <ProtectedRoute>
@@ -108,6 +118,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ConnectionDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/labels" 
+              element={
+                <ProtectedRoute>
+                  <Labels />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Users />
                 </ProtectedRoute>
               } 
             />
