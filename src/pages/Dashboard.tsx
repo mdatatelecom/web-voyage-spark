@@ -6,27 +6,39 @@ import { Building, Cable, Network, Server, LogOut, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const { roles, isAdmin, isTechnician } = useUserRole();
+  const {
+    user,
+    signOut
+  } = useAuth();
+  const {
+    roles,
+    isAdmin,
+    isTechnician
+  } = useUserRole();
   const navigate = useNavigate();
-
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
-
-  const { data: stats } = useQuery({
+  const {
+    data: stats
+  } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      const [buildings, racks, equipment, connections] = await Promise.all([
-        supabase.from('buildings').select('count', { count: 'exact', head: true }),
-        supabase.from('racks').select('count', { count: 'exact', head: true }),
-        supabase.from('equipment').select('count', { count: 'exact', head: true }),
-        supabase.from('connections').select('count', { count: 'exact', head: true })
-      ]);
-      
+      const [buildings, racks, equipment, connections] = await Promise.all([supabase.from('buildings').select('count', {
+        count: 'exact',
+        head: true
+      }), supabase.from('racks').select('count', {
+        count: 'exact',
+        head: true
+      }), supabase.from('equipment').select('count', {
+        count: 'exact',
+        head: true
+      }), supabase.from('connections').select('count', {
+        count: 'exact',
+        head: true
+      })]);
       return {
         buildings: buildings.count || 0,
         racks: racks.count || 0,
@@ -35,14 +47,12 @@ export default function Dashboard() {
       };
     }
   });
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Network className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">InfraTrack</h1>
+            <h1 className="text-2xl font-bold">   InfraTrack</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
@@ -66,8 +76,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {roles.length === 0 && (
-          <Card className="mb-8 border-yellow-500/50 bg-yellow-500/5">
+        {roles.length === 0 && <Card className="mb-8 border-yellow-500/50 bg-yellow-500/5">
             <CardHeader>
               <CardTitle className="text-yellow-600 dark:text-yellow-500">
                 Nenhuma Função Atribuída
@@ -76,8 +85,7 @@ export default function Dashboard() {
                 Entre em contato com um administrador para atribuir uma função antes de usar o sistema.
               </CardDescription>
             </CardHeader>
-          </Card>
-        )}
+          </Card>}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/buildings')}>
@@ -155,6 +163,5 @@ export default function Dashboard() {
           </Card>
         </div>
       </main>
-    </div>
-  );
+    </div>;
 }
