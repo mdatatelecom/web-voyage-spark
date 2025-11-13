@@ -31,15 +31,15 @@ const Index = () => {
             <h1 className="text-6xl font-bold">InfraTrack</h1>
           </div>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Digital twin of your physical network infrastructure. 
-            Track every cable, port, and connection with secure QR code technology.
+            Gêmeo digital da sua infraestrutura de rede física. 
+            Rastreie cada cabo, porta e conexão com tecnologia segura de QR code.
           </p>
           <div className="mt-8 flex gap-4 justify-center">
             <Button size="lg" onClick={() => navigate('/auth')}>
-              Get Started
+              Começar
             </Button>
             <Button size="lg" variant="outline" onClick={() => navigate('/auth')}>
-              Sign In
+              Entrar
             </Button>
           </div>
         </div>
@@ -47,25 +47,25 @@ const Index = () => {
         <div className="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto mt-20">
           <div className="text-center p-6 rounded-lg border border-border bg-card">
             <Cable className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Smart Tracking</h3>
+            <h3 className="text-xl font-semibold mb-2">Rastreamento Inteligente</h3>
             <p className="text-muted-foreground">
-              QR codes on every cable for instant identification from Point A to Point B
+              QR codes em cada cabo para identificação instantânea do Ponto A ao Ponto B
             </p>
           </div>
 
           <div className="text-center p-6 rounded-lg border border-border bg-card">
             <Server className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Complete Inventory</h3>
+            <h3 className="text-xl font-semibold mb-2">Inventário Completo</h3>
             <p className="text-muted-foreground">
-              Manage racks, equipment, and ports with real-time availability tracking
+              Gerencie racks, equipamentos e portas com rastreamento de disponibilidade em tempo real
             </p>
           </div>
 
           <div className="text-center p-6 rounded-lg border border-border bg-card">
             <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Secure Access</h3>
+            <h3 className="text-xl font-semibold mb-2">Acesso Seguro</h3>
             <p className="text-muted-foreground">
-              Role-based permissions and audit logs for complete security
+              Permissões baseadas em funções e logs de auditoria para segurança completa
             </p>
           </div>
         </div>

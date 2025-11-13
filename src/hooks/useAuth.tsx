@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       if (error) {
         toast({
-          title: "Login Failed",
+          title: "Falha no Login",
           description: error.message,
           variant: "destructive",
         });
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       if (error) {
         toast({
-          title: "Signup Failed",
+          title: "Falha no Cadastro",
           description: error.message,
           variant: "destructive",
         });
@@ -87,8 +87,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     toast({
-      title: "Signed Out",
-      description: "You have been successfully signed out.",
+      title: "Desconectado",
+      description: "Você foi desconectado com sucesso.",
     });
   };
 

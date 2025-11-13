@@ -52,9 +52,9 @@ export default function Auth() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Welcome</CardTitle>
+            <CardTitle>Bem-vindo</CardTitle>
             <CardDescription>
-              Sign in to access your infrastructure management system
+              Entre para acessar seu sistema de gerenciamento de infraestrutura
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -67,18 +67,18 @@ export default function Auth() {
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="signin-email">E-mail</Label>
                     <Input
                       id="signin-email"
                       type="email"
-                      placeholder="you@example.com"
+                      placeholder="voce@exemplo.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
+                    <Label htmlFor="signin-password">Senha</Label>
                     <Input
                       id="signin-password"
                       type="password"
@@ -88,7 +88,7 @@ export default function Auth() {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Signing in...' : 'Sign In'}
+                    {isLoading ? 'Entrando...' : 'Entrar'}
                   </Button>
                 </form>
               </TabsContent>
@@ -96,29 +96,29 @@ export default function Auth() {
               <TabsContent value="signup">
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Label htmlFor="signup-name">Nome Completo</Label>
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="João Silva"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-email">E-mail</Label>
                     <Input
                       id="signup-email"
                       type="email"
-                      placeholder="you@example.com"
+                      placeholder="voce@exemplo.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-password">Senha</Label>
                     <Input
                       id="signup-password"
                       type="password"
@@ -129,7 +129,7 @@ export default function Auth() {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating account...' : 'Sign Up'}
+                    {isLoading ? 'Criando conta...' : 'Cadastrar'}
                   </Button>
                 </form>
               </TabsContent>

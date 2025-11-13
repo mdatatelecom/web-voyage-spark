@@ -27,7 +27,7 @@ export default function Dashboard() {
             <div className="text-right">
               <p className="text-sm font-medium">{user?.email}</p>
               <p className="text-xs text-muted-foreground">
-                {roles.join(', ') || 'No role assigned'}
+                {roles.join(', ') || 'Nenhuma função atribuída'}
               </p>
             </div>
             <Button variant="outline" size="icon" onClick={handleSignOut}>
@@ -39,9 +39,9 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">Dashboard</h2>
+          <h2 className="text-3xl font-bold mb-2">Painel de Controle</h2>
           <p className="text-muted-foreground">
-            Manage your infrastructure assets and network connectivity
+            Gerencie seus ativos de infraestrutura e conectividade de rede
           </p>
         </div>
 
@@ -49,10 +49,10 @@ export default function Dashboard() {
           <Card className="mb-8 border-yellow-500/50 bg-yellow-500/5">
             <CardHeader>
               <CardTitle className="text-yellow-600 dark:text-yellow-500">
-                No Role Assigned
+                Nenhuma Função Atribuída
               </CardTitle>
               <CardDescription>
-                Please contact an administrator to assign you a role before you can use the system.
+                Entre em contato com um administrador para atribuir uma função antes de usar o sistema.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -62,14 +62,14 @@ export default function Dashboard() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader>
               <Building className="h-8 w-8 text-primary mb-2" />
-              <CardTitle>Locations</CardTitle>
+              <CardTitle>Localizações</CardTitle>
               <CardDescription>
-                Manage buildings, floors, and rooms
+                Gerencie prédios, andares e salas
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" disabled={!isAdmin}>
-                Manage Locations
+                Gerenciar Localizações
               </Button>
             </CardContent>
           </Card>
@@ -77,14 +77,14 @@ export default function Dashboard() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader>
               <Server className="h-8 w-8 text-primary mb-2" />
-              <CardTitle>Equipment</CardTitle>
+              <CardTitle>Equipamentos</CardTitle>
               <CardDescription>
-                View and manage network equipment
+                Visualize e gerencie equipamentos de rede
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" disabled={!isAdmin && !isTechnician}>
-                Manage Equipment
+                Gerenciar Equipamentos
               </Button>
             </CardContent>
           </Card>
@@ -92,14 +92,14 @@ export default function Dashboard() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader>
               <Cable className="h-8 w-8 text-primary mb-2" />
-              <CardTitle>Connections</CardTitle>
+              <CardTitle>Conexões</CardTitle>
               <CardDescription>
-                Track cable connections and generate labels
+                Rastreie conexões de cabos e gere etiquetas
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" disabled={!isAdmin && !isTechnician}>
-                View Connections
+                Ver Conexões
               </Button>
             </CardContent>
           </Card>
@@ -108,14 +108,14 @@ export default function Dashboard() {
         <div className="mt-8">
           <Card>
             <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-              <CardDescription>Overview of your infrastructure</CardDescription>
+              <CardTitle>Estatísticas Rápidas</CardTitle>
+              <CardDescription>Visão geral da sua infraestrutura</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="text-center">
                   <p className="text-3xl font-bold text-primary">0</p>
-                  <p className="text-sm text-muted-foreground">Buildings</p>
+                  <p className="text-sm text-muted-foreground">Prédios</p>
                 </div>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-primary">0</p>
@@ -123,11 +123,11 @@ export default function Dashboard() {
                 </div>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-primary">0</p>
-                  <p className="text-sm text-muted-foreground">Equipment</p>
+                  <p className="text-sm text-muted-foreground">Equipamentos</p>
                 </div>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-primary">0</p>
-                  <p className="text-sm text-muted-foreground">Connections</p>
+                  <p className="text-sm text-muted-foreground">Conexões</p>
                 </div>
               </div>
             </CardContent>
