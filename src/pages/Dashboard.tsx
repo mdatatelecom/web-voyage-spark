@@ -52,7 +52,7 @@ export default function Dashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Network className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">   InfraTrack</h1>
+            <h1 className="text-2xl font-bold">InfraConnexus</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
