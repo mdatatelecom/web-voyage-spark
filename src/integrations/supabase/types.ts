@@ -56,6 +56,87 @@ export type Database = {
           },
         ]
       }
+      alert_settings: {
+        Row: {
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          created_at: string | null
+          current_value: number | null
+          id: string
+          message: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: Database["public"]["Enums"]["alert_severity"]
+          status: Database["public"]["Enums"]["alert_status"] | null
+          threshold_value: number | null
+          title: string
+          type: Database["public"]["Enums"]["alert_type"]
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string | null
+          current_value?: number | null
+          id?: string
+          message: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: Database["public"]["Enums"]["alert_severity"]
+          status?: Database["public"]["Enums"]["alert_status"] | null
+          threshold_value?: number | null
+          title: string
+          type: Database["public"]["Enums"]["alert_type"]
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string | null
+          current_value?: number | null
+          id?: string
+          message?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: Database["public"]["Enums"]["alert_severity"]
+          status?: Database["public"]["Enums"]["alert_status"] | null
+          threshold_value?: number | null
+          title?: string
+          type?: Database["public"]["Enums"]["alert_type"]
+        }
+        Relationships: []
+      }
       buildings: {
         Row: {
           address: string | null
@@ -565,6 +646,9 @@ export type Database = {
       }
     }
     Enums: {
+      alert_severity: "info" | "warning" | "critical"
+      alert_status: "active" | "acknowledged" | "resolved"
+      alert_type: "rack_capacity" | "port_capacity" | "equipment_failure"
       cable_type:
         | "utp_cat5e"
         | "utp_cat6"
@@ -717,6 +801,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alert_severity: ["info", "warning", "critical"],
+      alert_status: ["active", "acknowledged", "resolved"],
+      alert_type: ["rack_capacity", "port_capacity", "equipment_failure"],
       cable_type: [
         "utp_cat5e",
         "utp_cat6",
