@@ -13,6 +13,8 @@ import Floors from "./pages/Floors";
 import Rooms from "./pages/Rooms";
 import Racks from "./pages/Racks";
 import RackDetails from "./pages/RackDetails";
+import Equipment from "./pages/Equipment";
+import Connections from "./pages/Connections";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +74,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RackDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/equipment" 
+              element={
+                <ProtectedRoute>
+                  <Equipment />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/connections" 
+              element={
+                <ProtectedRoute>
+                  <Connections />
                 </ProtectedRoute>
               } 
             />

@@ -1,0 +1,161 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Database } from '@/integrations/supabase/types';
+
+type CableType = Database['public']['Enums']['cable_type'];
+type ConnectionStatus = Database['public']['Enums']['connection_status'];
+
+interface ConnectionData {
+  port_a_id: string;
+  port_b_id: string;
+  cable_type: CableType;
+  cable_length_meters?: number;
+  cable_color?: string;
+  status?: ConnectionStatus;
+  notes?: string;
+}
+
+export const useConnections = () => {
+  const queryClient = useQueryClient();
+
+  const { data: connections, isLoading } = useQuery({
+    queryKey: ['connections'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_connection_details')
+        .select('*')
+        .order('connection_code', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (values: ConnectionData) => {
+      // 1. Validar que as portas estão disponíveis
+      const { data: ports } = await supabase
+        .from('ports')
+        .select('id, status, name')
+        .in('id', [values.port_a_id, values.port_b_id]);
+      
+      const unavailablePorts = ports?.filter(p => p.status !== 'available');
+      if (unavailablePorts && unavailablePorts.length > 0) {
+        throw new Error(`Portas não disponíveis: ${unavailablePorts.map(p => p.name).join(', ')}`);
+      }
+      
+      // 2. Obter usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // 3. Inserir conexão (connection_code é auto-gerado pelo trigger)
+      const insertData: any = {
+        port_a_id: values.port_a_id,
+        port_b_id: values.port_b_id,
+        cable_type: values.cable_type,
+        status: values.status || 'active',
+        installed_by: user?.id
+      };
+      
+      if (values.cable_length_meters) insertData.cable_length_meters = values.cable_length_meters;
+      if (values.cable_color) insertData.cable_color = values.cable_color;
+      if (values.notes) insertData.notes = values.notes;
+      
+      const { data: newConnection, error: connError } = await supabase
+        .from('connections')
+        .insert([insertData])
+        .select()
+        .single();
+      
+      if (connError) throw connError;
+      
+      // 4. Atualizar status das portas para 'in_use'
+      const { error: portsError } = await supabase
+        .from('ports')
+        .update({ status: 'in_use' })
+        .in('id', [values.port_a_id, values.port_b_id]);
+      
+      if (portsError) throw portsError;
+      
+      return newConnection;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      queryClient.invalidateQueries({ queryKey: ['ports'] });
+      queryClient.invalidateQueries({ queryKey: ['equipment'] });
+      toast.success(`Conexão ${data.connection_code} criada com sucesso!`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: ConnectionStatus }) => {
+      const { error } = await supabase
+        .from('connections')
+        .update({ status })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      toast.success('Status da conexão atualizado!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro: ${error.message}`);
+    }
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      // 1. Buscar IDs das portas
+      const { data: connection } = await supabase
+        .from('connections')
+        .select('port_a_id, port_b_id, connection_code')
+        .eq('id', connectionId)
+        .single();
+      
+      if (!connection) throw new Error('Conexão não encontrada');
+      
+      // 2. Atualizar status da conexão
+      const { error: connError } = await supabase
+        .from('connections')
+        .update({ status: 'inactive' })
+        .eq('id', connectionId);
+      
+      if (connError) throw connError;
+      
+      // 3. Liberar as portas
+      const { error: portsError } = await supabase
+        .from('ports')
+        .update({ status: 'available' })
+        .in('id', [connection.port_a_id, connection.port_b_id]);
+      
+      if (portsError) throw portsError;
+      
+      return connection.connection_code;
+    },
+    onSuccess: (code) => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      queryClient.invalidateQueries({ queryKey: ['ports'] });
+      queryClient.invalidateQueries({ queryKey: ['equipment'] });
+      toast.success(`Conexão ${code} desconectada. Portas liberadas.`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  return {
+    connections,
+    isLoading,
+    createConnection: createMutation.mutate,
+    updateConnectionStatus: updateStatusMutation.mutate,
+    disconnectConnection: disconnectMutation.mutate,
+    isCreating: createMutation.isPending,
+    isUpdating: updateStatusMutation.isPending,
+    isDisconnecting: disconnectMutation.isPending
+  };
+};
