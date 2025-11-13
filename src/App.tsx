@@ -26,6 +26,7 @@ import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
 import AlertSettings from "./pages/AlertSettings";
+import MyConnections from "./pages/MyConnections";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -133,6 +134,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <QRScanner />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-connections"
+              element={
+                <ProtectedRoute requiredRole="network_viewer">
+                  <MyConnections />
                 </ProtectedRoute>
               }
             />

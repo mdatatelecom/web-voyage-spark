@@ -17,7 +17,7 @@ interface AppLayoutProps {
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { roles, isAdmin, isTechnician } = useUserRole();
+  const { roles, isAdmin, isTechnician, isNetworkViewer } = useUserRole();
   const { labels } = useLabels();
 
   const handleSignOut = async () => {
@@ -26,16 +26,17 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   };
 
   const menuItems = [
-    { label: 'Dashboard', icon: Home, path: '/dashboard', visible: true, badge: undefined },
-    { label: 'Localizações', icon: Building2, path: '/buildings', visible: true, badge: undefined },
-    { label: 'Racks', icon: Package, path: '/racks', visible: true, badge: undefined },
-    { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: isAdmin || isTechnician, badge: undefined },
-    { label: 'Conexões', icon: Network, path: '/connections', visible: isAdmin || isTechnician, badge: undefined },
+    { label: 'Dashboard', icon: Home, path: '/dashboard', visible: !isNetworkViewer, badge: undefined },
+    { label: 'Minhas Conexões', icon: Network, path: '/my-connections', visible: isNetworkViewer, badge: undefined },
+    { label: 'Localizações', icon: Building2, path: '/buildings', visible: !isNetworkViewer, badge: undefined },
+    { label: 'Racks', icon: Package, path: '/racks', visible: !isNetworkViewer, badge: undefined },
+    { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
+    { label: 'Conexões', icon: Network, path: '/connections', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
-    { label: 'Etiquetas', icon: Tag, path: '/labels', visible: isAdmin || isTechnician, badge: labels?.length },
-    { label: 'Alertas', icon: Bell, path: '/alerts', visible: true, badge: undefined },
-    { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin, badge: undefined },
-    { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin, badge: undefined },
+    { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: labels?.length },
+    { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
+    { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
+    { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
   ];
 
   return (
@@ -56,7 +57,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                 <div className="flex gap-1">
                   {roles.map((role) => (
                     <Badge key={role} variant="secondary" className="text-xs">
-                      {role === 'admin' ? 'Admin' : role === 'technician' ? 'Técnico' : 'Visualizador'}
+                      {role === 'admin' ? 'Admin' : role === 'technician' ? 'Técnico' : role === 'network_viewer' ? 'Vis. Rede' : 'Visualizador'}
                     </Badge>
                   ))}
                 </div>

@@ -14,17 +14,22 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUsers, UserRole } from '@/hooks/useUsers';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
-import { Plus, X } from 'lucide-react';
+import { UserCreateDialog } from '@/components/users/UserCreateDialog';
+import { Plus, X, UserPlus } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Users() {
+  const queryClient = useQueryClient();
   const { users, isLoading, accessLogs, logsLoading, removeRole } = useUsers();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const getRoleBadgeColor = (role: UserRole) => {
     const colors = {
       admin: 'bg-red-500',
       technician: 'bg-blue-500',
       viewer: 'bg-gray-500',
+      network_viewer: 'bg-purple-500',
     };
     return colors[role] || 'bg-gray-500';
   };
@@ -34,6 +39,7 @@ export default function Users() {
       admin: 'Admin',
       technician: 'Técnico',
       viewer: 'Visualizador',
+      network_viewer: 'Visualizador de Rede',
     };
     return labels[role] || role;
   };
@@ -71,10 +77,16 @@ export default function Users() {
               Gerenciar usuários, roles e visualizar logs de acesso
             </p>
           </div>
-          <Button onClick={() => setRoleDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Atribuir Role
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Cadastrar Usuário
+            </Button>
+            <Button variant="outline" onClick={() => setRoleDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Atribuir Role
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="users" className="space-y-4">
@@ -198,6 +210,11 @@ export default function Users() {
           </TabsContent>
         </Tabs>
 
+        <UserCreateDialog 
+          open={createDialogOpen} 
+          onOpenChange={setCreateDialogOpen}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}
+        />
         <UserRoleDialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen} />
       </div>
     </AppLayout>

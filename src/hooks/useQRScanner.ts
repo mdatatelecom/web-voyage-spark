@@ -226,5 +226,6 @@ export const useQRScanner = () => {
     resumeScanning,
     switchCamera,
     clearHistory,
+    processQRCode,
   };
 };

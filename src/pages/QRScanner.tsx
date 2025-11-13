@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { useQRScanner } from '@/hooks/useQRScanner';
 import { ScanResultDialog } from '@/components/qr-scanner/ScanResultDialog';
 import { PublicScanResultDialog } from '@/components/qr-scanner/PublicScanResultDialog';
-import { ArrowLeft, QrCode, Camera, RotateCw, AlertCircle, History, Trash2 } from 'lucide-react';
+import { ArrowLeft, QrCode, Camera, RotateCw, AlertCircle, History, Trash2, Upload } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -21,6 +21,8 @@ export default function QRScanner() {
   const isPublicMode = searchParams.get('mode') === 'public';
   const scannerRef = useRef<Html5Qrcode | undefined>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const {
     isScanning,
@@ -33,6 +35,7 @@ export default function QRScanner() {
     resumeScanning,
     switchCamera,
     clearHistory,
+    processQRCode,
   } = useQRScanner();
 
   useEffect(() => {
@@ -75,6 +78,25 @@ export default function QRScanner() {
       navigate('/auth');
     } else {
       navigate(-1);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      const decodedText = await html5QrCode.scanFile(file, false);
+      await processQRCode(decodedText);
+    } catch (err) {
+      console.error('Erro ao processar imagem:', err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -146,6 +168,24 @@ export default function QRScanner() {
                 <RotateCw className="h-5 w-5" />
                 Trocar Câmera
               </Button>
+              
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-5 w-5" />
+                {isUploading ? 'Processando...' : 'Enviar Foto'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
             </div>
           </Card>
 

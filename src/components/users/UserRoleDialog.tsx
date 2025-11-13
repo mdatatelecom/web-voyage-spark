@@ -112,6 +112,7 @@ export const UserRoleDialog = ({ open, onOpenChange }: UserRoleDialogProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="viewer">Viewer (Visualizador)</SelectItem>
+                <SelectItem value="network_viewer">Network Viewer (Visualizador de Rede)</SelectItem>
                 <SelectItem value="technician">Technician (Técnico)</SelectItem>
                 <SelectItem value="admin">Admin (Administrador)</SelectItem>
               </SelectContent>

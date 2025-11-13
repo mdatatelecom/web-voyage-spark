@@ -5,51 +5,44 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Network, QrCode } from 'lucide-react';
+import { toast } from 'sonner';
+import { Network } from 'lucide-react';
+
 export default function Auth() {
+  const navigate = useNavigate();
+  const { signIn, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const {
-    signIn,
-    signUp,
-    user
-  } = useAuth();
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     if (user) {
       navigate('/dashboard');
     }
   }, [user, navigate]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    const {
-      error
-    } = await signIn(email, password);
-    if (!error) {
+    setLoading(true);
+
+    const { error } = await signIn(email, password);
+
+    if (error) {
+      toast.error('Erro ao fazer login: ' + error.message);
+    } else {
+      toast.success('Login realizado com sucesso!');
       navigate('/dashboard');
     }
-    setIsLoading(false);
+
+    setLoading(false);
   };
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    const {
-      error
-    } = await signUp(email, password, fullName);
-    if (!error) {
-      navigate('/dashboard');
-    }
-    setIsLoading(false);
-  };
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Network className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold">      InfraConnexus</h1>
+          <h1 className="text-4xl font-bold">InfraConnexus</h1>
         </div>
         
         <Card>
@@ -60,64 +53,35 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-        <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Entrar</TabsTrigger>
-            <TabsTrigger value="signup">Cadastrar</TabsTrigger>
-          </TabsList>
-              
-              <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email">E-mail</Label>
-                    <Input id="signin-email" type="email" placeholder="voce@exemplo.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password">Senha</Label>
-                    <Input id="signin-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Entrando...' : 'Entrar'}
-                  </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Nome Completo</Label>
-                    <Input id="signup-name" type="text" placeholder="João Silva" value={fullName} onChange={e => setFullName(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">E-mail</Label>
-                    <Input id="signup-email" type="email" placeholder="voce@exemplo.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Senha</Label>
-                    <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Criando conta...' : 'Cadastrar'}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-            
-            <div className="mt-6 pt-6 border-t">
-              <div className="text-center text-sm text-muted-foreground mb-3">
-                Precisa verificar uma conexão rapidamente?
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="voce@exemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/scan?mode=public')}
-              >
-                <QrCode className="mr-2 h-4 w-4" />
-                Escanear QR Code
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Entrando...' : 'Entrar'}
               </Button>
-            </div>
+            </form>
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 }

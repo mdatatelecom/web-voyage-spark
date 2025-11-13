@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type UserRole = 'admin' | 'technician' | 'viewer';
+export type UserRole = 'admin' | 'technician' | 'viewer' | 'network_viewer';
 
 interface User {
   id: string;
