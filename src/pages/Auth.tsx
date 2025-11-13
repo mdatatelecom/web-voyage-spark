@@ -49,7 +49,7 @@ export default function Auth() {
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Network className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold">  InfraTrack</h1>
+          <h1 className="text-4xl font-bold">      InfraConnexus</h1>
         </div>
         
         <Card>
