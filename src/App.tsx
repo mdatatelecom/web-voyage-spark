@@ -20,6 +20,7 @@ import ConnectionDetails from "./pages/ConnectionDetails";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import RackOccupancy from "./pages/RackOccupancy";
+import Alerts from "./pages/Alerts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -143,6 +144,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RackOccupancy />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/alerts" 
+              element={
+                <ProtectedRoute>
+                  <Alerts />
                 </ProtectedRoute>
               } 
             />

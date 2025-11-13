@@ -132,6 +132,10 @@ export const Breadcrumb = () => {
       breadcrumbs.push({ label: 'Relatório de Ocupação', path: '/rack-occupancy' });
     }
 
+    if (pathSegments[0] === 'alerts') {
+      breadcrumbs.push({ label: 'Alertas', path: '/alerts' });
+    }
+
     return breadcrumbs;
   };
 

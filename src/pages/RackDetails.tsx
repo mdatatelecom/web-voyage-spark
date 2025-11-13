@@ -1,18 +1,21 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable } from 'lucide-react';
+import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RackVisualization } from '@/components/racks/RackVisualization';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAlertsByEntity } from '@/hooks/useAlerts';
 
 export default function RackDetails() {
   const { rackId } = useParams<{ rackId: string }>();
   const navigate = useNavigate();
   const { isAdmin, isTechnician } = useUserRole();
+  const { data: rackAlerts } = useAlertsByEntity(rackId, 'rack');
 
   const { data: rack, isLoading } = useQuery({
     queryKey: ['rack-details', rackId],
@@ -95,6 +98,16 @@ export default function RackDetails() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Alerts */}
+        {rackAlerts && rackAlerts.length > 0 && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Alerta de Capacidade:</strong> {rackAlerts[0].message}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

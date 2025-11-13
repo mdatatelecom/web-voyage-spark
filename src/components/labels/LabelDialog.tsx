@@ -7,9 +7,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, Printer, Save } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Download, Printer, Save, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useLabels } from '@/hooks/useLabels';
+import { useUserRole } from '@/hooks/useUserRole';
+import { toast } from 'sonner';
 
 interface LabelDialogProps {
   open: boolean;
@@ -21,6 +24,9 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { createLabel, isCreating } = useLabels();
+  const { isAdmin, isTechnician, isLoading: roleLoading } = useUserRole();
+  
+  const canCreateLabel = isAdmin || isTechnician;
 
   useEffect(() => {
     if (open && connection) {
@@ -57,15 +63,32 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
     }
   };
 
-  const handleSave = () => {
-    createLabel(
-      { connectionId: connection.id, qrCodeData: qrCodeDataUrl },
-      {
-        onSuccess: () => {
-          onOpenChange(false);
-        },
-      }
-    );
+  const handleSave = async () => {
+    if (!canCreateLabel) {
+      toast.error('Você não tem permissão para gerar etiquetas. Necessário role de Admin ou Técnico.');
+      return;
+    }
+
+    try {
+      console.log('Creating label for connection:', connection.id);
+      createLabel(
+        { connectionId: connection.id, qrCodeData: qrCodeDataUrl },
+        {
+          onSuccess: () => {
+            console.log('Label created successfully');
+            toast.success('Etiqueta gerada com sucesso!');
+            onOpenChange(false);
+          },
+          onError: (error: any) => {
+            console.error('Error creating label:', error);
+            toast.error(`Erro ao gerar etiqueta: ${error.message}`);
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error('Unexpected error creating label:', error);
+      toast.error(`Erro inesperado: ${error.message}`);
+    }
   };
 
   const handleDownload = () => {
@@ -144,10 +167,24 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Permission Warning */}
+          {!roleLoading && !canCreateLabel && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Você não tem permissão para gerar etiquetas. Apenas Administradores e Técnicos podem realizar esta ação.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* QR Code Preview */}
           <div className="flex flex-col items-center p-6 bg-muted rounded-lg">
-            {qrCodeDataUrl && (
+            {qrCodeDataUrl ? (
               <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64" />
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center text-muted-foreground">
+                Gerando QR Code...
+              </div>
             )}
             <p className="text-2xl font-bold mt-4">{connection?.connection_code}</p>
           </div>
@@ -176,17 +213,26 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
 
           {/* Actions */}
           <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={isCreating} className="flex-1">
+            <Button 
+              onClick={handleSave} 
+              disabled={isCreating || roleLoading || !canCreateLabel || !qrCodeDataUrl} 
+              className="flex-1"
+            >
               <Save className="w-4 h-4 mr-2" />
-              Salvar
+              {isCreating ? 'Salvando...' : 'Salvar'}
             </Button>
-            <Button onClick={handleDownload} variant="outline">
+            <Button onClick={handleDownload} variant="outline" disabled={!qrCodeDataUrl}>
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
-            <Button onClick={handlePrint} variant="outline">
+            <Button onClick={handlePrint} variant="outline" disabled={!qrCodeDataUrl}>
               <Printer className="w-4 h-4 mr-2" />
               Imprimir
+            </Button>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Fechar
             </Button>
           </div>
         </div>

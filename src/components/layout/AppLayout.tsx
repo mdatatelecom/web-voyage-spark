@@ -9,6 +9,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Breadcrumb } from './Breadcrumb';
+import { AlertBell } from '@/components/notifications/AlertBell';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -46,6 +47,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           </div>
 
           <div className="ml-auto flex items-center gap-4">
+            <AlertBell />
             {user?.email && (
               <div className="flex flex-col items-end gap-1">
                 <span className="text-sm font-medium text-foreground">{user.email}</span>

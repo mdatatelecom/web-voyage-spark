@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building, Cable, Network, Server, LogOut, BarChart3 } from 'lucide-react';
+import { Building, Cable, Network, Server, LogOut, BarChart3, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,10 @@ import { RackOccupancyChart } from '@/components/dashboard/RackOccupancyChart';
 import { EquipmentTypeChart } from '@/components/dashboard/EquipmentTypeChart';
 import { ConnectionStatusChart } from '@/components/dashboard/ConnectionStatusChart';
 import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
+import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { usePortUsageStats } from '@/hooks/useDashboardStats';
+import { useAlerts } from '@/hooks/useAlerts';
+import { Badge } from '@/components/ui/badge';
 export default function Dashboard() {
   const {
     user,
@@ -22,6 +25,8 @@ export default function Dashboard() {
     isTechnician
   } = useUserRole();
   const navigate = useNavigate();
+  const { alerts: activeAlerts, activeCount } = useAlerts({ status: 'active' });
+  
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
@@ -93,6 +98,62 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
           </Card>}
+
+        <div className="mb-8">
+          <DashboardFilters />
+        </div>
+
+        {activeCount && activeCount > 0 && (
+          <Card className="mb-8 border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                Alertas Ativos
+                <Badge variant="destructive" className="ml-auto">
+                  {activeCount}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Existem alertas de capacidade que requerem atenção
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {activeAlerts?.slice(0, 3).map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-center justify-between p-3 border rounded-lg bg-background"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground">{alert.message}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (alert.related_entity_type === 'rack') {
+                          navigate(`/racks/${alert.related_entity_id}`);
+                        } else if (alert.related_entity_type === 'equipment') {
+                          navigate(`/equipment/${alert.related_entity_id}`);
+                        }
+                      }}
+                    >
+                      Ver Detalhes
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => navigate('/alerts')}
+              >
+                Ver Todos os Alertas ({activeCount})
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/buildings')}>
