@@ -8,6 +8,11 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Buildings from "./pages/Buildings";
+import Floors from "./pages/Floors";
+import Rooms from "./pages/Rooms";
+import Racks from "./pages/Racks";
+import RackDetails from "./pages/RackDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +32,46 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buildings" 
+              element={
+                <ProtectedRoute>
+                  <Buildings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buildings/:buildingId/floors" 
+              element={
+                <ProtectedRoute>
+                  <Floors />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buildings/:buildingId/floors/:floorId/rooms" 
+              element={
+                <ProtectedRoute>
+                  <Rooms />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buildings/:buildingId/floors/:floorId/rooms/:roomId/racks" 
+              element={
+                <ProtectedRoute>
+                  <Racks />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/racks/:rackId" 
+              element={
+                <ProtectedRoute>
+                  <RackDetails />
                 </ProtectedRoute>
               } 
             />

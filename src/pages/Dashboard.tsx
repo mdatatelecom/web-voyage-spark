@@ -2,8 +2,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building, Cable, Network, Server, LogOut } from 'lucide-react';
+import { Building, Cable, Network, Server, LogOut, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -14,6 +16,25 @@ export default function Dashboard() {
     await signOut();
     navigate('/auth');
   };
+
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const [buildings, racks, equipment, connections] = await Promise.all([
+        supabase.from('buildings').select('count', { count: 'exact', head: true }),
+        supabase.from('racks').select('count', { count: 'exact', head: true }),
+        supabase.from('equipment').select('count', { count: 'exact', head: true }),
+        supabase.from('connections').select('count', { count: 'exact', head: true })
+      ]);
+      
+      return {
+        buildings: buildings.count || 0,
+        racks: racks.count || 0,
+        equipment: equipment.count || 0,
+        connections: connections.count || 0
+      };
+    }
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,7 +80,7 @@ export default function Dashboard() {
         )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/buildings')}>
             <CardHeader>
               <Building className="h-8 w-8 text-primary mb-2" />
               <CardTitle>Localizações</CardTitle>
@@ -68,7 +89,7 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" disabled={!isAdmin}>
+              <Button className="w-full">
                 Gerenciar Localizações
               </Button>
             </CardContent>
@@ -114,19 +135,19 @@ export default function Dashboard() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">0</p>
+                  <p className="text-3xl font-bold text-primary">{stats?.buildings || 0}</p>
                   <p className="text-sm text-muted-foreground">Prédios</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">0</p>
+                  <p className="text-3xl font-bold text-primary">{stats?.racks || 0}</p>
                   <p className="text-sm text-muted-foreground">Racks</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">0</p>
+                  <p className="text-3xl font-bold text-primary">{stats?.equipment || 0}</p>
                   <p className="text-sm text-muted-foreground">Equipamentos</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">0</p>
+                  <p className="text-3xl font-bold text-primary">{stats?.connections || 0}</p>
                   <p className="text-sm text-muted-foreground">Conexões</p>
                 </div>
               </div>
