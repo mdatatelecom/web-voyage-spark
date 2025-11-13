@@ -42,7 +42,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         <div className="flex h-16 items-center px-6">
           <div className="flex items-center gap-2">
             <Network className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">InfraTrack</h1>
+            <h1 className="text-xl font-bold text-foreground">InfraConnexus</h1>
           </div>
 
           <div className="ml-auto flex items-center gap-4">

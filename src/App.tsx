@@ -14,7 +14,9 @@ import Rooms from "./pages/Rooms";
 import Racks from "./pages/Racks";
 import RackDetails from "./pages/RackDetails";
 import Equipment from "./pages/Equipment";
+import EquipmentDetails from "./pages/EquipmentDetails";
 import Connections from "./pages/Connections";
+import ConnectionDetails from "./pages/ConnectionDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -86,10 +88,26 @@ const App = () => (
               } 
             />
             <Route 
+              path="/equipment/:id" 
+              element={
+                <ProtectedRoute>
+                  <EquipmentDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/connections" 
               element={
                 <ProtectedRoute>
                   <Connections />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/connections/:id" 
+              element={
+                <ProtectedRoute>
+                  <ConnectionDetails />
                 </ProtectedRoute>
               } 
             />

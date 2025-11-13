@@ -1,0 +1,352 @@
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Edit, Plus, MoreHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+export default function EquipmentDetails() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const portsPerPage = 20;
+
+  const { data: equipment, isLoading } = useQuery({
+    queryKey: ['equipment', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select(`
+          *,
+          rack:racks(
+            name,
+            size_u,
+            room:rooms(
+              name,
+              floor:floors(
+                name,
+                floor_number,
+                building:buildings(name)
+              )
+            )
+          ),
+          ports(
+            id,
+            name,
+            port_number,
+            status,
+            speed,
+            notes,
+            connections_a:connections!connections_port_a_id_fkey(
+              id,
+              connection_code,
+              status
+            ),
+            connections_b:connections!connections_port_b_id_fkey(
+              id,
+              connection_code,
+              status
+            )
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      const portsWithConnections = data.ports.map((port: any) => {
+        const connection = port.connections_a?.[0] || port.connections_b?.[0];
+        return {
+          ...port,
+          connection: connection || null
+        };
+      });
+
+      return {
+        ...data,
+        ports: portsWithConnections
+      };
+    },
+    enabled: !!id
+  });
+
+  const filteredPorts = equipment?.ports?.filter((port: any) => {
+    const matchesStatus = statusFilter === 'all' || port.status === statusFilter;
+    const matchesSearch = port.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesStatus && matchesSearch;
+  }) || [];
+
+  const totalPages = Math.ceil(filteredPorts.length / portsPerPage);
+  const startIndex = (currentPage - 1) * portsPerPage;
+  const paginatedPorts = filteredPorts.slice(startIndex, startIndex + portsPerPage);
+
+  const stats = {
+    total: equipment?.ports?.length || 0,
+    available: equipment?.ports?.filter((p: any) => p.status === 'available').length || 0,
+    inUse: equipment?.ports?.filter((p: any) => p.status === 'in_use').length || 0,
+    reserved: equipment?.ports?.filter((p: any) => p.status === 'reserved').length || 0,
+    faulty: equipment?.ports?.filter((p: any) => p.status === 'faulty').length || 0
+  };
+
+  const getTypeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      switch: 'bg-blue-500',
+      router: 'bg-green-500',
+      server: 'bg-orange-500',
+      patch_panel: 'bg-gray-500',
+      firewall: 'bg-red-500'
+    };
+    return colors[type] || 'bg-gray-500';
+  };
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { label: string; color: string }> = {
+      available: { label: 'Disponível', color: 'bg-green-500' },
+      in_use: { label: 'Em Uso', color: 'bg-red-500' },
+      reserved: { label: 'Reservado', color: 'bg-yellow-500' },
+      faulty: { label: 'Defeituoso', color: 'bg-gray-500' }
+    };
+    const { label, color } = config[status] || { label: status, color: 'bg-gray-500' };
+    return <Badge className={color}>{label}</Badge>;
+  };
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">Carregando...</div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">{equipment?.name}</h1>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge className={getTypeColor(equipment?.type || '')}>
+                {equipment?.type}
+              </Badge>
+              {equipment?.manufacturer && (
+                <span className="text-muted-foreground">
+                  {equipment.manufacturer} {equipment.model}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline">
+              <Edit className="w-4 h-4 mr-2" />
+              Editar Equipamento
+            </Button>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Portas
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-6">
+          <Card className="p-6 space-y-4">
+            <div>
+              <h3 className="font-semibold mb-3">📍 Localização</h3>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>🏢 {equipment?.rack?.room?.floor?.building?.name}</p>
+                <p>📶 {equipment?.rack?.room?.floor?.name}</p>
+                <p>🚪 {equipment?.rack?.room?.name}</p>
+                <p>📦 {equipment?.rack?.name}</p>
+                <p className="font-medium text-foreground">
+                  Posição: U{equipment?.position_u_start}-{equipment?.position_u_end}
+                  ({(equipment?.position_u_end || 0) - (equipment?.position_u_start || 0) + 1}U)
+                </p>
+              </div>
+            </div>
+
+            {equipment?.ip_address && (
+              <div>
+                <h3 className="font-semibold mb-3">🌐 Rede</h3>
+                <div className="space-y-1 text-sm">
+                  <p className="text-muted-foreground">IP: {equipment.ip_address}</p>
+                  {equipment.hostname && (
+                    <p className="text-muted-foreground">Host: {equipment.hostname}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h3 className="font-semibold mb-3">📊 Estatísticas de Portas</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total:</span>
+                  <span className="font-medium">{stats.total}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">🟢 Disponíveis:</span>
+                  <span className="font-medium">{stats.available} ({stats.total > 0 ? Math.round(stats.available / stats.total * 100) : 0}%)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">🔴 Em Uso:</span>
+                  <span className="font-medium">{stats.inUse} ({stats.total > 0 ? Math.round(stats.inUse / stats.total * 100) : 0}%)</span>
+                </div>
+                {stats.reserved > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">🟡 Reservadas:</span>
+                    <span className="font-medium">{stats.reserved}</span>
+                  </div>
+                )}
+                {stats.faulty > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">⚫ Defeituosas:</span>
+                    <span className="font-medium">{stats.faulty}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          <div className="md:col-span-3 space-y-4">
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                Portas do Equipamento ({filteredPorts.length})
+              </h2>
+
+              <div className="flex gap-4 mb-4">
+                <div className="flex gap-2">
+                  <Button
+                    variant={statusFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('all')}
+                  >
+                    Todas
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'available' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('available')}
+                  >
+                    Disponíveis
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'in_use' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('in_use')}
+                  >
+                    Em Uso
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'reserved' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('reserved')}
+                  >
+                    Reservadas
+                  </Button>
+                </div>
+                <Input
+                  placeholder="Buscar porta..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-xs"
+                />
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Porta</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Velocidade</TableHead>
+                    <TableHead>Conexão</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedPorts.map((port: any) => (
+                    <TableRow key={port.id}>
+                      <TableCell className="font-medium">{port.name}</TableCell>
+                      <TableCell>{getStatusBadge(port.status)}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {port.speed || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {port.connection ? (
+                          <Button
+                            variant="link"
+                            className="p-0 h-auto"
+                            onClick={() => navigate(`/connections/${port.connection.id}`)}
+                          >
+                            {port.connection.connection_code}
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Editar Porta</DropdownMenuItem>
+                            <DropdownMenuItem>Alterar Status</DropdownMenuItem>
+                            {port.status === 'in_use' && port.connection && (
+                              <DropdownMenuItem
+                                onClick={() => navigate(`/connections/${port.connection.id}`)}
+                              >
+                                Ver Conexão
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    ◀ Anterior
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Próxima ▶
+                  </Button>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
