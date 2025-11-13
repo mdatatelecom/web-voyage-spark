@@ -709,7 +709,7 @@ export type Database = {
         | "storage"
         | "other"
       port_status: "available" | "in_use" | "reserved" | "disabled"
-      user_role: "admin" | "technician" | "viewer"
+      user_role: "admin" | "technician" | "viewer" | "network_viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -867,7 +867,7 @@ export const Constants = {
         "other",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
-      user_role: ["admin", "technician", "viewer"],
+      user_role: ["admin", "technician", "viewer", "network_viewer"],
     },
   },
 } as const
