@@ -56,9 +56,10 @@ export const useSystemSettings = () => {
       if (error) throw error;
 
       data?.forEach((setting) => {
-        if (setting.setting_key === 'branding') {
-          const brandingData = setting.setting_value as unknown as BrandingSettings;
-          setBranding(brandingData);
+      if (setting.setting_key === 'branding') {
+        const brandingData = setting.setting_value as unknown as BrandingSettings;
+        console.log('🎨 Branding carregado:', brandingData);
+        setBranding(brandingData);
           
           // Aplicar branding imediatamente ao carregar
           document.title = `${brandingData.systemName} - Gestão de Infraestrutura`;

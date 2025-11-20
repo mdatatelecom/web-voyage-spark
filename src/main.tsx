@@ -2,8 +2,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// Carregar branding o mais cedo possível (antes do React renderizar)
-(async () => {
+// Carregar branding ANTES de renderizar o React
+async function initApp() {
   try {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`,
@@ -29,8 +29,12 @@ import "./index.css";
       }
     }
   } catch (e) {
-    console.log('Failed to load branding early:', e);
+    console.error('Failed to load branding early:', e);
   }
-})();
+  
+  // Renderizar o React após branding carregar
+  createRoot(document.getElementById("root")!).render(<App />);
+}
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Iniciar aplicação
+initApp();
