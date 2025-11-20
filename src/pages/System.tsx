@@ -69,8 +69,7 @@ export default function System() {
     themeColors, 
     saveBranding, 
     saveThemeColors, 
-    uploadImage,
-    applyPreset
+    uploadImage
   } = useSystemSettings();
 
   const DEFAULT_COLORS = {
@@ -87,108 +86,9 @@ export default function System() {
     sidebarAccentForeground: '240 5.9% 10%',
     sidebarBorder: '220 13% 91%',
   };
-
-  const COLOR_PRESETS = [
-    {
-      name: 'IW Fiber',
-      description: 'Azul profissional e elegante',
-      preview: ['#2563eb', '#dbeafe', '#f1f5f9', '#1e40af'],
-      colors: {
-        primary: '217 91% 60%',
-        primaryForeground: '210 40% 98%',
-        secondary: '214 100% 97%',
-        secondaryForeground: '222.2 47.4% 11.2%',
-        accent: '214 100% 97%',
-        accentForeground: '222.2 47.4% 11.2%',
-        sidebarBackground: '222 47% 11%',
-        sidebarForeground: '210 40% 98%',
-        sidebarPrimary: '217 91% 60%',
-        sidebarAccent: '222 47% 20%',
-        sidebarAccentForeground: '210 40% 98%',
-        sidebarBorder: '217 33% 17%',
-      }
-    },
-    {
-      name: 'Verde Moderno',
-      description: 'Fresco e sustentável',
-      preview: ['#10b981', '#d1fae5', '#f0fdf4', '#059669'],
-      colors: {
-        primary: '160 84% 39%',
-        primaryForeground: '0 0% 100%',
-        secondary: '152 76% 94%',
-        secondaryForeground: '160 84% 15%',
-        accent: '152 76% 94%',
-        accentForeground: '160 84% 15%',
-        sidebarBackground: '160 84% 15%',
-        sidebarForeground: '152 76% 94%',
-        sidebarPrimary: '160 84% 39%',
-        sidebarAccent: '160 84% 25%',
-        sidebarAccentForeground: '152 76% 94%',
-        sidebarBorder: '160 50% 20%',
-      }
-    },
-    {
-      name: 'Roxo Criativo',
-      description: 'Inovador e moderno',
-      preview: ['#8b5cf6', '#ede9fe', '#faf5ff', '#7c3aed'],
-      colors: {
-        primary: '258 90% 66%',
-        primaryForeground: '0 0% 100%',
-        secondary: '270 100% 98%',
-        secondaryForeground: '258 90% 30%',
-        accent: '270 100% 98%',
-        accentForeground: '258 90% 30%',
-        sidebarBackground: '258 90% 20%',
-        sidebarForeground: '270 100% 98%',
-        sidebarPrimary: '258 90% 66%',
-        sidebarAccent: '258 90% 30%',
-        sidebarAccentForeground: '270 100% 98%',
-        sidebarBorder: '258 50% 25%',
-      }
-    },
-    {
-      name: 'Laranja Energia',
-      description: 'Vibrante e dinâmico',
-      preview: ['#f97316', '#fed7aa', '#fff7ed', '#ea580c'],
-      colors: {
-        primary: '24 95% 53%',
-        primaryForeground: '0 0% 100%',
-        secondary: '33 100% 96%',
-        secondaryForeground: '24 95% 20%',
-        accent: '33 100% 96%',
-        accentForeground: '24 95% 20%',
-        sidebarBackground: '24 95% 20%',
-        sidebarForeground: '33 100% 96%',
-        sidebarPrimary: '24 95% 53%',
-        sidebarAccent: '24 95% 30%',
-        sidebarAccentForeground: '33 100% 96%',
-        sidebarBorder: '24 50% 25%',
-      }
-    },
-    {
-      name: 'Escuro Elegante',
-      description: 'Minimalista e sofisticado',
-      preview: ['#18181b', '#e4e4e7', '#fafafa', '#3f3f46'],
-      colors: {
-        primary: '240 4% 16%',
-        primaryForeground: '0 0% 98%',
-        secondary: '240 5% 96%',
-        secondaryForeground: '240 6% 10%',
-        accent: '240 5% 96%',
-        accentForeground: '240 6% 10%',
-        sidebarBackground: '240 10% 4%',
-        sidebarForeground: '0 0% 90%',
-        sidebarPrimary: '0 0% 98%',
-        sidebarAccent: '240 4% 16%',
-        sidebarAccentForeground: '0 0% 98%',
-        sidebarBorder: '240 4% 16%',
-      }
-    }
-  ];
   
   const [localBranding, setLocalBranding] = useState(branding);
   const [localColors, setLocalColors] = useState(themeColors);
-  const [applyingPreset, setApplyingPreset] = useState(false);
 
   useEffect(() => {
     setLocalBranding(branding);
@@ -509,64 +409,6 @@ export default function System() {
             {/* Paletas Predefinidas */}
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Palette className="w-5 h-5" />
-                Paletas Predefinidas
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Escolha uma paleta de cores pronta para personalizar rapidamente o visual do sistema.
-                <span className="font-semibold text-primary"> As cores serão aplicadas e salvas automaticamente.</span>
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {COLOR_PRESETS.map((preset) => (
-                  <div
-                    key={preset.name}
-                    className="border rounded-lg p-4 hover:border-primary transition-colors"
-                  >
-                    <h4 className="font-semibold mb-1">{preset.name}</h4>
-                    <p className="text-xs text-muted-foreground mb-3">{preset.description}</p>
-                    <div className="flex gap-2 mb-3">
-                      {preset.preview.map((color, i) => (
-                        <div
-                          key={i}
-                          className="h-8 flex-1 rounded border"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full" 
-                      disabled={applyingPreset}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setApplyingPreset(true);
-                        
-                        // Atualizar local imediatamente para feedback visual
-                        setLocalColors(preset.colors as any);
-                        
-                        // Salvar no banco
-                        await applyPreset(preset.colors as any);
-                        
-                        setApplyingPreset(false);
-                      }}
-                    >
-                      {applyingPreset ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Aplicando...
-                        </>
-                      ) : (
-                        'Aplicar Paleta'
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <ImageIcon className="w-5 h-5" />
                 Branding
               </h3>
@@ -789,26 +631,30 @@ export default function System() {
 
               <h4 className="font-semibold mb-4">Cores do Menu Lateral</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ColorPicker
-                  label="Fundo do Sidebar"
-                  value={localColors.sidebarBackground}
-                  onChange={(v) => setLocalColors({ ...localColors, sidebarBackground: v })}
-                />
-                <ColorPicker
-                  label="Texto do Sidebar"
-                  value={localColors.sidebarForeground}
-                  onChange={(v) => setLocalColors({ ...localColors, sidebarForeground: v })}
-                />
-                <ColorPicker
-                  label="Item Ativo do Sidebar"
-                  value={localColors.sidebarPrimary}
-                  onChange={(v) => setLocalColors({ ...localColors, sidebarPrimary: v })}
-                />
-                <ColorPicker
-                  label="Hover do Sidebar"
-                  value={localColors.sidebarAccent}
-                  onChange={(v) => setLocalColors({ ...localColors, sidebarAccent: v })}
-                />
+                  <ColorPicker
+                    label="Cor de Fundo do Menu"
+                    description="Cor de fundo do menu lateral"
+                    value={localColors.sidebarBackground}
+                    onChange={(v) => setLocalColors({ ...localColors, sidebarBackground: v })}
+                  />
+                  <ColorPicker
+                    label="Cor do Texto do Menu"
+                    description="Cor dos itens do menu lateral (inativos)"
+                    value={localColors.sidebarForeground}
+                    onChange={(v) => setLocalColors({ ...localColors, sidebarForeground: v })}
+                  />
+                  <ColorPicker
+                    label="Cor do Item Ativo"
+                    description="Cor do texto do item selecionado no menu"
+                    value={localColors.sidebarPrimary}
+                    onChange={(v) => setLocalColors({ ...localColors, sidebarPrimary: v })}
+                  />
+                  <ColorPicker
+                    label="Cor de Hover do Menu"
+                    description="Cor de fundo ao passar o mouse sobre itens"
+                    value={localColors.sidebarAccent}
+                    onChange={(v) => setLocalColors({ ...localColors, sidebarAccent: v })}
+                  />
               </div>
 
             </Card>
