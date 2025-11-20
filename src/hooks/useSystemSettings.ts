@@ -15,6 +15,7 @@ interface ThemeColors {
   secondaryForeground: string;
   accent: string;
   accentForeground: string;
+  iconColor: string;
   sidebarBackground: string;
   sidebarForeground: string;
   sidebarPrimary: string;
@@ -23,13 +24,23 @@ interface ThemeColors {
   sidebarBorder: string;
 }
 
-export const useSystemSettings = () => {
-  const { toast } = useToast();
-  const [branding, setBranding] = useState<BrandingSettings>({
+const getBrandingFromCache = (): BrandingSettings => {
+  try {
+    const cached = localStorage.getItem('branding_cache');
+    if (cached) return JSON.parse(cached);
+  } catch (e) {
+    console.error('Erro ao ler cache de branding:', e);
+  }
+  return {
     systemName: 'InfraConnexus',
     logoUrl: null,
     faviconUrl: null,
-  });
+  };
+};
+
+export const useSystemSettings = () => {
+  const { toast } = useToast();
+  const [branding, setBranding] = useState<BrandingSettings>(getBrandingFromCache());
   const [themeColors, setThemeColors] = useState<ThemeColors>({
     primary: '222.2 47.4% 11.2%',
     primaryForeground: '210 40% 98%',
@@ -37,6 +48,7 @@ export const useSystemSettings = () => {
     secondaryForeground: '222.2 47.4% 11.2%',
     accent: '210 40% 96.1%',
     accentForeground: '222.2 47.4% 11.2%',
+    iconColor: '222.2 47.4% 11.2%',
     sidebarBackground: '0 0% 98%',
     sidebarForeground: '240 5.3% 26.1%',
     sidebarPrimary: '240 5.9% 10%',
@@ -141,6 +153,7 @@ export const useSystemSettings = () => {
     root.style.setProperty('--secondary-foreground', colors.secondaryForeground);
     root.style.setProperty('--accent', colors.accent);
     root.style.setProperty('--accent-foreground', colors.accentForeground);
+    root.style.setProperty('--icon-color', colors.iconColor);
     root.style.setProperty('--sidebar-background', colors.sidebarBackground);
     root.style.setProperty('--sidebar-foreground', colors.sidebarForeground);
     root.style.setProperty('--sidebar-primary', colors.sidebarPrimary);

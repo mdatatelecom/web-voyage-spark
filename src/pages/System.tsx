@@ -45,8 +45,10 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function System() {
+  const { toast } = useToast();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
   const {
     systemHealth,
@@ -79,6 +81,7 @@ export default function System() {
     secondaryForeground: '222.2 47.4% 11.2%',
     accent: '210 40% 96.1%',
     accentForeground: '222.2 47.4% 11.2%',
+    iconColor: '222.2 47.4% 11.2%',
     sidebarBackground: '0 0% 98%',
     sidebarForeground: '240 5.3% 26.1%',
     sidebarPrimary: '240 5.9% 10%',
@@ -89,6 +92,7 @@ export default function System() {
   
   const [localBranding, setLocalBranding] = useState(branding);
   const [localColors, setLocalColors] = useState(themeColors);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalBranding(branding);
@@ -97,6 +101,14 @@ export default function System() {
   useEffect(() => {
     setLocalColors(themeColors);
   }, [themeColors]);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreview) {
+        URL.revokeObjectURL(logoPreview);
+      }
+    };
+  }, [logoPreview]);
 
   if (roleLoading) {
     return (
@@ -423,24 +435,54 @@ export default function System() {
                   />
                 </div>
 
-                <div>
-                  <Label>Logo Principal</Label>
-                  <div className="flex gap-3 items-center mt-2">
-                    {localBranding.logoUrl && (
-                      <img src={localBranding.logoUrl} alt="Logo" className="h-16 w-auto border rounded" />
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="logo">Logo Principal</Label>
+                  <div className="flex gap-4 items-start">
                     <Input
+                      id="logo"
                       type="file"
                       accept="image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
+                          // ✨ CRIAR PREVIEW IMEDIATO
+                          const previewUrl = URL.createObjectURL(file);
+                          setLogoPreview(previewUrl);
+                          
                           const url = await uploadImage(file, 'logo');
-                          if (url) setLocalBranding({ ...localBranding, logoUrl: url });
+                          if (url) {
+                            setLocalBranding({ ...localBranding, logoUrl: url });
+                          } else {
+                            setLogoPreview(null);
+                          }
                         }
                       }}
+                      className="flex-1"
                     />
+                    
+                    {/* ✨ PREVIEW AO VIVO */}
+                    {(logoPreview || localBranding.logoUrl) && (
+                      <Card className="p-4 bg-gradient-to-br from-background via-background to-primary/5 shrink-0">
+                        <div className="text-center space-y-3">
+                          <p className="text-xs text-muted-foreground font-medium">
+                            Preview da Tela de Login
+                          </p>
+                          <div className="bg-white rounded-lg p-6 shadow-sm border">
+                            <img
+                              src={logoPreview || localBranding.logoUrl!}
+                              alt="Preview"
+                              className="h-16 w-auto mx-auto object-contain"
+                            />
+                          </div>
+                        </div>
+                      </Card>
+                    )}
                   </div>
+                  {localBranding.logoUrl && (
+                    <p className="text-sm text-muted-foreground">
+                      Logo atual: <a href={localBranding.logoUrl} target="_blank" className="text-primary hover:underline">Ver imagem</a>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -463,7 +505,14 @@ export default function System() {
                   </div>
                 </div>
 
-                <Button onClick={() => saveBranding(localBranding)} className="w-full">
+                <Button 
+                  onClick={async () => {
+                    await saveBranding(localBranding);
+                    setLogoPreview(null);
+                    toast({ title: 'Branding atualizado! Faça logout para ver as mudanças no login.' });
+                  }} 
+                  className="w-full"
+                >
                   <Upload className="w-4 h-4 mr-2" />
                   Salvar Branding
                 </Button>
@@ -655,6 +704,18 @@ export default function System() {
                     value={localColors.sidebarAccent}
                     onChange={(v) => setLocalColors({ ...localColors, sidebarAccent: v })}
                   />
+              </div>
+
+              <Separator className="my-6" />
+
+              <h4 className="font-semibold mb-4">Ícones do Sistema</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ColorPicker
+                  label="Cor dos Ícones"
+                  description="Cor dos ícones do sistema e menu"
+                  value={localColors.iconColor}
+                  onChange={(v) => setLocalColors({ ...localColors, iconColor: v })}
+                />
               </div>
 
             </Card>
