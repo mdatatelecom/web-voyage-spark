@@ -21,6 +21,7 @@ import QRScanner from "./pages/QRScanner";
 import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import System from "./pages/System";
+import ConnectionDetailsViewer from "./pages/ConnectionDetailsViewer";
 import ScanAnalytics from "./pages/ScanAnalytics";
 import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
@@ -142,6 +143,14 @@ const App = () => (
             element={
               <ProtectedRoute requiredRole={['viewer', 'network_viewer']}>
                 <MyConnections />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/my-connections/:id" 
+            element={
+              <ProtectedRoute requiredRole={['viewer', 'network_viewer']}>
+                <ConnectionDetailsViewer />
               </ProtectedRoute>
             } 
           />

@@ -110,7 +110,7 @@ export default function MyConnections() {
                       variant="outline"
                       size="sm"
                       className="w-full"
-                      onClick={() => navigate(`/connections/${connection.id}`)}
+                      onClick={() => navigate(`/my-connections/${connection.id}`)}
                     >
                       Ver Detalhes
                     </Button>
