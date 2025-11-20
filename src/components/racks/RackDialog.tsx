@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRacks } from '@/hooks/useRacks';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,11 +21,14 @@ interface RackFormData {
   name: string;
   size_u?: number;
   notes?: string;
+  room_id?: string;
 }
 
 export const RackDialog = ({ open, onOpenChange, rackId, roomId }: RackDialogProps) => {
   const { createRack, updateRack, isCreating, isUpdating } = useRacks(roomId);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<RackFormData>();
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<RackFormData>();
+
+  const selectedRoomId = watch('room_id');
 
   const { data: rack } = useQuery({
     queryKey: ['rack', rackId],
@@ -40,19 +44,51 @@ export const RackDialog = ({ open, onOpenChange, rackId, roomId }: RackDialogPro
     enabled: !!rackId,
   });
 
+  // Buscar todas as salas quando não há roomId no contexto
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms-all'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('rooms')
+        .select(`
+          id,
+          name,
+          floor:floors(
+            name,
+            building:buildings(name)
+          )
+        `)
+        .order('name');
+      return data;
+    },
+    enabled: !roomId && open,
+  });
+
   useEffect(() => {
     if (rack) {
       reset({
         name: rack.name,
         size_u: rack.size_u,
         notes: rack.notes || '',
+        room_id: rack.room_id,
       });
     } else {
-      reset({ name: '', size_u: 42, notes: '' });
+      reset({ 
+        name: '', 
+        size_u: 42, 
+        notes: '',
+        room_id: roomId || '' 
+      });
     }
-  }, [rack, reset, open]);
+  }, [rack, reset, open, roomId]);
 
   const onSubmit = (data: RackFormData) => {
+    const targetRoomId = roomId || data.room_id;
+    
+    if (!targetRoomId) {
+      return; // Não deveria acontecer devido à validação
+    }
+
     const formData = {
       ...data,
       size_u: data.size_u ? Number(data.size_u) : 42,
@@ -60,8 +96,8 @@ export const RackDialog = ({ open, onOpenChange, rackId, roomId }: RackDialogPro
 
     if (rackId) {
       updateRack({ id: rackId, ...formData });
-    } else if (roomId) {
-      createRack({ ...formData, room_id: roomId });
+    } else {
+      createRack({ ...formData, room_id: targetRoomId });
     }
     onOpenChange(false);
     reset();
@@ -74,6 +110,30 @@ export const RackDialog = ({ open, onOpenChange, rackId, roomId }: RackDialogPro
           <DialogTitle>{rackId ? 'Editar Rack' : 'Novo Rack'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {!roomId && !rackId && (
+            <div className="space-y-2">
+              <Label htmlFor="room_id">Sala *</Label>
+              <Select
+                value={selectedRoomId}
+                onValueChange={(value) => setValue('room_id', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a sala" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rooms?.map((room) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.name} - {room.floor?.building?.name} / {room.floor?.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedRoomId && (
+                <p className="text-sm text-destructive">Sala é obrigatória</p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="name">Nome do Rack *</Label>
             <Input
