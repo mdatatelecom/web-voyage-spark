@@ -13,11 +13,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export default function QRScanner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { isViewer, isNetworkViewer } = useUserRole();
   const isPublicMode = searchParams.get('mode') === 'public';
   const scannerRef = useRef<Html5Qrcode | undefined>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -236,7 +238,13 @@ export default function QRScanner() {
                     <div
                       key={index}
                       className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
-                      onClick={() => navigate(`/connections/${item.connectionId}`)}
+                      onClick={() => {
+                        if (isViewer || isNetworkViewer) {
+                          navigate(`/my-connections/${item.connectionId}`);
+                        } else {
+                          navigate(`/connections/${item.connectionId}`);
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-3">
                         <QrCode className="h-4 w-4 text-muted-foreground" />

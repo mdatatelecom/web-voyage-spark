@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Server, Cable, Activity } from 'lucide-react';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface ScanResultDialogProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface ScanResultDialogProps {
 
 export const ScanResultDialog = ({ open, onOpenChange, connection, connectionCode, onScanAgain }: ScanResultDialogProps) => {
   const navigate = useNavigate();
+  const { isViewer, isNetworkViewer } = useUserRole();
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
@@ -26,7 +28,11 @@ export const ScanResultDialog = ({ open, onOpenChange, connection, connectionCod
   };
 
   const handleViewDetails = () => {
-    navigate(`/connections/${connection.id}`);
+    if (isViewer || isNetworkViewer) {
+      navigate(`/my-connections/${connection.id}`);
+    } else {
+      navigate(`/connections/${connection.id}`);
+    }
     onOpenChange(false);
   };
 

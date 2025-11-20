@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,15 +12,20 @@ import { Network } from 'lucide-react';
 export default function Auth() {
   const navigate = useNavigate();
   const { signIn, user } = useAuth();
+  const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+    if (user && !roleLoading) {
+      if (isViewer || isNetworkViewer) {
+        navigate('/scan');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [user, navigate]);
+  }, [user, roleLoading, isViewer, isNetworkViewer, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +37,6 @@ export default function Auth() {
       toast.error('Erro ao fazer login: ' + error.message);
     } else {
       toast.success('Login realizado com sucesso!');
-      navigate('/dashboard');
     }
 
     setLoading(false);
