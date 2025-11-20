@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -21,7 +21,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { labels } = useLabels();
-  const { branding } = useSystemSettings();
+  const { branding, isLoading: brandingLoading } = useSystemSettings();
 
   // Use mobile layout for viewers and network_viewers
   const isMobileViewer = isViewer || isNetworkViewer;
@@ -56,7 +56,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       <header className="sticky top-0 z-50 w-full border-b bg-card">
         <div className="flex h-16 items-center px-6">
           <div className="flex items-center gap-2">
-            {branding.logoUrl ? (
+            {brandingLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            ) : branding.logoUrl ? (
               <img src={branding.logoUrl} alt={branding.systemName} className="h-8 w-auto" />
             ) : (
               <>
