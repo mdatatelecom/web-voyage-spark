@@ -54,14 +54,64 @@ export default function ConnectionDetailsViewer() {
     queryKey: ['connection-details-viewer', id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('v_connection_details')
-        .select('*')
+        .from('connections')
+        .select(`
+          *,
+          port_a:ports!port_a_id(
+            id, 
+            name,
+            equipment:equipment(
+              id, 
+              name, 
+              type,
+              rack:racks(id, name)
+            )
+          ),
+          port_b:ports!port_b_id(
+            id, 
+            name,
+            equipment:equipment(
+              id, 
+              name, 
+              type,
+              rack:racks(id, name)
+            )
+          )
+        `)
         .eq('id', id)
         .single();
-      
+
       if (error) throw error;
-      return data;
-    }
+      
+      // Transform data to match expected structure
+      const transformedData = {
+        id: data.id,
+        connection_code: data.connection_code,
+        status: data.status,
+        cable_type: data.cable_type,
+        cable_length_meters: data.cable_length_meters,
+        cable_color: data.cable_color,
+        installed_at: data.installed_at,
+        notes: data.notes,
+        port_a_id: data.port_a?.id,
+        port_a_name: data.port_a?.name,
+        equipment_a_id: data.port_a?.equipment?.id,
+        equipment_a_name: data.port_a?.equipment?.name,
+        equipment_a_type: data.port_a?.equipment?.type,
+        rack_a_id: data.port_a?.equipment?.rack?.id,
+        rack_a_name: data.port_a?.equipment?.rack?.name,
+        port_b_id: data.port_b?.id,
+        port_b_name: data.port_b?.name,
+        equipment_b_id: data.port_b?.equipment?.id,
+        equipment_b_name: data.port_b?.equipment?.name,
+        equipment_b_type: data.port_b?.equipment?.type,
+        rack_b_id: data.port_b?.equipment?.rack?.id,
+        rack_b_name: data.port_b?.equipment?.rack?.name,
+      };
+      
+      return transformedData;
+    },
+    enabled: !!id,
   });
 
   if (isLoading) {

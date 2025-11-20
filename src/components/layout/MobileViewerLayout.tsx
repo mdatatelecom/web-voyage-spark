@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { LogOut, QrCode, List } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
 interface MobileViewerLayoutProps {
   children: ReactNode;
@@ -12,10 +11,10 @@ interface MobileViewerLayoutProps {
 export const MobileViewerLayout = ({ children }: MobileViewerLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate('/auth');
   };
 
