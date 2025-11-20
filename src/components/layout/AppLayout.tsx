@@ -9,6 +9,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useLabels } from '@/hooks/useLabels';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
+import { MobileViewerLayout } from './MobileViewerLayout';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -17,8 +18,11 @@ interface AppLayoutProps {
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { roles, isAdmin, isTechnician, isNetworkViewer } = useUserRole();
+  const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { labels } = useLabels();
+
+  // Use mobile layout for viewers and network_viewers
+  const isMobileViewer = isViewer || isNetworkViewer;
 
   const handleSignOut = async () => {
     await signOut();
@@ -38,6 +42,11 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
   ];
+
+  // Return mobile layout for viewers
+  if (isMobileViewer) {
+    return <MobileViewerLayout>{children}</MobileViewerLayout>;
+  }
 
   return (
     <div className="min-h-screen bg-background">

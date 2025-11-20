@@ -1,20 +1,14 @@
-import { AppLayout } from '@/components/layout/AppLayout';
-import { Card } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Link } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, QrCode, ArrowRight, Cable } from 'lucide-react';
 
 export default function MyConnections() {
+  const navigate = useNavigate();
   const { data: connections, isLoading } = useQuery({
     queryKey: ['my-scanned-connections'],
     queryFn: async () => {
@@ -39,100 +33,109 @@ export default function MyConnections() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      active: 'bg-green-500',
-      inactive: 'bg-gray-500',
-      faulty: 'bg-red-500',
-      testing: 'bg-blue-500',
-      reserved: 'bg-yellow-500',
+      active: 'bg-green-500 text-white',
+      inactive: 'bg-gray-500 text-white',
+      faulty: 'bg-red-500 text-white',
+      testing: 'bg-blue-500 text-white',
+      reserved: 'bg-yellow-500 text-white',
     };
-    return colors[status] || 'bg-gray-500';
+    return colors[status] || 'bg-gray-500 text-white';
   };
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="text-center py-12">Carregando conexões...</div>
-      </AppLayout>
-    );
-  }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-3xl font-bold">Minhas Conexões Escaneadas</h1>
-          <p className="text-muted-foreground">
-            Visualize todas as conexões que você escaneou via QR Code
+          <h1 className="text-2xl font-bold tracking-tight">Minhas Conexões</h1>
+          <p className="text-sm text-muted-foreground">
+            Conexões que você escaneou
           </p>
         </div>
 
-        <Card className="p-6">
-          {connections && connections.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Equipamento A</TableHead>
-                  <TableHead>Porta A</TableHead>
-                  <TableHead>Equipamento B</TableHead>
-                  <TableHead>Porta B</TableHead>
-                  <TableHead>Tipo de Cabo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {connections.map((conn) => (
-                  <TableRow key={conn.id}>
-                    <TableCell className="font-medium">
-                      {conn.connection_code}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{conn.equipment_a_name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Rack: {conn.rack_a_name}
-                        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : connections && connections.length > 0 ? (
+          <div className="space-y-3">
+            {connections.map((connection) => (
+              <Card key={connection.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    {/* Connection Code */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Cable className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-lg">{connection.connection_code}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>{conn.port_a_name}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{conn.equipment_b_name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Rack: {conn.rack_b_name}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{conn.port_b_name}</TableCell>
-                    <TableCell>{getCableTypeLabel(conn.cable_type)}</TableCell>
-                    <TableCell>
-                      <Badge className={`${getStatusColor(conn.status)} text-white`}>
-                        {conn.status === 'active' && 'Ativo'}
-                        {conn.status === 'inactive' && 'Inativo'}
-                        {conn.status === 'faulty' && 'Com Falha'}
-                        {conn.status === 'testing' && 'Testando'}
-                        {conn.status === 'reserved' && 'Reservado'}
+                      <Badge className={getStatusColor(connection.status || 'active')}>
+                        {connection.status === 'active' ? 'Ativo' : 
+                         connection.status === 'inactive' ? 'Inativo' : 
+                         connection.status === 'faulty' ? 'Com Falha' :
+                         connection.status === 'testing' ? 'Testando' :
+                         connection.status === 'reserved' ? 'Reservado' :
+                         connection.status}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Link to={`/connections/${conn.id}`}>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg mb-2">Nenhuma conexão escaneada ainda</p>
-              <p className="text-sm">
-                Use o scanner de QR Code para visualizar informações de conexões
-              </p>
-            </div>
-          )}
-        </Card>
+                    </div>
+
+                    {/* Equipment Connection */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">{connection.equipment_a_name}</span>
+                        <span className="text-muted-foreground">({connection.port_a_name})</span>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">{connection.equipment_b_name}</span>
+                        <span className="text-muted-foreground">({connection.port_b_name})</span>
+                      </div>
+                    </div>
+
+                    {/* Cable Info */}
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <span className="text-muted-foreground">
+                        {getCableTypeLabel(connection.cable_type || '')}
+                      </span>
+                      {connection.cable_length_meters && (
+                        <span className="text-muted-foreground">
+                          {connection.cable_length_meters}m
+                        </span>
+                      )}
+                    </div>
+
+                    {/* View Details Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => navigate(`/connections/${connection.id}`)}
+                    >
+                      Ver Detalhes
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+              <QrCode className="h-16 w-16 text-muted-foreground" />
+              <div className="text-center space-y-2">
+                <p className="font-medium">Nenhuma conexão escaneada ainda</p>
+                <p className="text-sm text-muted-foreground">
+                  Escaneie um QR Code para começar
+                </p>
+              </div>
+              <Button onClick={() => navigate('/scan')}>
+                <QrCode className="h-4 w-4 mr-2" />
+                Escanear QR Code
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
