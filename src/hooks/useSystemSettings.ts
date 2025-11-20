@@ -175,39 +175,6 @@ export const useSystemSettings = () => {
     loadSettings();
   }, []);
 
-  const applyPreset = async (colors: ThemeColors) => {
-    // Aplica imediatamente no estado e DOM
-    setThemeColors(colors);
-    applyThemeColors(colors);
-    
-    // Salva automaticamente no banco
-    try {
-      const { error } = await supabase
-        .from('system_settings')
-        .upsert([{
-          setting_key: 'theme_colors',
-          setting_value: colors as any,
-          updated_at: new Date().toISOString(),
-        }], { 
-          onConflict: 'setting_key' 
-        });
-
-      if (error) throw error;
-      
-      toast({ title: 'Paleta aplicada e salva com sucesso!' });
-    } catch (error: any) {
-      toast({ 
-        title: 'Paleta aplicada mas não foi salva', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
-    }
-  };
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
   useEffect(() => {
     if (!isLoading) {
       applyThemeColors(themeColors);
@@ -222,6 +189,5 @@ export const useSystemSettings = () => {
     saveThemeColors,
     uploadImage,
     loadSettings,
-    applyPreset,
   };
 };

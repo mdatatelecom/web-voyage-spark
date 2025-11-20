@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building, Cable, Network, Server, LogOut, BarChart3, AlertCircle } from 'lucide-react';
+import { Building, Cable, Network, Server, LogOut, BarChart3, AlertCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,7 @@ import { usePortUsageStats } from '@/hooks/useDashboardStats';
 import { useAlerts } from '@/hooks/useAlerts';
 import { Badge } from '@/components/ui/badge';
 import { useEffect } from 'react';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export default function Dashboard() {
   const {
@@ -29,6 +30,7 @@ export default function Dashboard() {
     isNetworkViewer
   } = useUserRole();
   const navigate = useNavigate();
+  const { branding, isLoading: brandingLoading } = useSystemSettings();
 
   // Redirect viewers to scanner page
   useEffect(() => {
@@ -74,8 +76,16 @@ export default function Dashboard() {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Network className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">InfraConnexus</h1>
+            {brandingLoading ? (
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            ) : branding.logoUrl ? (
+              <img src={branding.logoUrl} alt={branding.systemName} className="h-8 w-auto" />
+            ) : (
+              <>
+                <Network className="h-8 w-8 text-primary" />
+                <h1 className="text-2xl font-bold">{branding.systemName}</h1>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
