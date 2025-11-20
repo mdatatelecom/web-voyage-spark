@@ -57,7 +57,15 @@ export const useSystemSettings = () => {
 
       data?.forEach((setting) => {
         if (setting.setting_key === 'branding') {
-          setBranding(setting.setting_value as unknown as BrandingSettings);
+          const brandingData = setting.setting_value as unknown as BrandingSettings;
+          setBranding(brandingData);
+          
+          // Aplicar branding imediatamente ao carregar
+          document.title = `${brandingData.systemName} - Gestão de Infraestrutura`;
+          if (brandingData.faviconUrl) {
+            const favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+            if (favicon) favicon.href = brandingData.faviconUrl;
+          }
         } else if (setting.setting_key === 'theme_colors') {
           setThemeColors(setting.setting_value as unknown as ThemeColors);
         }
@@ -161,10 +169,33 @@ export const useSystemSettings = () => {
     loadSettings();
   }, []);
 
-  const applyPreset = (colors: ThemeColors) => {
+  const applyPreset = async (colors: ThemeColors) => {
+    // Aplica imediatamente no estado e DOM
     setThemeColors(colors);
     applyThemeColors(colors);
-    toast({ title: 'Paleta aplicada com sucesso!' });
+    
+    // Salva automaticamente no banco
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert([{
+          setting_key: 'theme_colors',
+          setting_value: colors as any,
+          updated_at: new Date().toISOString(),
+        }], { 
+          onConflict: 'setting_key' 
+        });
+
+      if (error) throw error;
+      
+      toast({ title: 'Paleta aplicada e salva com sucesso!' });
+    } catch (error: any) {
+      toast({ 
+        title: 'Paleta aplicada mas não foi salva', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    }
   };
 
   useEffect(() => {
