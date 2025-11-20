@@ -77,7 +77,9 @@ export const useSystemSettings = () => {
           setting_key: 'branding',
           setting_value: newBranding as any,
           updated_at: new Date().toISOString(),
-        }]);
+        }], { 
+          onConflict: 'setting_key' 
+        });
 
       if (error) throw error;
 
@@ -102,7 +104,9 @@ export const useSystemSettings = () => {
           setting_key: 'theme_colors',
           setting_value: newColors as any,
           updated_at: new Date().toISOString(),
-        }]);
+        }], { 
+          onConflict: 'setting_key' 
+        });
 
       if (error) throw error;
 
