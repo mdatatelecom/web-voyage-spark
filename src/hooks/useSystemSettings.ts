@@ -129,8 +129,11 @@ export const useSystemSettings = () => {
 
       setBranding(newBranding);
       
-      // ✨ ATUALIZAR CACHE
+      // Update cache
       localStorage.setItem('branding_cache', JSON.stringify(newBranding));
+      
+      // Invalidate cache timestamp to force refresh on next load
+      localStorage.removeItem('settings_cache_timestamp');
       
       // Aplicar mudanças no documento
       document.title = `${newBranding.systemName} - Gestão de Infraestrutura`;
@@ -175,8 +178,11 @@ export const useSystemSettings = () => {
 
       setThemeColors(colorsToSave);
       
-      // ✨ ATUALIZAR CACHE
+      // Update cache
       localStorage.setItem('theme_colors_cache', JSON.stringify(colorsToSave));
+      
+      // Invalidate cache timestamp to force refresh on next load
+      localStorage.removeItem('settings_cache_timestamp');
       
       applyThemeColors(colorsToSave);
       
