@@ -38,10 +38,21 @@ const getBrandingFromCache = (): BrandingSettings => {
   };
 };
 
-export const useSystemSettings = () => {
-  const { toast } = useToast();
-  const [branding, setBranding] = useState<BrandingSettings>(getBrandingFromCache());
-  const [themeColors, setThemeColors] = useState<ThemeColors>({
+const getThemeColorsFromCache = (): ThemeColors => {
+  try {
+    const cached = localStorage.getItem('theme_colors_cache');
+    if (cached) {
+      const colors = JSON.parse(cached);
+      // Garantir que iconColor existe
+      if (!colors.iconColor) {
+        colors.iconColor = '222.2 47.4% 11.2%';
+      }
+      return colors;
+    }
+  } catch (e) {
+    console.error('Erro ao ler cache de cores:', e);
+  }
+  return {
     primary: '222.2 47.4% 11.2%',
     primaryForeground: '210 40% 98%',
     secondary: '210 40% 96.1%',
@@ -55,7 +66,13 @@ export const useSystemSettings = () => {
     sidebarAccent: '240 4.8% 95.9%',
     sidebarAccentForeground: '240 5.9% 10%',
     sidebarBorder: '220 13% 91%',
-  });
+  };
+};
+
+export const useSystemSettings = () => {
+  const { toast } = useToast();
+  const [branding, setBranding] = useState<BrandingSettings>(getBrandingFromCache());
+  const [themeColors, setThemeColors] = useState<ThemeColors>(getThemeColorsFromCache());
   const [isLoading, setIsLoading] = useState(true);
 
   const loadSettings = async () => {
@@ -111,13 +128,26 @@ export const useSystemSettings = () => {
       if (error) throw error;
 
       setBranding(newBranding);
-      toast({ title: 'Branding atualizado com sucesso!' });
       
+      // ✨ ATUALIZAR CACHE
+      localStorage.setItem('branding_cache', JSON.stringify(newBranding));
+      
+      // Aplicar mudanças no documento
       document.title = `${newBranding.systemName} - Gestão de Infraestrutura`;
       if (newBranding.faviconUrl) {
-        const favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
-        if (favicon) favicon.href = newBranding.faviconUrl;
+        let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          document.head.appendChild(favicon);
+        }
+        favicon.href = newBranding.faviconUrl;
       }
+      
+      toast({ 
+        title: '✅ Branding atualizado!', 
+        description: 'Recarregue a página para ver as mudanças no login.'
+      });
     } catch (error: any) {
       toast({ title: 'Erro ao salvar branding', description: error.message, variant: 'destructive' });
     }
@@ -125,11 +155,17 @@ export const useSystemSettings = () => {
 
   const saveThemeColors = async (newColors: ThemeColors) => {
     try {
+      // Garantir que iconColor está presente
+      const colorsToSave = {
+        ...newColors,
+        iconColor: newColors.iconColor || '222.2 47.4% 11.2%'
+      };
+      
       const { error } = await supabase
         .from('system_settings')
         .upsert([{
           setting_key: 'theme_colors',
-          setting_value: newColors as any,
+          setting_value: colorsToSave as any,
           updated_at: new Date().toISOString(),
         }], { 
           onConflict: 'setting_key' 
@@ -137,9 +173,17 @@ export const useSystemSettings = () => {
 
       if (error) throw error;
 
-      setThemeColors(newColors);
-      applyThemeColors(newColors);
-      toast({ title: 'Cores atualizadas com sucesso!' });
+      setThemeColors(colorsToSave);
+      
+      // ✨ ATUALIZAR CACHE
+      localStorage.setItem('theme_colors_cache', JSON.stringify(colorsToSave));
+      
+      applyThemeColors(colorsToSave);
+      
+      toast({ 
+        title: '✅ Cores atualizadas!', 
+        description: 'Recarregue para ver as mudanças no login.'
+      });
     } catch (error: any) {
       toast({ title: 'Erro ao salvar cores', description: error.message, variant: 'destructive' });
     }

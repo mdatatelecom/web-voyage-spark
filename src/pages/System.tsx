@@ -37,6 +37,7 @@ import {
   Palette,
   Upload,
   Image as ImageIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
@@ -46,6 +47,7 @@ import { Separator } from '@/components/ui/separator';
 import { Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 
 export default function System() {
   const { toast } = useToast();
@@ -93,6 +95,14 @@ export default function System() {
   const [localBranding, setLocalBranding] = useState(branding);
   const [localColors, setLocalColors] = useState(themeColors);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [applyingPreset, setApplyingPreset] = useState(false);
+
+  const applyPreset = async (preset: ColorPreset) => {
+    setApplyingPreset(true);
+    setLocalColors(preset.colors);
+    await saveThemeColors(preset.colors);
+    setApplyingPreset(false);
+  };
 
   useEffect(() => {
     setLocalBranding(branding);
@@ -509,13 +519,75 @@ export default function System() {
                   onClick={async () => {
                     await saveBranding(localBranding);
                     setLogoPreview(null);
-                    toast({ title: 'Branding atualizado! Faça logout para ver as mudanças no login.' });
                   }} 
                   className="w-full"
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Salvar Branding
                 </Button>
+                
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.reload()}
+                  className="w-full"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Recarregar para Aplicar
+                </Button>
+              </div>
+            </Card>
+
+            {/* Paletas Predefinidas */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Paletas Predefinidas</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Aplique esquemas de cores prontos com um clique
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {COLOR_PRESETS.map((preset) => (
+                    <Card key={preset.name} className="cursor-pointer hover:border-primary transition-colors">
+                      <div className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h5 className="font-medium">{preset.name}</h5>
+                            <p className="text-xs text-muted-foreground">{preset.description}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={applyingPreset}
+                            onClick={() => applyPreset(preset)}
+                          >
+                            {applyingPreset ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Aplicar'
+                            )}
+                          </Button>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <div 
+                            className="w-8 h-8 rounded border"
+                            style={{ backgroundColor: `hsl(${preset.colors.primary})` }}
+                          />
+                          <div 
+                            className="w-8 h-8 rounded border"
+                            style={{ backgroundColor: `hsl(${preset.colors.iconColor})` }}
+                          />
+                          <div 
+                            className="w-8 h-8 rounded border"
+                            style={{ backgroundColor: `hsl(${preset.colors.sidebarBackground})` }}
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
             </Card>
 
