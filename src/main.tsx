@@ -20,24 +20,38 @@ async function initApp() {
     </div>
   `;
   
+  // Limpar cache antigo para forçar reload
+  localStorage.removeItem('branding_cache');
+  localStorage.removeItem('theme_colors_cache');
+  
   try {
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`,
-      {
+    // Buscar branding E theme_colors juntos
+    const [brandingRes, colorsRes] = await Promise.all([
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`, {
         headers: {
           'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         }
-      }
-    );
-    const data = await response.json();
-    if (data[0]?.setting_value) {
-      const branding = data[0].setting_value;
-      
-      // ✨ SALVAR NO LOCALSTORAGE
+      }),
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.theme_colors&select=*`, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        }
+      })
+    ]);
+    
+    const [brandingData, colorsData] = await Promise.all([
+      brandingRes.json(),
+      colorsRes.json()
+    ]);
+    
+    // Aplicar branding
+    if (brandingData[0]?.setting_value) {
+      const branding = brandingData[0].setting_value;
       localStorage.setItem('branding_cache', JSON.stringify(branding));
-      
       document.title = `${branding.systemName} - Gestão de Infraestrutura`;
+      
       if (branding.faviconUrl) {
         let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
         if (!favicon) {
@@ -48,8 +62,29 @@ async function initApp() {
         favicon.href = branding.faviconUrl;
       }
     }
+    
+    // ✨ APLICAR CORES NO LOGIN (ANTES DO REACT)
+    if (colorsData[0]?.setting_value) {
+      const colors = colorsData[0].setting_value;
+      localStorage.setItem('theme_colors_cache', JSON.stringify(colors));
+      
+      const root = document.documentElement;
+      root.style.setProperty('--primary', colors.primary || '222.2 47.4% 11.2%');
+      root.style.setProperty('--primary-foreground', colors.primaryForeground || '210 40% 98%');
+      root.style.setProperty('--secondary', colors.secondary || '210 40% 96.1%');
+      root.style.setProperty('--secondary-foreground', colors.secondaryForeground || '222.2 47.4% 11.2%');
+      root.style.setProperty('--accent', colors.accent || '210 40% 96.1%');
+      root.style.setProperty('--accent-foreground', colors.accentForeground || '222.2 47.4% 11.2%');
+      root.style.setProperty('--icon-color', colors.iconColor || '222.2 47.4% 11.2%');
+      root.style.setProperty('--sidebar-background', colors.sidebarBackground || '0 0% 98%');
+      root.style.setProperty('--sidebar-foreground', colors.sidebarForeground || '240 5.3% 26.1%');
+      root.style.setProperty('--sidebar-primary', colors.sidebarPrimary || '240 5.9% 10%');
+      root.style.setProperty('--sidebar-accent', colors.sidebarAccent || '240 4.8% 95.9%');
+      root.style.setProperty('--sidebar-accent-foreground', colors.sidebarAccentForeground || '240 5.9% 10%');
+      root.style.setProperty('--sidebar-border', colors.sidebarBorder || '220 13% 91%');
+    }
   } catch (e) {
-    console.error('❌ Erro ao carregar branding:', e);
+    console.error('❌ Erro ao carregar configurações:', e);
   }
   
   // Fade out do loading e renderizar React
