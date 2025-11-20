@@ -14,6 +14,8 @@ import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { usePortUsageStats } from '@/hooks/useDashboardStats';
 import { useAlerts } from '@/hooks/useAlerts';
 import { Badge } from '@/components/ui/badge';
+import { useEffect } from 'react';
+
 export default function Dashboard() {
   const {
     user,
@@ -22,9 +24,18 @@ export default function Dashboard() {
   const {
     roles,
     isAdmin,
-    isTechnician
+    isTechnician,
+    isViewer,
+    isNetworkViewer
   } = useUserRole();
   const navigate = useNavigate();
+
+  // Redirect viewers to scanner page
+  useEffect(() => {
+    if (isViewer || isNetworkViewer) {
+      navigate('/scan');
+    }
+  }, [isViewer, isNetworkViewer, navigate]);
   const { alerts: activeAlerts, activeCount } = useAlerts({ status: 'active' });
   
   const handleSignOut = async () => {
