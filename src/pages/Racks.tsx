@@ -63,7 +63,7 @@ export default function Racks() {
               {roomId ? 'Gerencie os racks desta sala' : 'Visualize todos os racks do sistema'}
             </p>
           </div>
-          {isAdmin && roomId && (
+          {isAdmin && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Rack
@@ -71,15 +71,6 @@ export default function Racks() {
           )}
         </div>
 
-        {!roomId && (
-          <Card className="bg-muted/50">
-            <CardContent className="py-4">
-              <p className="text-sm text-muted-foreground">
-                💡 Para criar novos racks, navegue até a sala específica através de Localizações {'>'} Prédio {'>'} Andar {'>'} Sala
-              </p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Grid */}
         {isLoading ? (
