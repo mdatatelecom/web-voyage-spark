@@ -2,17 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Network } from 'lucide-react';
+import { Loader2, Network } from 'lucide-react';
 
 export default function Auth() {
   const navigate = useNavigate();
   const { signIn, user } = useAuth();
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
+  const { branding, isLoading: settingsLoading } = useSystemSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,8 +48,20 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
-          <Network className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold">InfraConnexus</h1>
+          {settingsLoading ? (
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          ) : branding.logoUrl ? (
+            <img 
+              src={branding.logoUrl} 
+              alt={branding.systemName} 
+              className="h-16 w-auto object-contain"
+            />
+          ) : (
+            <>
+              <Network className="h-12 w-12 text-primary mr-3" />
+              <h1 className="text-4xl font-bold">{branding.systemName}</h1>
+            </>
+          )}
         </div>
         
         <Card>

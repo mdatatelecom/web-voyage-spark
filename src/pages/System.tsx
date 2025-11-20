@@ -172,6 +172,7 @@ export default function System() {
   
   const [localBranding, setLocalBranding] = useState(branding);
   const [localColors, setLocalColors] = useState(themeColors);
+  const [applyingPreset, setApplyingPreset] = useState(false);
 
   useEffect(() => {
     setLocalBranding(branding);
@@ -496,14 +497,14 @@ export default function System() {
                 Paletas Predefinidas
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Escolha uma paleta de cores pronta para personalizar rapidamente o visual do sistema
+                Escolha uma paleta de cores pronta para personalizar rapidamente o visual do sistema.
+                <span className="font-semibold text-primary"> As cores serão aplicadas e salvas automaticamente.</span>
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {COLOR_PRESETS.map((preset) => (
                   <div
                     key={preset.name}
-                    className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
-                    onClick={() => applyPreset(preset.colors as any)}
+                    className="border rounded-lg p-4 hover:border-primary transition-colors"
                   >
                     <h4 className="font-semibold mb-1">{preset.name}</h4>
                     <p className="text-xs text-muted-foreground mb-3">{preset.description}</p>
@@ -516,11 +517,26 @@ export default function System() {
                         />
                       ))}
                     </div>
-                    <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
-                      e.stopPropagation();
-                      applyPreset(preset.colors as any);
-                    }}>
-                      Aplicar Paleta
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full" 
+                      disabled={applyingPreset}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setApplyingPreset(true);
+                        await applyPreset(preset.colors as any);
+                        setApplyingPreset(false);
+                      }}
+                    >
+                      {applyingPreset ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Aplicando...
+                        </>
+                      ) : (
+                        'Aplicar Paleta'
+                      )}
                     </Button>
                   </div>
                 ))}
