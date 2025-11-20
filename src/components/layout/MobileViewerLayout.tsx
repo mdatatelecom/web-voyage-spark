@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
 import { LogOut, QrCode, List } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export const MobileViewerLayout = ({ children }: MobileViewerLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { branding } = useSystemSettings();
 
   const handleSignOut = async () => {
     await signOut();
@@ -25,7 +27,11 @@ export const MobileViewerLayout = ({ children }: MobileViewerLayoutProps) => {
       {/* Header Compacto */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between px-4">
-          <h1 className="text-lg font-semibold">CaboTrack</h1>
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt={branding.systemName} className="h-8 w-auto" />
+          ) : (
+            <h1 className="text-lg font-semibold">{branding.systemName}</h1>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground hidden sm:inline-block">
               {user?.email}
