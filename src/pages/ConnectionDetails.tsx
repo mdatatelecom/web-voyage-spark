@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConnectionDiagram } from '@/components/connections/ConnectionDiagram';
+import { ConnectionEditDialog } from '@/components/connections/ConnectionEditDialog';
 import { LabelDialog } from '@/components/labels/LabelDialog';
 import { Edit, Unplug, QrCode, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,6 +36,7 @@ export default function ConnectionDetails() {
   const queryClient = useQueryClient();
   const [newStatus, setNewStatus] = useState('');
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: connection, isLoading } = useQuery({
     queryKey: ['connection', id],
@@ -159,6 +161,11 @@ export default function ConnectionDetails() {
               </SelectContent>
             </Select>
 
+            <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
+              <Edit className="w-4 h-4 mr-2" />
+              Editar Conexão
+            </Button>
+
             <Button variant="outline" onClick={() => setLabelDialogOpen(true)}>
               <QrCode className="w-4 h-4 mr-2" />
               Gerar Etiqueta
@@ -242,6 +249,12 @@ export default function ConnectionDetails() {
             {new Date(connection.installed_at).toLocaleString('pt-BR')} - Conexão criada
           </p>
         </Card>
+
+        <ConnectionEditDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          connection={connection}
+        />
 
         <LabelDialog
           open={labelDialogOpen}

@@ -68,8 +68,107 @@ export default function System() {
     themeColors, 
     saveBranding, 
     saveThemeColors, 
-    uploadImage 
+    uploadImage,
+    applyPreset
   } = useSystemSettings();
+
+  const COLOR_PRESETS = [
+    {
+      name: 'IW Fiber',
+      description: 'Azul profissional e elegante',
+      preview: ['#2563eb', '#dbeafe', '#f1f5f9', '#1e40af'],
+      colors: {
+        primary: '217 91% 60%',
+        primaryForeground: '210 40% 98%',
+        secondary: '214 100% 97%',
+        secondaryForeground: '222.2 47.4% 11.2%',
+        accent: '214 100% 97%',
+        accentForeground: '222.2 47.4% 11.2%',
+        sidebarBackground: '222 47% 11%',
+        sidebarForeground: '210 40% 98%',
+        sidebarPrimary: '217 91% 60%',
+        sidebarAccent: '222 47% 20%',
+        sidebarAccentForeground: '210 40% 98%',
+        sidebarBorder: '217 33% 17%',
+      }
+    },
+    {
+      name: 'Verde Moderno',
+      description: 'Fresco e sustentável',
+      preview: ['#10b981', '#d1fae5', '#f0fdf4', '#059669'],
+      colors: {
+        primary: '160 84% 39%',
+        primaryForeground: '0 0% 100%',
+        secondary: '152 76% 94%',
+        secondaryForeground: '160 84% 15%',
+        accent: '152 76% 94%',
+        accentForeground: '160 84% 15%',
+        sidebarBackground: '160 84% 15%',
+        sidebarForeground: '152 76% 94%',
+        sidebarPrimary: '160 84% 39%',
+        sidebarAccent: '160 84% 25%',
+        sidebarAccentForeground: '152 76% 94%',
+        sidebarBorder: '160 50% 20%',
+      }
+    },
+    {
+      name: 'Roxo Criativo',
+      description: 'Inovador e moderno',
+      preview: ['#8b5cf6', '#ede9fe', '#faf5ff', '#7c3aed'],
+      colors: {
+        primary: '258 90% 66%',
+        primaryForeground: '0 0% 100%',
+        secondary: '270 100% 98%',
+        secondaryForeground: '258 90% 30%',
+        accent: '270 100% 98%',
+        accentForeground: '258 90% 30%',
+        sidebarBackground: '258 90% 20%',
+        sidebarForeground: '270 100% 98%',
+        sidebarPrimary: '258 90% 66%',
+        sidebarAccent: '258 90% 30%',
+        sidebarAccentForeground: '270 100% 98%',
+        sidebarBorder: '258 50% 25%',
+      }
+    },
+    {
+      name: 'Laranja Energia',
+      description: 'Vibrante e dinâmico',
+      preview: ['#f97316', '#fed7aa', '#fff7ed', '#ea580c'],
+      colors: {
+        primary: '24 95% 53%',
+        primaryForeground: '0 0% 100%',
+        secondary: '33 100% 96%',
+        secondaryForeground: '24 95% 20%',
+        accent: '33 100% 96%',
+        accentForeground: '24 95% 20%',
+        sidebarBackground: '24 95% 20%',
+        sidebarForeground: '33 100% 96%',
+        sidebarPrimary: '24 95% 53%',
+        sidebarAccent: '24 95% 30%',
+        sidebarAccentForeground: '33 100% 96%',
+        sidebarBorder: '24 50% 25%',
+      }
+    },
+    {
+      name: 'Escuro Elegante',
+      description: 'Minimalista e sofisticado',
+      preview: ['#18181b', '#a1a1aa', '#fafafa', '#3f3f46'],
+      colors: {
+        primary: '240 4% 16%',
+        primaryForeground: '0 0% 98%',
+        secondary: '240 5% 96%',
+        secondaryForeground: '240 6% 10%',
+        accent: '240 5% 96%',
+        accentForeground: '240 6% 10%',
+        sidebarBackground: '240 10% 4%',
+        sidebarForeground: '240 5% 65%',
+        sidebarPrimary: '0 0% 98%',
+        sidebarAccent: '240 4% 16%',
+        sidebarAccentForeground: '0 0% 98%',
+        sidebarBorder: '240 4% 16%',
+      }
+    }
+  ];
   
   const [localBranding, setLocalBranding] = useState(branding);
   const [localColors, setLocalColors] = useState(themeColors);
@@ -390,6 +489,44 @@ export default function System() {
 
           {/* Tab: Personalização */}
           <TabsContent value="customization" className="space-y-6">
+            {/* Paletas Predefinidas */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Paletas Predefinidas
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Escolha uma paleta de cores pronta para personalizar rapidamente o visual do sistema
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {COLOR_PRESETS.map((preset) => (
+                  <div
+                    key={preset.name}
+                    className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
+                    onClick={() => applyPreset(preset.colors as any)}
+                  >
+                    <h4 className="font-semibold mb-1">{preset.name}</h4>
+                    <p className="text-xs text-muted-foreground mb-3">{preset.description}</p>
+                    <div className="flex gap-2 mb-3">
+                      {preset.preview.map((color, i) => (
+                        <div
+                          key={i}
+                          className="h-8 flex-1 rounded border"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
+                      e.stopPropagation();
+                      applyPreset(preset.colors as any);
+                    }}>
+                      Aplicar Paleta
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <ImageIcon className="w-5 h-5" />
@@ -453,10 +590,102 @@ export default function System() {
               </div>
             </Card>
 
+            {/* Preview em Tempo Real */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Preview em Tempo Real</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Veja como as cores ficam antes de salvar
+              </p>
+              <div className="border rounded-lg p-6 space-y-6" style={{ backgroundColor: `hsl(${localColors.secondary})` }}>
+                {/* Sidebar Preview */}
+                <div 
+                  className="rounded-lg p-4 space-y-2"
+                  style={{ backgroundColor: `hsl(${localColors.sidebarBackground})` }}
+                >
+                  <div 
+                    className="text-sm px-3 py-2 rounded"
+                    style={{ color: `hsl(${localColors.sidebarForeground})` }}
+                  >
+                    Menu Item Inativo
+                  </div>
+                  <div 
+                    className="text-sm px-3 py-2 rounded font-medium"
+                    style={{ 
+                      backgroundColor: `hsl(${localColors.sidebarAccent})`,
+                      color: `hsl(${localColors.sidebarPrimary})`
+                    }}
+                  >
+                    Menu Item Ativo
+                  </div>
+                </div>
+
+                {/* Buttons Preview */}
+                <div className="flex flex-wrap gap-3">
+                  <button 
+                    className="px-4 py-2 rounded font-medium"
+                    style={{ 
+                      backgroundColor: `hsl(${localColors.primary})`,
+                      color: `hsl(${localColors.primaryForeground})`
+                    }}
+                  >
+                    Botão Primário
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded font-medium"
+                    style={{ 
+                      backgroundColor: `hsl(${localColors.secondary})`,
+                      color: `hsl(${localColors.secondaryForeground})`
+                    }}
+                  >
+                    Botão Secundário
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded font-medium border-2"
+                    style={{ 
+                      borderColor: `hsl(${localColors.primary})`,
+                      color: `hsl(${localColors.primary})`
+                    }}
+                  >
+                    Botão Outline
+                  </button>
+                </div>
+
+                {/* Badge Preview */}
+                <div className="flex gap-2">
+                  <span 
+                    className="px-3 py-1 rounded-full text-sm font-medium"
+                    style={{ 
+                      backgroundColor: `hsl(${localColors.accent})`,
+                      color: `hsl(${localColors.accentForeground})`
+                    }}
+                  >
+                    Badge de Destaque
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setLocalColors(themeColors)}
+                  className="flex-1"
+                >
+                  Resetar Cores
+                </Button>
+                <Button 
+                  onClick={() => saveThemeColors(localColors)} 
+                  className="flex-1"
+                >
+                  <Palette className="w-4 h-4 mr-2" />
+                  Salvar Cores
+                </Button>
+              </div>
+            </Card>
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Palette className="w-5 h-5" />
-                Cores do Sistema
+                Personalização Avançada de Cores
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <ColorPicker
@@ -511,22 +740,6 @@ export default function System() {
                 />
               </div>
 
-              <Button onClick={() => saveThemeColors(localColors)} className="w-full mt-6">
-                <Palette className="w-4 h-4 mr-2" />
-                Salvar Cores
-              </Button>
-            </Card>
-
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Preview</h3>
-              <div className="border rounded-lg p-4 space-y-3">
-                <Button variant="default">Botão Primário</Button>
-                <Button variant="secondary">Botão Secundário</Button>
-                <Button variant="outline">Botão Outline</Button>
-                <div className="p-3 rounded mt-4" style={{ backgroundColor: `hsl(${localColors.sidebarBackground})` }}>
-                  <p style={{ color: `hsl(${localColors.sidebarForeground})` }}>Texto do Menu</p>
-                </div>
-              </div>
             </Card>
           </TabsContent>
 

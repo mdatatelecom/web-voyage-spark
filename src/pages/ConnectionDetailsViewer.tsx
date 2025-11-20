@@ -241,7 +241,13 @@ export default function ConnectionDetailsViewer() {
                 <Palette className="h-5 w-5 mt-0.5 text-muted-foreground" />
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground">Cor</p>
-                  <p className="font-medium">{connection.cable_color}</p>
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-12 h-12 rounded border-2 border-border"
+                      style={{ backgroundColor: connection.cable_color }}
+                    />
+                    <p className="font-mono text-sm">{connection.cable_color}</p>
+                  </div>
                 </div>
               </div>
             )}
