@@ -34,9 +34,16 @@ import {
   TestTube,
   Trash2,
   Users,
+  Palette,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { ColorPicker } from '@/components/system/ColorPicker';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function System() {
   const { isAdmin, isLoading: roleLoading } = useUserRole();
@@ -55,6 +62,25 @@ export default function System() {
 
   const [testSeverity, setTestSeverity] = useState<'info' | 'warning' | 'critical'>('info');
   const [testEmail, setTestEmail] = useState('');
+  
+  const { 
+    branding, 
+    themeColors, 
+    saveBranding, 
+    saveThemeColors, 
+    uploadImage 
+  } = useSystemSettings();
+  
+  const [localBranding, setLocalBranding] = useState(branding);
+  const [localColors, setLocalColors] = useState(themeColors);
+
+  useEffect(() => {
+    setLocalBranding(branding);
+  }, [branding]);
+
+  useEffect(() => {
+    setLocalColors(themeColors);
+  }, [themeColors]);
 
   if (roleLoading) {
     return (
@@ -84,6 +110,10 @@ export default function System() {
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="scans">Analytics de Scans</TabsTrigger>
             <TabsTrigger value="tests">Testes Manuais</TabsTrigger>
+            <TabsTrigger value="customization">
+              <Palette className="w-4 h-4 mr-2" />
+              Personalização
+            </TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>
 
@@ -356,6 +386,148 @@ export default function System() {
                 </div>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Tab: Personalização */}
+          <TabsContent value="customization" className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                Branding
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label>Nome do Sistema</Label>
+                  <Input
+                    value={localBranding.systemName}
+                    onChange={(e) => setLocalBranding({ ...localBranding, systemName: e.target.value })}
+                    placeholder="InfraConnexus"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label>Logo Principal</Label>
+                  <div className="flex gap-3 items-center mt-2">
+                    {localBranding.logoUrl && (
+                      <img src={localBranding.logoUrl} alt="Logo" className="h-16 w-auto border rounded" />
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await uploadImage(file, 'logo');
+                          if (url) setLocalBranding({ ...localBranding, logoUrl: url });
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Favicon</Label>
+                  <div className="flex gap-3 items-center mt-2">
+                    {localBranding.faviconUrl && (
+                      <img src={localBranding.faviconUrl} alt="Favicon" className="h-8 w-8 border rounded" />
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await uploadImage(file, 'favicon');
+                          if (url) setLocalBranding({ ...localBranding, faviconUrl: url });
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <Button onClick={() => saveBranding(localBranding)} className="w-full">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Salvar Branding
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Cores do Sistema
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ColorPicker
+                  label="Cor Primária"
+                  description="Cor principal do sistema (botões, links)"
+                  value={localColors.primary}
+                  onChange={(v) => setLocalColors({ ...localColors, primary: v })}
+                />
+                <ColorPicker
+                  label="Texto da Cor Primária"
+                  description="Cor do texto sobre a cor primária"
+                  value={localColors.primaryForeground}
+                  onChange={(v) => setLocalColors({ ...localColors, primaryForeground: v })}
+                />
+                <ColorPicker
+                  label="Cor Secundária"
+                  description="Cor de elementos secundários"
+                  value={localColors.secondary}
+                  onChange={(v) => setLocalColors({ ...localColors, secondary: v })}
+                />
+                <ColorPicker
+                  label="Cor de Destaque"
+                  description="Cor de hover e elementos destacados"
+                  value={localColors.accent}
+                  onChange={(v) => setLocalColors({ ...localColors, accent: v })}
+                />
+              </div>
+
+              <Separator className="my-6" />
+
+              <h4 className="font-semibold mb-4">Cores do Menu Lateral</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ColorPicker
+                  label="Fundo do Sidebar"
+                  value={localColors.sidebarBackground}
+                  onChange={(v) => setLocalColors({ ...localColors, sidebarBackground: v })}
+                />
+                <ColorPicker
+                  label="Texto do Sidebar"
+                  value={localColors.sidebarForeground}
+                  onChange={(v) => setLocalColors({ ...localColors, sidebarForeground: v })}
+                />
+                <ColorPicker
+                  label="Item Ativo do Sidebar"
+                  value={localColors.sidebarPrimary}
+                  onChange={(v) => setLocalColors({ ...localColors, sidebarPrimary: v })}
+                />
+                <ColorPicker
+                  label="Hover do Sidebar"
+                  value={localColors.sidebarAccent}
+                  onChange={(v) => setLocalColors({ ...localColors, sidebarAccent: v })}
+                />
+              </div>
+
+              <Button onClick={() => saveThemeColors(localColors)} className="w-full mt-6">
+                <Palette className="w-4 h-4 mr-2" />
+                Salvar Cores
+              </Button>
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Preview</h3>
+              <div className="border rounded-lg p-4 space-y-3">
+                <Button variant="default">Botão Primário</Button>
+                <Button variant="secondary">Botão Secundário</Button>
+                <Button variant="outline">Botão Outline</Button>
+                <div className="p-3 rounded mt-4" style={{ backgroundColor: `hsl(${localColors.sidebarBackground})` }}>
+                  <p style={{ color: `hsl(${localColors.sidebarForeground})` }}>Texto do Menu</p>
+                </div>
+              </div>
+            </Card>
           </TabsContent>
 
           {/* Tab: Avançado */}

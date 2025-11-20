@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useLabels } from '@/hooks/useLabels';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
@@ -20,6 +21,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { labels } = useLabels();
+  const { branding } = useSystemSettings();
 
   // Use mobile layout for viewers and network_viewers
   const isMobileViewer = isViewer || isNetworkViewer;
@@ -54,8 +56,14 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       <header className="sticky top-0 z-50 w-full border-b bg-card">
         <div className="flex h-16 items-center px-6">
           <div className="flex items-center gap-2">
-            <Network className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">InfraConnexus</h1>
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt={branding.systemName} className="h-8 w-auto" />
+            ) : (
+              <>
+                <Network className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold text-foreground">{branding.systemName}</h1>
+              </>
+            )}
           </div>
 
           <div className="ml-auto flex items-center gap-4">
