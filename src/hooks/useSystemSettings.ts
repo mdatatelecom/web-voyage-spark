@@ -161,6 +161,16 @@ export const useSystemSettings = () => {
     loadSettings();
   }, []);
 
+  const applyPreset = (colors: ThemeColors) => {
+    setThemeColors(colors);
+    applyThemeColors(colors);
+    toast({ title: 'Paleta aplicada com sucesso!' });
+  };
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
   useEffect(() => {
     if (!isLoading) {
       applyThemeColors(themeColors);
@@ -175,5 +185,6 @@ export const useSystemSettings = () => {
     saveThemeColors,
     uploadImage,
     loadSettings,
+    applyPreset,
   };
 };
