@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
+import { ContrastValidator } from '@/components/system/ContrastValidator';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Navigate } from 'react-router-dom';
@@ -71,6 +72,21 @@ export default function System() {
     uploadImage,
     applyPreset
   } = useSystemSettings();
+
+  const DEFAULT_COLORS = {
+    primary: '222.2 47.4% 11.2%',
+    primaryForeground: '210 40% 98%',
+    secondary: '210 40% 96.1%',
+    secondaryForeground: '222.2 47.4% 11.2%',
+    accent: '210 40% 96.1%',
+    accentForeground: '222.2 47.4% 11.2%',
+    sidebarBackground: '0 0% 98%',
+    sidebarForeground: '240 5.3% 26.1%',
+    sidebarPrimary: '240 5.9% 10%',
+    sidebarAccent: '240 4.8% 95.9%',
+    sidebarAccentForeground: '240 5.9% 10%',
+    sidebarBorder: '220 13% 91%',
+  };
 
   const COLOR_PRESETS = [
     {
@@ -152,7 +168,7 @@ export default function System() {
     {
       name: 'Escuro Elegante',
       description: 'Minimalista e sofisticado',
-      preview: ['#18181b', '#a1a1aa', '#fafafa', '#3f3f46'],
+      preview: ['#18181b', '#e4e4e7', '#fafafa', '#3f3f46'],
       colors: {
         primary: '240 4% 16%',
         primaryForeground: '0 0% 98%',
@@ -161,7 +177,7 @@ export default function System() {
         accent: '240 5% 96%',
         accentForeground: '240 6% 10%',
         sidebarBackground: '240 10% 4%',
-        sidebarForeground: '240 5% 65%',
+        sidebarForeground: '0 0% 90%',
         sidebarPrimary: '0 0% 98%',
         sidebarAccent: '240 4% 16%',
         sidebarAccentForeground: '0 0% 98%',
@@ -525,7 +541,13 @@ export default function System() {
                       onClick={async (e) => {
                         e.stopPropagation();
                         setApplyingPreset(true);
+                        
+                        // Atualizar local imediatamente para feedback visual
+                        setLocalColors(preset.colors as any);
+                        
+                        // Salvar no banco
                         await applyPreset(preset.colors as any);
+                        
                         setApplyingPreset(false);
                       }}
                     >
@@ -683,10 +705,13 @@ export default function System() {
               <div className="flex gap-2 mt-4">
                 <Button 
                   variant="outline" 
-                  onClick={() => setLocalColors(themeColors)}
+                  onClick={async () => {
+                    setLocalColors(DEFAULT_COLORS);
+                    await saveThemeColors(DEFAULT_COLORS);
+                  }}
                   className="flex-1"
                 >
-                  Resetar Cores
+                  Resetar para Cores Padrão
                 </Button>
                 <Button 
                   onClick={() => saveThemeColors(localColors)} 
@@ -695,6 +720,36 @@ export default function System() {
                   <Palette className="w-4 h-4 mr-2" />
                   Salvar Cores
                 </Button>
+              </div>
+            </Card>
+
+            {/* Validação de Contraste WCAG */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Validação de Contraste (WCAG)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Verificação automática de acessibilidade das cores selecionadas
+              </p>
+              <div className="space-y-3">
+                <ContrastValidator
+                  foreground={localColors.primaryForeground}
+                  background={localColors.primary}
+                  label="Botão Primário"
+                />
+                <ContrastValidator
+                  foreground={localColors.sidebarForeground}
+                  background={localColors.sidebarBackground}
+                  label="Menu Lateral"
+                />
+                <ContrastValidator
+                  foreground={localColors.sidebarPrimary}
+                  background={localColors.sidebarAccent}
+                  label="Item Ativo do Menu"
+                />
+                <ContrastValidator
+                  foreground={localColors.accentForeground}
+                  background={localColors.accent}
+                  label="Elementos de Destaque"
+                />
               </div>
             </Card>
 

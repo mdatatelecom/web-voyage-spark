@@ -63,11 +63,17 @@ export const useSystemSettings = () => {
           // Aplicar branding imediatamente ao carregar
           document.title = `${brandingData.systemName} - Gestão de Infraestrutura`;
           if (brandingData.faviconUrl) {
-            const favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
-            if (favicon) favicon.href = brandingData.faviconUrl;
+            let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+            if (!favicon) {
+              favicon = document.createElement('link');
+              favicon.rel = 'icon';
+              document.head.appendChild(favicon);
+            }
+            favicon.href = brandingData.faviconUrl;
           }
         } else if (setting.setting_key === 'theme_colors') {
-          setThemeColors(setting.setting_value as unknown as ThemeColors);
+          const colors = setting.setting_value as unknown as ThemeColors;
+          setThemeColors(colors);
         }
       });
     } catch (error: any) {
