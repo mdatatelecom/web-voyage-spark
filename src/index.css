@@ -53,6 +53,8 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    --icon-color: 222.2 47.4% 11.2%;
   }
 
   .dark {
@@ -102,4 +104,9 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Aplicar cor customizada aos ícones */
+.lucide {
+  color: hsl(var(--icon-color));
 }

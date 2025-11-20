@@ -4,6 +4,22 @@ import "./index.css";
 
 // Carregar branding ANTES de renderizar o React
 async function initApp() {
+  const rootElement = document.getElementById("root")!;
+  
+  // Mostrar loading HTML inicial
+  rootElement.innerHTML = `
+    <div style="position: fixed; inset: 0; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease-out;">
+      <div style="text-center;">
+        <div style="font-size: 2rem; font-weight: bold; color: #1e293b; animation: pulse 2s ease-in-out infinite; margin-bottom: 1.5rem;">Carregando...</div>
+        <div style="width: 3rem; height: 3rem; border: 3px solid #e2e8f0; border-top-color: #1e293b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+      </div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      </style>
+    </div>
+  `;
+  
   try {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`,
@@ -17,6 +33,10 @@ async function initApp() {
     const data = await response.json();
     if (data[0]?.setting_value) {
       const branding = data[0].setting_value;
+      
+      // ✨ SALVAR NO LOCALSTORAGE
+      localStorage.setItem('branding_cache', JSON.stringify(branding));
+      
       document.title = `${branding.systemName} - Gestão de Infraestrutura`;
       if (branding.faviconUrl) {
         let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
@@ -29,11 +49,15 @@ async function initApp() {
       }
     }
   } catch (e) {
-    console.error('Failed to load branding early:', e);
+    console.error('❌ Erro ao carregar branding:', e);
   }
   
-  // Renderizar o React após branding carregar
-  createRoot(document.getElementById("root")!).render(<App />);
+  // Fade out do loading e renderizar React
+  rootElement.style.opacity = '0';
+  setTimeout(() => {
+    createRoot(rootElement).render(<App />);
+    rootElement.style.opacity = '1';
+  }, 300);
 }
 
 // Iniciar aplicação
