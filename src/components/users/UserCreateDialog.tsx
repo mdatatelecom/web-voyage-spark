@@ -135,8 +135,8 @@ export const UserCreateDialog = ({ open, onOpenChange, onSuccess }: UserCreateDi
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
+              {role === 'viewer' && 'Visualizador: Pode escanear QR codes e ver apenas as conexões que escaneou'}
               {role === 'network_viewer' && 'Visualizador de Rede: Pode escanear QR codes e ver apenas as conexões que escaneou'}
-              {role === 'viewer' && 'Visualizador: Acesso somente leitura a todos os dados'}
               {role === 'technician' && 'Técnico: Pode criar e editar conexões e equipamentos'}
               {role === 'admin' && 'Admin: Acesso total ao sistema'}
             </p>

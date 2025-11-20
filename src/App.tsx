@@ -137,14 +137,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/my-connections"
-              element={
-                <ProtectedRoute requiredRole="network_viewer">
-                  <MyConnections />
-                </ProtectedRoute>
-              }
-            />
+          <Route 
+            path="/my-connections" 
+            element={
+              <ProtectedRoute requiredRole={['viewer', 'network_viewer']}>
+                <MyConnections />
+              </ProtectedRoute>
+            } 
+          />
             <Route 
               path="/labels" 
               element={
