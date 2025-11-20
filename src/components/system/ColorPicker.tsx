@@ -13,6 +13,10 @@ interface ColorPickerProps {
 
 export const ColorPicker = ({ label, value, onChange, description }: ColorPickerProps) => {
   const hslToHex = (hsl: string): string => {
+    // Validar se hsl está definido
+    if (!hsl || typeof hsl !== 'string') {
+      return '#000000'; // Cor padrão caso undefined
+    }
     const [h, s, l] = hsl.split(' ').map(v => parseFloat(v.replace('%', '')));
     const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
     const f = (n: number) => {
