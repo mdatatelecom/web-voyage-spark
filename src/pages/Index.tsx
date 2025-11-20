@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Network, Cable, Server, Shield } from 'lucide-react';
 const Index = () => {
@@ -8,13 +9,20 @@ const Index = () => {
     user,
     loading
   } = useAuth();
+  const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   useEffect(() => {
-    if (user && !loading) {
-      navigate('/dashboard');
+    if (user && !loading && !roleLoading) {
+      // Viewers vão direto para o scanner
+      if (isViewer || isNetworkViewer) {
+        navigate('/scan');
+      } else {
+        // Admin/Technician vão para dashboard
+        navigate('/dashboard');
+      }
     }
-  }, [user, loading, navigate]);
-  if (loading) {
+  }, [user, loading, roleLoading, isViewer, isNetworkViewer, navigate]);
+  if (loading || roleLoading) {
     return <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>;

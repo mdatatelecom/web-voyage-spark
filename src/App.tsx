@@ -44,7 +44,7 @@ const App = () => (
             <Route 
               path="/dashboard" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Dashboard />
                 </ProtectedRoute>
               } 
@@ -52,7 +52,7 @@ const App = () => (
             <Route 
               path="/buildings" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Buildings />
                 </ProtectedRoute>
               } 
@@ -60,7 +60,7 @@ const App = () => (
             <Route 
               path="/buildings/:buildingId/floors" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Floors />
                 </ProtectedRoute>
               } 
@@ -68,7 +68,7 @@ const App = () => (
             <Route 
               path="/buildings/:buildingId/floors/:floorId/rooms" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Rooms />
                 </ProtectedRoute>
               } 
@@ -76,7 +76,7 @@ const App = () => (
             <Route 
               path="/buildings/:buildingId/floors/:floorId/rooms/:roomId/racks" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Racks />
                 </ProtectedRoute>
               } 
@@ -84,7 +84,7 @@ const App = () => (
             <Route 
               path="/racks" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Racks />
                 </ProtectedRoute>
               } 
@@ -92,7 +92,7 @@ const App = () => (
             <Route 
               path="/racks/:rackId" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <RackDetails />
                 </ProtectedRoute>
               } 
@@ -100,7 +100,7 @@ const App = () => (
             <Route 
               path="/equipment" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Equipment />
                 </ProtectedRoute>
               } 
@@ -108,7 +108,7 @@ const App = () => (
             <Route 
               path="/equipment/:id" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <EquipmentDetails />
                 </ProtectedRoute>
               } 
@@ -116,7 +116,7 @@ const App = () => (
             <Route 
               path="/connections" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Connections />
                 </ProtectedRoute>
               } 
@@ -124,7 +124,7 @@ const App = () => (
             <Route
               path="/connections/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <ConnectionDetails />
                 </ProtectedRoute>
               }
@@ -148,7 +148,7 @@ const App = () => (
             <Route 
               path="/labels" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Labels />
                 </ProtectedRoute>
               } 
@@ -164,7 +164,7 @@ const App = () => (
             <Route 
               path="/rack-occupancy" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <RackOccupancy />
                 </ProtectedRoute>
               } 
@@ -172,7 +172,7 @@ const App = () => (
             <Route 
               path="/alerts" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Alerts />
                 </ProtectedRoute>
               } 
@@ -180,7 +180,7 @@ const App = () => (
             <Route 
               path="/alert-settings" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="admin">
                   <AlertSettings />
                 </ProtectedRoute>
               } 
