@@ -20,38 +20,89 @@ async function initApp() {
     </div>
   `;
   
-  // Limpar cache antigo para forçar reload
-  localStorage.removeItem('branding_cache');
-  localStorage.removeItem('theme_colors_cache');
-  
+  // Intelligent cache system - only fetch if cache is missing or older than 1 hour
+  const brandingCacheKey = 'branding_cache';
+  const colorsCacheKey = 'theme_colors_cache';
+  const cacheTimestampKey = 'settings_cache_timestamp';
+
+  const lastCacheTime = localStorage.getItem(cacheTimestampKey);
+  const cacheAge = lastCacheTime ? Date.now() - parseInt(lastCacheTime) : Infinity;
+  const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+  const cachedBranding = localStorage.getItem(brandingCacheKey);
+  const cachedColors = localStorage.getItem(colorsCacheKey);
+  const needsRefresh = !cachedBranding || !cachedColors || cacheAge > CACHE_DURATION;
+
   try {
-    // Buscar branding E theme_colors juntos
-    const [brandingRes, colorsRes] = await Promise.all([
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`, {
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        }
-      }),
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.theme_colors&select=*`, {
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        }
-      })
-    ]);
-    
-    const [brandingData, colorsData] = await Promise.all([
-      brandingRes.json(),
-      colorsRes.json()
-    ]);
-    
-    // Aplicar branding
-    if (brandingData[0]?.setting_value) {
-      const branding = brandingData[0].setting_value;
-      localStorage.setItem('branding_cache', JSON.stringify(branding));
-      document.title = `${branding.systemName} - Gestão de Infraestrutura`;
+    if (needsRefresh) {
+      // Fetch fresh data from server
+      const [brandingRes, colorsRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.branding&select=*`, {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          }
+        }),
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/system_settings?setting_key=eq.theme_colors&select=*`, {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          }
+        })
+      ]);
       
+      const [brandingData, colorsData] = await Promise.all([
+        brandingRes.json(),
+        colorsRes.json()
+      ]);
+      
+      // Apply branding
+      if (brandingData[0]?.setting_value) {
+        const branding = brandingData[0].setting_value;
+        localStorage.setItem(brandingCacheKey, JSON.stringify(branding));
+        document.title = `${branding.systemName} - Gestão de Infraestrutura`;
+        
+        if (branding.faviconUrl) {
+          let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+          if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+          }
+          favicon.href = branding.faviconUrl;
+        }
+      }
+      
+      // Apply theme colors
+      if (colorsData[0]?.setting_value) {
+        const colors = colorsData[0].setting_value;
+        localStorage.setItem(colorsCacheKey, JSON.stringify(colors));
+        
+        const root = document.documentElement;
+        root.style.setProperty('--primary', colors.primary || '222.2 47.4% 11.2%');
+        root.style.setProperty('--primary-foreground', colors.primaryForeground || '210 40% 98%');
+        root.style.setProperty('--secondary', colors.secondary || '210 40% 96.1%');
+        root.style.setProperty('--secondary-foreground', colors.secondaryForeground || '222.2 47.4% 11.2%');
+        root.style.setProperty('--accent', colors.accent || '210 40% 96.1%');
+        root.style.setProperty('--accent-foreground', colors.accentForeground || '222.2 47.4% 11.2%');
+        root.style.setProperty('--icon-color', colors.iconColor || '222.2 47.4% 11.2%');
+        root.style.setProperty('--sidebar-background', colors.sidebarBackground || '0 0% 98%');
+        root.style.setProperty('--sidebar-foreground', colors.sidebarForeground || '240 5.3% 26.1%');
+        root.style.setProperty('--sidebar-primary', colors.sidebarPrimary || '240 5.9% 10%');
+        root.style.setProperty('--sidebar-accent', colors.sidebarAccent || '240 4.8% 95.9%');
+        root.style.setProperty('--sidebar-accent-foreground', colors.sidebarAccentForeground || '240 5.9% 10%');
+        root.style.setProperty('--sidebar-border', colors.sidebarBorder || '220 13% 91%');
+      }
+      
+      // Update cache timestamp
+      localStorage.setItem(cacheTimestampKey, Date.now().toString());
+    } else {
+      // Apply from cache immediately
+      const branding = JSON.parse(cachedBranding!);
+      const colors = JSON.parse(cachedColors!);
+      
+      // Apply branding
+      document.title = `${branding.systemName} - Gestão de Infraestrutura`;
       if (branding.faviconUrl) {
         let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
         if (!favicon) {
@@ -61,13 +112,8 @@ async function initApp() {
         }
         favicon.href = branding.faviconUrl;
       }
-    }
-    
-    // ✨ APLICAR CORES NO LOGIN (ANTES DO REACT)
-    if (colorsData[0]?.setting_value) {
-      const colors = colorsData[0].setting_value;
-      localStorage.setItem('theme_colors_cache', JSON.stringify(colors));
       
+      // Apply theme colors
       const root = document.documentElement;
       root.style.setProperty('--primary', colors.primary || '222.2 47.4% 11.2%');
       root.style.setProperty('--primary-foreground', colors.primaryForeground || '210 40% 98%');

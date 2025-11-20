@@ -1,5 +1,5 @@
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,7 @@ import { Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
+import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 
 export default function System() {
   const { toast } = useToast();
@@ -97,11 +98,10 @@ export default function System() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [applyingPreset, setApplyingPreset] = useState(false);
 
-  const applyPreset = async (preset: ColorPreset) => {
+  const applyPreset = (preset: ColorPreset) => {
     setApplyingPreset(true);
     setLocalColors(preset.colors);
-    await saveThemeColors(preset.colors);
-    setApplyingPreset(false);
+    setTimeout(() => setApplyingPreset(false), 300);
   };
 
   useEffect(() => {
@@ -445,8 +445,50 @@ export default function System() {
                   />
                 </div>
 
+                <Separator />
+
+                <div className="space-y-4">
+                  <h4 className="font-medium">Galeria de Logos Predefinidos</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Escolha um logo profissional ou faça upload do seu próprio
+                  </p>
+                  
+                  <Tabs defaultValue={LOGO_CATEGORIES[0]} className="w-full">
+                    <TabsList className="grid grid-cols-4 w-full">
+                      {LOGO_CATEGORIES.map(cat => (
+                        <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
+                      ))}
+                    </TabsList>
+                    
+                    {LOGO_CATEGORIES.map(category => (
+                      <TabsContent key={category} value={category}>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {LOGO_PRESETS.filter(p => p.category === category).map(preset => (
+                            <Card 
+                              key={preset.id}
+                              className={`cursor-pointer hover:border-primary transition-all ${
+                                localBranding.logoUrl === preset.url ? 'border-primary ring-2 ring-primary' : ''
+                              }`}
+                              onClick={() => setLocalBranding({ ...localBranding, logoUrl: preset.url })}
+                            >
+                              <CardContent className="p-3">
+                                <div className="aspect-square rounded bg-muted flex items-center justify-center mb-2">
+                                  <img src={preset.thumbnail} alt={preset.name} className="h-12 w-12 object-contain" />
+                                </div>
+                                <p className="text-xs text-center font-medium truncate">{preset.name}</p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </div>
+
+                <Separator />
+
                 <div className="space-y-2">
-                  <Label htmlFor="logo">Logo Principal</Label>
+                  <Label htmlFor="logo">Ou faça upload do seu logo</Label>
                   <div className="flex gap-4 items-start">
                     <Input
                       id="logo"
@@ -455,7 +497,6 @@ export default function System() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          // ✨ CRIAR PREVIEW IMEDIATO
                           const previewUrl = URL.createObjectURL(file);
                           setLogoPreview(previewUrl);
                           
@@ -470,7 +511,6 @@ export default function System() {
                       className="flex-1"
                     />
                     
-                    {/* ✨ PREVIEW AO VIVO */}
                     {(logoPreview || localBranding.logoUrl) && (
                       <Card className="p-4 bg-gradient-to-br from-background via-background to-primary/5 shrink-0">
                         <div className="text-center space-y-3">
@@ -488,12 +528,9 @@ export default function System() {
                       </Card>
                     )}
                   </div>
-                  {localBranding.logoUrl && (
-                    <p className="text-sm text-muted-foreground">
-                      Logo atual: <a href={localBranding.logoUrl} target="_blank" className="text-primary hover:underline">Ver imagem</a>
-                    </p>
-                  )}
                 </div>
+
+                <Separator />
 
                 <div>
                   <Label>Favicon</Label>
@@ -515,25 +552,25 @@ export default function System() {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={async () => {
-                    await saveBranding(localBranding);
-                    setLogoPreview(null);
-                  }} 
-                  className="w-full"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Salvar Branding
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.reload()}
-                  className="w-full"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Recarregar para Aplicar
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={async () => {
+                      await saveBranding(localBranding);
+                      setLogoPreview(null);
+                    }} 
+                    className="flex-1"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Salvar Branding
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.location.reload()}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Recarregar
+                  </Button>
+                </div>
               </div>
             </Card>
 
@@ -547,152 +584,50 @@ export default function System() {
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {COLOR_PRESETS.map((preset) => (
-                    <Card key={preset.name} className="cursor-pointer hover:border-primary transition-colors">
-                      <div className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h5 className="font-medium">{preset.name}</h5>
-                            <p className="text-xs text-muted-foreground">{preset.description}</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={applyingPreset}
-                            onClick={() => applyPreset(preset)}
-                          >
-                            {applyingPreset ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              'Aplicar'
-                            )}
-                          </Button>
-                        </div>
-                        
+                    <Card 
+                      key={preset.name} 
+                      className={`cursor-pointer hover:border-primary hover:shadow-md transition-all ${
+                        applyingPreset ? 'opacity-50' : ''
+                      }`}
+                      onClick={() => applyPreset(preset)}
+                    >
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm">{preset.name}</CardTitle>
+                        <CardDescription className="text-xs">{preset.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
                         <div className="flex gap-2">
-                          <div 
-                            className="w-8 h-8 rounded border"
-                            style={{ backgroundColor: `hsl(${preset.colors.primary})` }}
-                          />
-                          <div 
-                            className="w-8 h-8 rounded border"
-                            style={{ backgroundColor: `hsl(${preset.colors.iconColor})` }}
-                          />
-                          <div 
-                            className="w-8 h-8 rounded border"
-                            style={{ backgroundColor: `hsl(${preset.colors.sidebarBackground})` }}
-                          />
+                          {[preset.colors.primary, preset.colors.secondary, preset.colors.accent, preset.colors.iconColor].map((color, i) => (
+                            <div
+                              key={i}
+                              className="h-8 w-8 rounded-md border"
+                              style={{ backgroundColor: `hsl(${color})` }}
+                            />
+                          ))}
                         </div>
-                      </div>
+                      </CardContent>
                     </Card>
                   ))}
                 </div>
               </div>
             </Card>
 
-            {/* Preview em Tempo Real */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Preview em Tempo Real</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Veja como as cores ficam antes de salvar
-              </p>
-              <div className="border rounded-lg p-6 space-y-6" style={{ backgroundColor: `hsl(${localColors.secondary})` }}>
-                {/* Sidebar Preview */}
-                <div 
-                  className="rounded-lg p-4 space-y-2"
-                  style={{ backgroundColor: `hsl(${localColors.sidebarBackground})` }}
-                >
-                  <div 
-                    className="text-sm px-3 py-2 rounded"
-                    style={{ color: `hsl(${localColors.sidebarForeground})` }}
-                  >
-                    Menu Item Inativo
-                  </div>
-                  <div 
-                    className="text-sm px-3 py-2 rounded font-medium"
-                    style={{ 
-                      backgroundColor: `hsl(${localColors.sidebarAccent})`,
-                      color: `hsl(${localColors.sidebarPrimary})`
-                    }}
-                  >
-                    Menu Item Ativo
-                  </div>
-                </div>
-
-                {/* Buttons Preview */}
-                <div className="flex flex-wrap gap-3">
-                  <button 
-                    className="px-4 py-2 rounded font-medium"
-                    style={{ 
-                      backgroundColor: `hsl(${localColors.primary})`,
-                      color: `hsl(${localColors.primaryForeground})`
-                    }}
-                  >
-                    Botão Primário
-                  </button>
-                  <button 
-                    className="px-4 py-2 rounded font-medium"
-                    style={{ 
-                      backgroundColor: `hsl(${localColors.secondary})`,
-                      color: `hsl(${localColors.secondaryForeground})`
-                    }}
-                  >
-                    Botão Secundário
-                  </button>
-                  <button 
-                    className="px-4 py-2 rounded font-medium border-2"
-                    style={{ 
-                      borderColor: `hsl(${localColors.primary})`,
-                      color: `hsl(${localColors.primary})`
-                    }}
-                  >
-                    Botão Outline
-                  </button>
-                </div>
-
-                {/* Badge Preview */}
-                <div className="flex gap-2">
-                  <span 
-                    className="px-3 py-1 rounded-full text-sm font-medium"
-                    style={{ 
-                      backgroundColor: `hsl(${localColors.accent})`,
-                      color: `hsl(${localColors.accentForeground})`
-                    }}
-                  >
-                    Badge de Destaque
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={async () => {
-                    setLocalColors(DEFAULT_COLORS);
-                    await saveThemeColors(DEFAULT_COLORS);
-                  }}
-                  className="flex-1"
-                >
-                  Resetar para Cores Padrão
-                </Button>
-                <Button 
-                  onClick={() => saveThemeColors(localColors)} 
-                  className="flex-1"
-                >
-                  <Palette className="w-4 h-4 mr-2" />
-                  Salvar Cores
-                </Button>
-              </div>
-            </Card>
+            <Separator />
 
             {/* Validação de Contraste WCAG */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Validação de Contraste (WCAG)</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Verificação automática de acessibilidade das cores selecionadas
-              </p>
-              <div className="space-y-3">
+            <Card className="p-6 border-blue-500">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CheckCircle className="h-5 w-5" />
+                  Validação de Acessibilidade WCAG
+                </CardTitle>
+                <CardDescription>
+                  Verificação automática de contraste para garantir acessibilidade
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 px-0 pb-0">
                 <ContrastValidator
                   foreground={localColors.primaryForeground}
                   background={localColors.primary}
@@ -701,19 +636,19 @@ export default function System() {
                 <ContrastValidator
                   foreground={localColors.sidebarForeground}
                   background={localColors.sidebarBackground}
-                  label="Menu Lateral"
+                  label="Texto Sidebar"
+                />
+                <ContrastValidator
+                  foreground={localColors.iconColor}
+                  background={localColors.sidebarBackground}
+                  label="Ícones Sidebar"
                 />
                 <ContrastValidator
                   foreground={localColors.sidebarPrimary}
                   background={localColors.sidebarAccent}
-                  label="Item Ativo do Menu"
+                  label="Item Ativo Menu"
                 />
-                <ContrastValidator
-                  foreground={localColors.accentForeground}
-                  background={localColors.accent}
-                  label="Elementos de Destaque"
-                />
-              </div>
+              </CardContent>
             </Card>
 
             <Card className="p-6">
