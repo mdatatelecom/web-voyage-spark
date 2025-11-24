@@ -35,6 +35,11 @@ export const EQUIPMENT_COLORS: Record<string, { hex: string; name: string }> = {
   kvm: { hex: '#6366f1', name: 'Índigo' },
   console_server: { hex: '#4f46e5', name: 'Índigo Escuro' },
   
+  // Cable Management
+  cable_organizer_horizontal: { hex: '#334155', name: 'Cinza Ardósia' },
+  cable_organizer_vertical: { hex: '#1e293b', name: 'Cinza Escuro' },
+  brush_panel: { hex: '#475569', name: 'Cinza Médio' },
+  
   // Other
   other: { hex: '#9ca3af', name: 'Cinza Claro' }
 };
