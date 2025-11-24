@@ -2,18 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Plus, Building2, MapPin, Layers, Edit, Trash2 } from 'lucide-react';
+import { Plus, Building2 } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { BuildingWizard } from '@/components/buildings/BuildingWizard';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { BuildingFilters } from '@/components/buildings/BuildingFilters';
+import { BuildingCard } from '@/components/buildings/BuildingCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
 
 export default function Buildings() {
   const navigate = useNavigate();
@@ -33,12 +26,23 @@ export default function Buildings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  
+  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
+  const [buildingType, setBuildingType] = useState('all');
+  const [state, setState] = useState('all');
+  const [city, setCity] = useState('');
+  const [internalCode, setInternalCode] = useState('');
 
-  const filteredBuildings = buildings?.filter((building) =>
-    building.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    building.address?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredBuildings = buildings?.filter((building) => {
+    const matchesSearch = building.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = buildingType === 'all' || building.building_type === buildingType;
+    const matchesState = state === 'all' || building.state === state;
+    const matchesCity = !city || building.city?.toLowerCase().includes(city.toLowerCase());
+    const matchesCode = !internalCode || building.internal_code?.toLowerCase().includes(internalCode.toLowerCase());
+    
+    return matchesSearch && matchesType && matchesState && matchesCity && matchesCode;
+  });
 
   const handleEdit = (id: string) => {
     setEditingId(id);
@@ -55,6 +59,14 @@ export default function Buildings() {
       deleteBuilding(deleteId);
       setDeleteId(null);
     }
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setBuildingType('all');
+    setState('all');
+    setCity('');
+    setInternalCode('');
   };
 
   return (
@@ -74,94 +86,43 @@ export default function Buildings() {
           )}
         </div>
 
-        {/* Search */}
-        <Input
-          placeholder="Buscar por nome ou endereço..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-md"
+        {/* Filters */}
+        <BuildingFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          buildingType={buildingType}
+          onBuildingTypeChange={setBuildingType}
+          state={state}
+          onStateChange={setState}
+          city={city}
+          onCityChange={setCity}
+          internalCode={internalCode}
+          onInternalCodeChange={setInternalCode}
+          onClearFilters={handleClearFilters}
         />
 
-        {/* Table */}
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Endereço</TableHead>
-                <TableHead className="text-center">Andares</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center">
-                    Carregando...
-                  </TableCell>
-                </TableRow>
-              ) : filteredBuildings?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
-                    <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">Nenhum prédio encontrado</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredBuildings?.map((building) => (
-                  <TableRow key={building.id}>
-                    <TableCell className="font-medium">{building.name}</TableCell>
-                    <TableCell>
-                      {building.address ? (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <MapPin className="h-4 w-4" />
-                          {building.address}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Layers className="h-4 w-4 text-muted-foreground" />
-                        {building.floors?.[0]?.count || 0}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/buildings/${building.id}/floors`)}
-                        >
-                          Ver Andares
-                        </Button>
-                        {isAdmin && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(building.id)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDeleteId(building.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        {/* Building Cards */}
+        {isLoading ? (
+          <div className="text-center py-12">Carregando...</div>
+        ) : filteredBuildings && filteredBuildings.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredBuildings.map((building) => (
+              <BuildingCard
+                key={building.id}
+                building={building}
+                isAdmin={isAdmin}
+                onView={(id) => navigate(`/buildings/${id}/floors`)}
+                onEdit={handleEdit}
+                onDelete={(id) => setDeleteId(id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 border rounded-lg">
+            <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+            <p className="text-muted-foreground">Nenhum prédio encontrado</p>
+          </div>
+        )}
       </div>
 
       <BuildingWizard
