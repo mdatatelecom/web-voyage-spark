@@ -83,6 +83,16 @@ export const EQUIPMENT_CATEGORIES = [
     ]
   },
   {
+    id: 'cable_management',
+    label: 'Organização de Cabos',
+    icon: Cable,
+    types: [
+      { value: 'cable_organizer_horizontal', label: 'Organizador Horizontal', icon: Cable },
+      { value: 'cable_organizer_vertical', label: 'Organizador Vertical', icon: Cable },
+      { value: 'brush_panel', label: 'Painel Escova', icon: Cable },
+    ]
+  },
+  {
     id: 'other',
     label: 'Outros',
     icon: Box,

@@ -7,9 +7,13 @@ import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Eye, EyeOff, Wind, Flame } from 'lucide-react';
+import { Play, Square, Eye, EyeOff, Wind, Flame, StickyNote, Plus, Edit, Trash2 } from 'lucide-react';
 import { getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
 import { AirflowParticles } from './AirflowParticles';
+import { Annotation3D } from './Annotation3D';
+import { AnnotationDialog } from './AnnotationDialog';
+import { useRackAnnotations } from '@/hooks/useRackAnnotations';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface Equipment {
   id: string;
@@ -305,6 +309,22 @@ export function Rack3DVisualization({
   const [tourActive, setTourActive] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [airflowMode, setAirflowMode] = useState<'off' | 'flow' | 'thermal' | 'both'>('off');
+  const [showAnnotations, setShowAnnotations] = useState(true);
+  const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false);
+  const [editingAnnotation, setEditingAnnotation] = useState<any>(undefined);
+  const [deleteAnnotationId, setDeleteAnnotationId] = useState<string | null>(null);
+
+  // Annotations hook
+  const {
+    annotations,
+    isLoading: annotationsLoading,
+    createAnnotation,
+    updateAnnotation,
+    deleteAnnotation,
+    isCreating,
+    isUpdating,
+    isDeleting
+  } = useRackAnnotations(rackId);
 
   // Fetch connections for this rack's equipment
   const { data: connections } = useQuery({
@@ -430,6 +450,36 @@ export function Rack3DVisualization({
     }
   }, [tourActive, equipment.length, handleTourEnd]);
 
+  const handleAnnotationSave = useCallback((annotation: any) => {
+    if (editingAnnotation?.id) {
+      updateAnnotation({ ...annotation, id: editingAnnotation.id });
+    } else {
+      createAnnotation(annotation);
+    }
+    setAnnotationDialogOpen(false);
+    setEditingAnnotation(undefined);
+  }, [editingAnnotation, createAnnotation, updateAnnotation]);
+
+  const handleAnnotationEdit = useCallback((annotation: any) => {
+    setEditingAnnotation(annotation);
+    setAnnotationDialogOpen(true);
+  }, []);
+
+  const handleAnnotationDelete = useCallback(() => {
+    if (deleteAnnotationId) {
+      deleteAnnotation(deleteAnnotationId);
+      setDeleteAnnotationId(null);
+    }
+  }, [deleteAnnotationId, deleteAnnotation]);
+
+  const iconByType: Record<string, string> = {
+    attention: '⚠️',
+    maintenance: '🔧',
+    note: '📝',
+    warning: '🚨',
+    info: 'ℹ️'
+  };
+
   return (
     <div className="flex gap-4">
       {/* 3D Canvas */}
@@ -472,6 +522,30 @@ export function Rack3DVisualization({
             >
               <Flame className="w-4 h-4 mr-2" />
               Térmico
+            </Button>
+          </div>
+          
+          {/* Annotations Controls */}
+          <div className="flex flex-col gap-1 mt-2 pt-2 border-t">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Anotações</p>
+            <Button
+              variant={showAnnotations ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowAnnotations(!showAnnotations)}
+            >
+              <StickyNote className="w-4 h-4 mr-2" />
+              {showAnnotations ? 'Ocultar' : 'Mostrar'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingAnnotation(undefined);
+                setAnnotationDialogOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova
             </Button>
           </div>
         </div>
@@ -542,6 +616,16 @@ export function Rack3DVisualization({
               enabled={true}
             />
           )}
+          
+          {/* 3D Annotations */}
+          {showAnnotations && annotations?.map(annotation => (
+            <Annotation3D
+              key={annotation.id}
+              annotation={annotation}
+              sizeU={sizeU}
+              onClick={() => handleAnnotationEdit(annotation)}
+            />
+          ))}
           
           {/* Camera Tour Controller */}
           {tourActive && (
@@ -641,8 +725,81 @@ export function Rack3DVisualization({
               )}
             </div>
           )}
+
+          {/* Annotations List */}
+          {annotations && annotations.length > 0 && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">📝 Anotações ({annotations.length})</p>
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {annotations.map(annotation => (
+                  <div 
+                    key={annotation.id} 
+                    className="flex items-start gap-2 p-2 border rounded hover:bg-accent/50 transition-colors"
+                  >
+                    <span className="text-base mt-0.5">{iconByType[annotation.annotation_type]}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{annotation.title}</p>
+                      <p className="text-xs text-muted-foreground">U{annotation.position_u} • {annotation.position_side}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => handleAnnotationEdit(annotation)}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => setDeleteAnnotationId(annotation.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Annotation Dialog */}
+      <AnnotationDialog
+        open={annotationDialogOpen}
+        onOpenChange={(open) => {
+          setAnnotationDialogOpen(open);
+          if (!open) setEditingAnnotation(undefined);
+        }}
+        rackId={rackId}
+        maxU={sizeU}
+        annotation={editingAnnotation}
+        onSave={handleAnnotationSave}
+        isLoading={isCreating || isUpdating}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteAnnotationId} onOpenChange={(open) => !open && setDeleteAnnotationId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir anotação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A anotação será removida permanentemente do rack.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAnnotationDelete} disabled={isDeleting}>
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

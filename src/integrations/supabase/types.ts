@@ -556,6 +556,79 @@ export type Database = {
         }
         Relationships: []
       }
+      rack_annotations: {
+        Row: {
+          annotation_type: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          icon: string | null
+          id: string
+          position_side: string | null
+          position_u: number
+          priority: string | null
+          rack_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          annotation_type: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          icon?: string | null
+          id?: string
+          position_side?: string | null
+          position_u: number
+          priority?: string | null
+          rack_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          annotation_type?: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          icon?: string | null
+          id?: string
+          position_side?: string | null
+          position_u?: number
+          priority?: string | null
+          rack_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rack_annotations_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "racks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_annotations_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_a_id"]
+          },
+          {
+            foreignKeyName: "rack_annotations_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_b_id"]
+          },
+        ]
+      }
       racks: {
         Row: {
           created_at: string
@@ -797,6 +870,9 @@ export type Database = {
         | "kvm"
         | "console_server"
         | "patch_panel_fiber"
+        | "cable_organizer_horizontal"
+        | "cable_organizer_vertical"
+        | "brush_panel"
       port_status: "available" | "in_use" | "reserved" | "disabled"
       port_type:
         | "rj45"
@@ -993,6 +1069,9 @@ export const Constants = {
         "kvm",
         "console_server",
         "patch_panel_fiber",
+        "cable_organizer_horizontal",
+        "cable_organizer_vertical",
+        "brush_panel",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
       port_type: [
