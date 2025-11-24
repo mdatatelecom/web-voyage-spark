@@ -4,10 +4,14 @@ import { toast } from 'sonner';
 import { Database } from '@/integrations/supabase/types';
 
 type EquipmentType = Database['public']['Enums']['equipment_type'];
+type PortType = Database['public']['Enums']['port_type'];
 
-interface PortTemplate {
+interface PortGroup {
   type: string;
-  count?: number;
+  quantity: number;
+  speed: string;
+  prefix: string;
+  startNumber: number;
 }
 
 interface EquipmentData {
@@ -59,7 +63,7 @@ export const useEquipment = (rackId?: string) => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: { equipment: EquipmentData; ports: PortTemplate }) => {
+    mutationFn: async (values: { equipment: EquipmentData; portGroups: PortGroup[] }) => {
       // 1. Validar posição no rack
       const { data: existingEquipment } = await supabase
         .from('equipment')
@@ -91,7 +95,7 @@ export const useEquipment = (rackId?: string) => {
       if (eqError) throw eqError;
       
       // 3. Gerar e inserir portas
-      const portsToInsert = generatePorts(values.ports, newEquipment.id);
+      const portsToInsert = generatePorts(values.portGroups, newEquipment.id);
       
       if (portsToInsert.length > 0) {
         const { error: portsError } = await supabase
@@ -176,147 +180,22 @@ export const useEquipment = (rackId?: string) => {
   };
 };
 
-function generatePorts(template: PortTemplate, equipmentId: string) {
+function generatePorts(groups: PortGroup[], equipmentId: string) {
   const ports: any[] = [];
   
-  switch (template.type) {
-    case 'switch_48_gigabit':
-      for (let i = 1; i <= 48; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Gi1/0/${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'switch_24_gigabit':
-      for (let i = 1; i <= 24; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Gi1/0/${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'switch_48_plus_4sfp':
-      for (let i = 1; i <= 48; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Gi1/0/${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      for (let i = 1; i <= 4; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Te1/0/${i}`,
-          port_number: 48 + i,
-          status: 'available',
-          speed: '10 Gbps'
-        });
-      }
-      break;
-    
-    case 'router_4_gigabit':
-      for (let i = 0; i < 4; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Gi0/0/${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'router_2_plus_2sfp':
-      for (let i = 0; i < 2; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `Gi0/0/${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      for (let i = 0; i < 2; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `SFP0/0/${i}`,
-          port_number: 2 + i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'server_2_nics':
-      for (let i = 0; i < 2; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `eth${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'server_4_nics':
-      for (let i = 0; i < 4; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `eth${i}`,
-          port_number: i,
-          status: 'available',
-          speed: '1 Gbps'
-        });
-      }
-      break;
-    
-    case 'patch_panel_24':
-      for (let i = 1; i <= 24; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `P-${String(i).padStart(2, '0')}`,
-          port_number: i,
-          status: 'available'
-        });
-      }
-      break;
-    
-    case 'patch_panel_48':
-      for (let i = 1; i <= 48; i++) {
-        ports.push({
-          equipment_id: equipmentId,
-          name: `P-${String(i).padStart(2, '0')}`,
-          port_number: i,
-          status: 'available'
-        });
-      }
-      break;
-    
-    case 'custom':
-      if (template.count) {
-        for (let i = 1; i <= template.count; i++) {
-          ports.push({
-            equipment_id: equipmentId,
-            name: `Port-${i}`,
-            port_number: i,
-            status: 'available'
-          });
-        }
-      }
-      break;
-  }
+  groups.forEach(group => {
+    for (let i = 0; i < group.quantity; i++) {
+      const portNum = group.startNumber + i;
+      ports.push({
+        equipment_id: equipmentId,
+        name: `${group.prefix}${portNum}`,
+        port_number: portNum,
+        port_type: group.type as PortType,
+        speed: group.speed,
+        status: 'available'
+      });
+    }
+  });
   
   return ports;
 }
