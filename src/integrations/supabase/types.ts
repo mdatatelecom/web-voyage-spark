@@ -271,6 +271,7 @@ export type Database = {
           ip_address: string | null
           manufacturer: string | null
           model: string | null
+          mount_side: string | null
           name: string
           notes: string | null
           position_u_end: number | null
@@ -287,6 +288,7 @@ export type Database = {
           ip_address?: string | null
           manufacturer?: string | null
           model?: string | null
+          mount_side?: string | null
           name: string
           notes?: string | null
           position_u_end?: number | null
@@ -303,6 +305,7 @@ export type Database = {
           ip_address?: string | null
           manufacturer?: string | null
           model?: string | null
+          mount_side?: string | null
           name?: string
           notes?: string | null
           position_u_end?: number | null

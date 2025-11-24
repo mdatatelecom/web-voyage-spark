@@ -26,6 +26,7 @@ interface EquipmentData {
   hostname?: string;
   ip_address?: string;
   notes?: string;
+  mount_side?: string;
 }
 
 export const useEquipment = (rackId?: string) => {

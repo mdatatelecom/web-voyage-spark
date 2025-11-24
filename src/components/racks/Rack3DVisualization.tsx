@@ -7,8 +7,9 @@ import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Eye, EyeOff } from 'lucide-react';
+import { Play, Square, Eye, EyeOff, Wind, Flame } from 'lucide-react';
 import { getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
+import { AirflowParticles } from './AirflowParticles';
 
 interface Equipment {
   id: string;
@@ -18,6 +19,7 @@ interface Equipment {
   position_u_end: number;
   manufacturer?: string;
   model?: string;
+  mount_side?: string;
 }
 
 interface Rack3DVisualizationProps {
@@ -109,7 +111,7 @@ function Cable3D({
   );
 }
 
-// Equipment Block Component with X-ray support
+// Equipment Block Component with X-ray support and rear mounting
 function EquipmentBlock({
   equipment,
   sizeU,
@@ -133,12 +135,16 @@ function EquipmentBlock({
   // Calculate Y position (from bottom)
   const yPosition = ((equipment.position_u_start - 1) * 0.044) + (height / 2);
   
+  // Calculate Z position based on mount_side
+  const mountSide = equipment.mount_side || 'front';
+  const zPosition = mountSide === 'rear' ? -0.3 : 0;
+  
   const color = getEquipmentColor(equipment.type);
   const emissive = (hovered || highlighted) ? color : '#000000';
   const emissiveIntensity = (hovered || highlighted) ? 0.4 : 0;
 
   return (
-    <group position={[0, yPosition, 0]}>
+    <group position={[0, yPosition, zPosition]}>
       <mesh
         onClick={onClick}
         onPointerOver={() => setHovered(true)}
@@ -155,6 +161,14 @@ function EquipmentBlock({
           opacity={xrayMode ? 0.3 : 1}
         />
       </mesh>
+      
+      {/* Mount side indicator badge */}
+      {mountSide === 'rear' && !xrayMode && (
+        <mesh position={[0.18, height / 2 - 0.015, depth / 2 + 0.001]}>
+          <planeGeometry args={[0.05, 0.02]} />
+          <meshBasicMaterial color="#ff6b6b" />
+        </mesh>
+      )}
       
       {/* Equipment label */}
       {!xrayMode && (
@@ -195,7 +209,7 @@ function EquipmentBlock({
           outlineWidth={0.002}
           outlineColor="#000000"
         >
-          {`U${equipment.position_u_start}-U${equipment.position_u_end} (${heightUs}U)\n${equipment.manufacturer || ''} ${equipment.model || ''}`}
+          {`U${equipment.position_u_start}-U${equipment.position_u_end} (${heightUs}U)\n${mountSide === 'rear' ? '🔴 Traseira' : '🔵 Frontal'}\n${equipment.manufacturer || ''} ${equipment.model || ''}`}
         </Text>
       )}
     </group>
@@ -290,6 +304,7 @@ export function Rack3DVisualization({
   const [xrayMode, setXrayMode] = useState(false);
   const [tourActive, setTourActive] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
+  const [airflowMode, setAirflowMode] = useState<'off' | 'flow' | 'thermal' | 'both'>('off');
 
   // Fetch connections for this rack's equipment
   const { data: connections } = useQuery({
@@ -427,7 +442,7 @@ export function Rack3DVisualization({
             onClick={() => setXrayMode(!xrayMode)}
           >
             {xrayMode ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-            Modo Raio-X
+            Raio-X
           </Button>
           <Button
             variant={tourActive ? 'destructive' : 'outline'}
@@ -436,8 +451,29 @@ export function Rack3DVisualization({
             disabled={equipment.length === 0}
           >
             {tourActive ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-            {tourActive ? 'Parar Tour' : 'Tour Guiado'}
+            Tour
           </Button>
+          
+          {/* Airflow Controls */}
+          <div className="flex flex-col gap-1 mt-2 pt-2 border-t">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Simulação</p>
+            <Button
+              variant={airflowMode === 'flow' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setAirflowMode(airflowMode === 'flow' ? 'off' : 'flow')}
+            >
+              <Wind className="w-4 h-4 mr-2" />
+              Airflow
+            </Button>
+            <Button
+              variant={airflowMode === 'thermal' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setAirflowMode(airflowMode === 'thermal' ? 'off' : 'thermal')}
+            >
+              <Flame className="w-4 h-4 mr-2" />
+              Térmico
+            </Button>
+          </div>
         </div>
 
         <Canvas
@@ -497,6 +533,15 @@ export function Rack3DVisualization({
           
           {/* Grid floor */}
           <gridHelper args={[3, 20, '#333333', '#222222']} position={[0, -0.05, 0]} />
+          
+          {/* Airflow Particles */}
+          {(airflowMode === 'flow' || airflowMode === 'both') && (
+            <AirflowParticles
+              equipment={equipment}
+              sizeU={sizeU}
+              enabled={true}
+            />
+          )}
           
           {/* Camera Tour Controller */}
           {tourActive && (
