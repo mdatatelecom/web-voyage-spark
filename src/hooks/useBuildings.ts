@@ -10,33 +10,42 @@ export const useBuildings = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('buildings')
-        .select(`
-          *,
-          floors:floors(
-            count,
-            rooms:rooms(
-              count,
-              racks:racks(count)
-            )
-          )
-        `)
+        .select('*')
         .order('name');
 
       if (error) throw error;
       
-      // Aggregate room and rack counts
-      return data.map(building => ({
-        ...building,
-        rooms: [{
-          count: building.floors?.reduce((acc: number, floor: any) => 
-            acc + (floor.rooms?.[0]?.count || 0), 0) || 0
-        }],
-        racks: [{
-          count: building.floors?.reduce((acc: number, floor: any) => 
-            floor.rooms?.reduce((rAcc: number, room: any) => 
-              rAcc + (room.racks?.[0]?.count || 0), acc) || acc, 0) || 0
-        }]
-      }));
+      // Fetch counts for each building separately to avoid GROUP BY issues
+      const buildingsWithCounts = await Promise.all(
+        data.map(async (building) => {
+          // Count floors
+          const { count: floorsCount } = await supabase
+            .from('floors')
+            .select('*', { count: 'exact', head: true })
+            .eq('building_id', building.id);
+
+          // Count rooms
+          const { count: roomsCount } = await supabase
+            .from('rooms')
+            .select('*, floors!inner(*)', { count: 'exact', head: true })
+            .eq('floors.building_id', building.id);
+
+          // Count racks
+          const { count: racksCount } = await supabase
+            .from('racks')
+            .select('*, rooms!inner(*, floors!inner(*))', { count: 'exact', head: true })
+            .eq('rooms.floors.building_id', building.id);
+
+          return {
+            ...building,
+            floors: [{ count: floorsCount || 0 }],
+            rooms: [{ count: roomsCount || 0 }],
+            racks: [{ count: racksCount || 0 }]
+          };
+        })
+      );
+
+      return buildingsWithCounts;
     },
   });
 
