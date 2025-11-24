@@ -9,12 +9,14 @@ import { Switch } from '@/components/ui/switch';
 import { useFloors } from '@/hooks/useFloors';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getTerminology } from '@/constants/locationTypes';
 
 interface FloorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   floorId?: string;
   buildingId?: string;
+  buildingType?: string;
 }
 
 interface FloorFormData {
@@ -25,9 +27,10 @@ interface FloorFormData {
   notes?: string;
 }
 
-export const FloorDialog = ({ open, onOpenChange, floorId, buildingId }: FloorDialogProps) => {
+export const FloorDialog = ({ open, onOpenChange, floorId, buildingId, buildingType }: FloorDialogProps) => {
   const { createFloor, updateFloor, isCreating, isUpdating } = useFloors(buildingId);
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FloorFormData>();
+  const terminology = getTerminology(buildingType);
   
   const hasAccessControl = watch('has_access_control');
 
@@ -86,17 +89,17 @@ export const FloorDialog = ({ open, onOpenChange, floorId, buildingId }: FloorDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{floorId ? 'Editar Andar' : 'Novo Andar'}</DialogTitle>
+          <DialogTitle>{floorId ? terminology.editLevel : terminology.newLevel}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome do Andar *</Label>
+            <Label htmlFor="name">Nome do {terminology.level.singular} *</Label>
             <Input
               id="name"
               {...register('name', { 
                 required: 'Nome é obrigatório',
               })}
-              placeholder="Ex: 2º Andar, Térreo, Subsolo"
+              placeholder={terminology.level.singular === 'Andar' ? 'Ex: 2º Andar, Térreo, Subsolo' : 'Ex: Setor A, Setor Administrativo'}
             />
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -104,16 +107,18 @@ export const FloorDialog = ({ open, onOpenChange, floorId, buildingId }: FloorDi
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="floor_number">Número do Andar</Label>
+            <Label htmlFor="floor_number">{terminology.levelNumber}</Label>
             <Input
               id="floor_number"
               type="number"
               {...register('floor_number')}
-              placeholder="Ex: 2, 0, -1"
+              placeholder={terminology.level.singular === 'Andar' ? 'Ex: 2, 0, -1' : 'Ex: 1, 2, 3'}
             />
-            <p className="text-xs text-muted-foreground">
-              Números negativos para subsolos (ex: -1 para Subsolo 1)
-            </p>
+            {terminology.level.singular === 'Andar' && (
+              <p className="text-xs text-muted-foreground">
+                Números negativos para subsolos (ex: -1 para Subsolo 1)
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

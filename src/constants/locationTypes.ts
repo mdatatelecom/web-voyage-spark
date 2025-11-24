@@ -5,29 +5,83 @@ import {
 } from 'lucide-react';
 
 export const BUILDING_TYPES = [
-  { value: 'commercial_building', label: 'Edifício Comercial', icon: Building2 },
-  { value: 'warehouse', label: 'Galpão', icon: Warehouse },
-  { value: 'office', label: 'Escritório', icon: Briefcase },
-  { value: 'residence', label: 'Residência / Casa', icon: Home },
-  { value: 'condominium', label: 'Condomínio', icon: Building },
-  { value: 'campus', label: 'Campus', icon: GraduationCap },
-  { value: 'data_center', label: 'Data Center Externo', icon: Server },
-  { value: 'logistics_center', label: 'Centro Logístico', icon: Truck },
-  { value: 'operational_unit', label: 'Unidade Operacional', icon: Factory },
-  { value: 'headquarters', label: 'Sede', icon: Building2 },
-  { value: 'branch', label: 'Filial', icon: GitBranch },
-  { value: 'mall', label: 'Shopping / Centro Comercial', icon: ShoppingCart },
-  { value: 'hospital', label: 'Hospital', icon: Heart },
-  { value: 'school', label: 'Escola / Universidade', icon: School },
-  { value: 'hotel', label: 'Hotel', icon: Hotel },
-  { value: 'factory', label: 'Fábrica / Planta Industrial', icon: Factory },
-  { value: 'store', label: 'Loja / Ponto Comercial', icon: Store },
-  { value: 'container', label: 'Container Técnico', icon: Container },
-  { value: 'substation', label: 'Subestação', icon: Zap },
-  { value: 'telecom_center', label: 'Central Telefônica', icon: Phone },
-  { value: 'monitoring_center', label: 'Central de Monitoramento', icon: Monitor },
-  { value: 'storage', label: 'Estoque / Almoxarifado', icon: Package },
+  { value: 'commercial_building', label: 'Edifício Comercial', icon: Building2, usesFloors: true },
+  { value: 'warehouse', label: 'Galpão', icon: Warehouse, usesFloors: false },
+  { value: 'office', label: 'Escritório', icon: Briefcase, usesFloors: false },
+  { value: 'residence', label: 'Residência / Casa', icon: Home, usesFloors: false },
+  { value: 'condominium', label: 'Condomínio', icon: Building, usesFloors: true },
+  { value: 'other', label: 'Outro', icon: Package, usesFloors: false },
 ];
+
+// Mapeamento de terminologia por tipo de edificação
+export const LOCATION_TERMINOLOGY = {
+  commercial_building: {
+    level: { singular: 'Andar', plural: 'Andares' },
+    levelNumber: 'Número do Andar',
+    newLevel: 'Novo Andar',
+    editLevel: 'Editar Andar',
+    noLevels: 'Nenhum andar cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro andar',
+    viewRooms: 'Ver Salas',
+  },
+  condominium: {
+    level: { singular: 'Andar', plural: 'Andares' },
+    levelNumber: 'Número do Andar',
+    newLevel: 'Novo Andar',
+    editLevel: 'Editar Andar',
+    noLevels: 'Nenhum andar cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro andar',
+    viewRooms: 'Ver Salas',
+  },
+  warehouse: {
+    level: { singular: 'Setor', plural: 'Setores' },
+    levelNumber: 'Identificação do Setor',
+    newLevel: 'Novo Setor',
+    editLevel: 'Editar Setor',
+    noLevels: 'Nenhum setor cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro setor',
+    viewRooms: 'Ver Salas',
+  },
+  office: {
+    level: { singular: 'Setor', plural: 'Setores' },
+    levelNumber: 'Identificação do Setor',
+    newLevel: 'Novo Setor',
+    editLevel: 'Editar Setor',
+    noLevels: 'Nenhum setor cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro setor',
+    viewRooms: 'Ver Salas',
+  },
+  residence: {
+    level: { singular: 'Setor', plural: 'Setores' },
+    levelNumber: 'Identificação do Setor',
+    newLevel: 'Novo Setor',
+    editLevel: 'Editar Setor',
+    noLevels: 'Nenhum setor cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro setor',
+    viewRooms: 'Ver Salas',
+  },
+  other: {
+    level: { singular: 'Setor', plural: 'Setores' },
+    levelNumber: 'Identificação do Setor',
+    newLevel: 'Novo Setor',
+    editLevel: 'Editar Setor',
+    noLevels: 'Nenhum setor cadastrado',
+    addFirstLevel: 'Comece adicionando o primeiro setor',
+    viewRooms: 'Ver Salas',
+  },
+};
+
+// Função utilitária para obter terminologia
+export function getTerminology(buildingType: string | null | undefined) {
+  return LOCATION_TERMINOLOGY[buildingType as keyof typeof LOCATION_TERMINOLOGY] 
+    || LOCATION_TERMINOLOGY.other;
+}
+
+// Função para verificar se usa andares ou setores
+export function usesFloors(buildingType: string | null | undefined): boolean {
+  const type = BUILDING_TYPES.find(t => t.value === buildingType);
+  return type?.usesFloors ?? false;
+}
 
 export const ROOM_TYPES = [
   // 🖥️ Infraestrutura de TI

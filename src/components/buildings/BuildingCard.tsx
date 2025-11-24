@@ -2,7 +2,7 @@ import { Building2, MapPin, Layers, Edit, Trash2, DoorOpen, Server } from 'lucid
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BUILDING_TYPES } from '@/constants/locationTypes';
+import { BUILDING_TYPES, getTerminology } from '@/constants/locationTypes';
 
 interface BuildingCardProps {
   building: {
@@ -32,6 +32,7 @@ export function BuildingCard({
 }: BuildingCardProps) {
   const buildingTypeInfo = BUILDING_TYPES.find((t) => t.value === building.building_type);
   const Icon = buildingTypeInfo?.icon || Building2;
+  const terminology = getTerminology(building.building_type);
 
   const floorCount = building.floors?.[0]?.count || 0;
   const roomCount = building.rooms?.[0]?.count || 0;
@@ -106,7 +107,7 @@ export function BuildingCard({
           <div className="flex items-center gap-2 text-sm">
             <Layers className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{floorCount}</span>
-            <span className="text-muted-foreground">andares</span>
+            <span className="text-muted-foreground">{terminology.level.plural.toLowerCase()}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <DoorOpen className="h-4 w-4 text-muted-foreground" />

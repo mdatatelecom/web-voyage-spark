@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Plus, Layers, DoorOpen, Edit, Trash2 } from 'lucide-react';
@@ -8,6 +10,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { FloorDialog } from '@/components/floors/FloorDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getTerminology } from '@/constants/locationTypes';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +30,23 @@ export default function Floors() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Buscar building para obter o tipo
+  const { data: building } = useQuery({
+    queryKey: ['building', buildingId],
+    queryFn: async () => {
+      if (!buildingId) return null;
+      const { data } = await supabase
+        .from('buildings')
+        .select('id, name, building_type')
+        .eq('id', buildingId)
+        .single();
+      return data;
+    },
+    enabled: !!buildingId
+  });
+
+  const terminology = getTerminology(building?.building_type);
 
   const handleEdit = (id: string) => {
     setEditingId(id);
@@ -51,13 +71,13 @@ export default function Floors() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Andares</h1>
-            <p className="text-muted-foreground">Gerencie os andares deste prédio</p>
+            <h1 className="text-3xl font-bold text-foreground">{terminology.level.plural}</h1>
+            <p className="text-muted-foreground">Gerencie os {terminology.level.plural.toLowerCase()} deste prédio</p>
           </div>
           {isAdmin && (
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
-              Novo Andar
+              {terminology.newLevel}
             </Button>
           )}
         </div>
@@ -69,12 +89,12 @@ export default function Floors() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Layers className="h-16 w-16 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium text-foreground">Nenhum andar cadastrado</p>
-              <p className="text-muted-foreground mb-4">Comece adicionando o primeiro andar</p>
+              <p className="text-lg font-medium text-foreground">{terminology.noLevels}</p>
+              <p className="text-muted-foreground mb-4">{terminology.addFirstLevel}</p>
               {isAdmin && (
                 <Button onClick={handleCreate}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Andar
+                  {terminology.newLevel}
                 </Button>
               )}
             </CardContent>
@@ -111,7 +131,7 @@ export default function Floors() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Número do Andar</span>
+                    <span className="text-sm text-muted-foreground">{terminology.levelNumber}</span>
                     <Badge variant="secondary">
                       {floor.floor_number !== null ? `${floor.floor_number}º` : 'N/A'}
                     </Badge>
@@ -127,7 +147,7 @@ export default function Floors() {
                     className="w-full"
                     onClick={() => navigate(`/buildings/${buildingId}/floors/${floor.id}/rooms`)}
                   >
-                    Ver Salas
+                    {terminology.viewRooms}
                   </Button>
                 </CardContent>
               </Card>
@@ -141,6 +161,7 @@ export default function Floors() {
         onOpenChange={setDialogOpen}
         floorId={editingId}
         buildingId={buildingId}
+        buildingType={building?.building_type}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
