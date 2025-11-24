@@ -2,6 +2,7 @@ import { useLocation, useParams, Link } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getTerminology } from '@/constants/locationTypes';
 
 export const Breadcrumb = () => {
   const location = useLocation();
@@ -14,7 +15,7 @@ export const Breadcrumb = () => {
       if (!params.buildingId) return null;
       const { data } = await supabase
         .from('buildings')
-        .select('name')
+        .select('name, building_type')
         .eq('id', params.buildingId)
         .single();
       return data;
@@ -67,6 +68,7 @@ export const Breadcrumb = () => {
   const getBreadcrumbs = () => {
     const pathSegments = location.pathname.split('/').filter(Boolean);
     const breadcrumbs = [{ label: 'Home', path: '/dashboard' }];
+    const terminology = getTerminology(building?.building_type);
 
     if (pathSegments[0] === 'dashboard') {
       breadcrumbs.push({ label: 'Dashboard', path: '/dashboard' });
@@ -84,7 +86,7 @@ export const Breadcrumb = () => {
 
       if (pathSegments.includes('floors') && params.floorId) {
         breadcrumbs.push({ 
-          label: floor?.name || 'Andar', 
+          label: floor?.name || terminology.level.singular, 
           path: `/buildings/${params.buildingId}/floors/${params.floorId}/rooms` 
         });
       }
