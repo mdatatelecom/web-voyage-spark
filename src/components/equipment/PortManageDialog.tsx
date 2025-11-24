@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,25 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   const [speed, setSpeed] = useState(port?.speed || '');
   const [notes, setNotes] = useState(port?.notes || '');
   const [status, setStatus] = useState(port?.status || 'available');
+
+  // Sync form state with port prop
+  useEffect(() => {
+    if (port) {
+      setName(port.name || '');
+      setPortNumber(port.port_number?.toString() || '');
+      setPortType(port.port_type || 'rj45');
+      setSpeed(port.speed || '');
+      setNotes(port.notes || '');
+      setStatus(port.status || 'available');
+    } else {
+      setName('');
+      setPortNumber('');
+      setPortType('rj45');
+      setSpeed('');
+      setNotes('');
+      setStatus('available');
+    }
+  }, [port, open]);
 
   // Batch form
   const [prefix, setPrefix] = useState('');
