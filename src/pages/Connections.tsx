@@ -1,25 +1,48 @@
 import { useState } from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { Button } from '@/components/ui/button';
-import { Plus, Cable, QrCode } from 'lucide-react';
-import { ConnectionDialog } from '@/components/connections/ConnectionDialog';
-import { useConnections } from '@/hooks/useConnections';
-import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ExportButton } from '@/components/export/ExportButton';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Network, Tag, Loader2, MoreHorizontal, Eye, Unplug, Trash2 } from 'lucide-react';
+import { ConnectionDialog } from '@/components/connections/ConnectionDialog';
 import { LabelDialog } from '@/components/labels/LabelDialog';
+import { useConnections } from '@/hooks/useConnections';
+import { ExportButton } from '@/components/export/ExportButton';
 
 export default function Connections() {
+  const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState<any>(null);
-  const { connections, isLoading } = useConnections();
-  const navigate = useNavigate();
+  const { connections, isLoading, disconnectConnection, deleteConnection, isDisconnecting, isDeleting } = useConnections();
 
-  const handleGenerateLabel = (conn: any, e: React.MouseEvent) => {
+  const handleGenerateLabel = (connection: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedConnection(conn);
+    setSelectedConnection(connection);
     setLabelDialogOpen(true);
+  };
+
+  const handleDisconnect = (connection: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    disconnectConnection(connection.id);
+  };
+
+  const handleDelete = (connection: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedConnection(connection);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (selectedConnection) {
+      deleteConnection(selectedConnection.id);
+      setDeleteDialogOpen(false);
+      setSelectedConnection(null);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -39,12 +62,10 @@ export default function Connections() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Cable className="w-8 h-8" />
+              <Network className="w-8 h-8" />
               Conexões
             </h1>
-            <p className="text-muted-foreground">
-              Gerencie todas as conexões de rede
-            </p>
+            <p className="text-muted-foreground">Gerencie todas as conexões de rede</p>
           </div>
           <div className="flex gap-2">
             {connections && connections.length > 0 && (
@@ -54,16 +75,6 @@ export default function Connections() {
                   'Status': conn.status,
                   'Equipamento A': conn.equipment_a_name,
                   'Porta A': conn.port_a_name,
-                  'Rack A': conn.rack_a_name,
-                  'Equipamento B': conn.equipment_b_name,
-                  'Porta B': conn.port_b_name,
-                  'Rack B': conn.rack_b_name,
-                  'Tipo de Cabo': conn.cable_type,
-                  'Comprimento (m)': conn.cable_length_meters || '-',
-                  'Cor': conn.cable_color || '-',
-                  'Data Instalação': conn.installed_at 
-                    ? new Date(conn.installed_at).toLocaleDateString('pt-BR')
-                    : '-',
                 }))}
                 filename="conexoes"
                 sheetName="Conexões"
@@ -77,105 +88,75 @@ export default function Connections() {
         </div>
 
         {isLoading ? (
-          <div className="text-center py-12">Carregando...</div>
+          <div className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>
         ) : connections && connections.length > 0 ? (
           <div className="grid gap-4">
-            {connections.map((conn) => (
-              <div
-                key={conn.id}
-                onClick={() => navigate(`/connections/${conn.id}`)}
-                className="p-6 border rounded-lg hover:shadow-lg transition-all cursor-pointer"
-              >
+            {connections.map((connection: any) => (
+              <Card key={connection.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer relative group" onClick={() => navigate(`/connections/${connection.id}`)}>
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => navigate(`/connections/${connection.id}`)}><Eye className="w-4 h-4 mr-2" />Ver Detalhes</DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => handleGenerateLabel(connection, e)}><Tag className="w-4 h-4 mr-2" />Gerar Etiqueta</DropdownMenuItem>
+                      {connection.status === 'active' && (
+                        <DropdownMenuItem onClick={(e) => handleDisconnect(connection, e)} disabled={isDisconnecting}><Unplug className="w-4 h-4 mr-2" />{isDisconnecting ? 'Desconectando...' : 'Desconectar'}</DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={(e) => handleDelete(connection, e)} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />Excluir</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      {conn.connection_code}
-                    </h3>
-                    <Badge className={getStatusColor(conn.status || 'active')}>
-                      {conn.status}
-                    </Badge>
+                    <h3 className="text-xl font-semibold mb-2">{connection.connection_code}</h3>
+                    <Badge className={getStatusColor(connection.status || 'active')}>{connection.status}</Badge>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => handleGenerateLabel(conn, e)}
-                  >
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Gerar Etiqueta
-                  </Button>
                 </div>
-
                 <div className="grid md:grid-cols-3 gap-4 text-sm">
                   <div className="p-3 bg-muted rounded-lg">
                     <p className="font-medium mb-1">📍 Ponto A</p>
-                    <p className="text-muted-foreground">
-                      {conn.equipment_a_name} / {conn.port_a_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {conn.rack_a_name}
-                    </p>
+                    <p className="text-muted-foreground">{connection.equipment_a_name} / {connection.port_a_name}</p>
                   </div>
-
                   <div className="flex items-center justify-center">
-                    <div className="text-center space-y-2">
-                      <div>
-                        <Cable className="w-6 h-6 mx-auto mb-1 text-primary" />
-                        <p className="text-xs text-muted-foreground">
-                          {conn.cable_type}
-                          {conn.cable_length_meters && ` | ${conn.cable_length_meters}m`}
-                        </p>
-                        {conn.cable_color && (
-                          <div
-                            className="w-8 h-2 mx-auto mt-1 rounded"
-                            style={{ backgroundColor: conn.cable_color }}
-                          />
-                        )}
-                      </div>
-                      {conn.vlan_id && (
-                        <Badge variant="outline" className="text-xs">
-                          🌐 VLAN {conn.vlan_id}
-                          {conn.vlan_name && `: ${conn.vlan_name}`}
-                          {conn.vlan_tagging === 'tagged' && ' (Tagged)'}
-                        </Badge>
-                      )}
-                    </div>
+                    <Network className="w-6 h-6 text-primary" />
                   </div>
-
                   <div className="p-3 bg-muted rounded-lg">
                     <p className="font-medium mb-1">📍 Ponto B</p>
-                    <p className="text-muted-foreground">
-                      {conn.equipment_b_name} / {conn.port_b_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {conn.rack_b_name}
-                    </p>
+                    <p className="text-muted-foreground">{connection.equipment_b_name} / {connection.port_b_name}</p>
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 border rounded-lg">
-            <Cable className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">
-              Nenhuma conexão cadastrada
-            </p>
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Criar Primeira Conexão
-            </Button>
-          </div>
+          <Card className="text-center py-12">
+            <Network className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">Nenhuma conexão cadastrada</p>
+            <Button onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Criar Primeira Conexão</Button>
+          </Card>
         )}
       </div>
 
       <ConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
-      {selectedConnection && (
-        <LabelDialog
-          open={labelDialogOpen}
-          onOpenChange={setLabelDialogOpen}
-          connection={selectedConnection}
-        />
-      )}
+      <LabelDialog open={labelDialogOpen} onOpenChange={setLabelDialogOpen} connection={selectedConnection} />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir permanentemente a conexão "{selectedConnection?.connection_code}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2 } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -39,6 +39,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Racks', icon: Package, path: '/racks', visible: !isNetworkViewer, badge: undefined },
     { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Conexões', icon: Network, path: '/connections', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
+    { label: 'Mapa da Rede', icon: Waypoints, path: '/network-map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
     { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: labels?.length },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
