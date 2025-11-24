@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Plus, Building2 } from 'lucide-react';
+import { Plus, Building2, LayoutGrid, Network } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { BuildingWizard } from '@/components/buildings/BuildingWizard';
 import { BuildingFilters } from '@/components/buildings/BuildingFilters';
 import { BuildingCard } from '@/components/buildings/BuildingCard';
+import { BuildingHierarchyTree } from '@/components/buildings/BuildingHierarchyTree';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +28,7 @@ export default function Buildings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'tree'>('cards');
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,32 +81,50 @@ export default function Buildings() {
             <h1 className="text-3xl font-bold text-foreground">Prédios</h1>
             <p className="text-muted-foreground">Gerencie os prédios da sua infraestrutura</p>
           </div>
-          {isAdmin && (
-            <Button onClick={handleCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Prédio
-            </Button>
-          )}
+          <div className="flex gap-2">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cards' | 'tree')}>
+              <TabsList>
+                <TabsTrigger value="cards" className="gap-2">
+                  <LayoutGrid className="h-4 w-4" />
+                  Cards
+                </TabsTrigger>
+                <TabsTrigger value="tree" className="gap-2">
+                  <Network className="h-4 w-4" />
+                  Árvore
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            {isAdmin && (
+              <Button onClick={handleCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Prédio
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Filters */}
-        <BuildingFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          buildingType={buildingType}
-          onBuildingTypeChange={setBuildingType}
-          state={state}
-          onStateChange={setState}
-          city={city}
-          onCityChange={setCity}
-          internalCode={internalCode}
-          onInternalCodeChange={setInternalCode}
-          onClearFilters={handleClearFilters}
-        />
+        {/* Filters - only for cards view */}
+        {viewMode === 'cards' && (
+          <BuildingFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            buildingType={buildingType}
+            onBuildingTypeChange={setBuildingType}
+            state={state}
+            onStateChange={setState}
+            city={city}
+            onCityChange={setCity}
+            internalCode={internalCode}
+            onInternalCodeChange={setInternalCode}
+            onClearFilters={handleClearFilters}
+          />
+        )}
 
-        {/* Building Cards */}
+        {/* Content */}
         {isLoading ? (
           <div className="text-center py-12">Carregando...</div>
+        ) : viewMode === 'tree' ? (
+          <BuildingHierarchyTree />
         ) : filteredBuildings && filteredBuildings.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredBuildings.map((building) => (
