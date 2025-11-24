@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useFloors } from '@/hooks/useFloors';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getTerminology } from '@/constants/locationTypes';
+import { getTerminology, usesFloors } from '@/constants/locationTypes';
 
 interface FloorDialogProps {
   open: boolean;
@@ -31,8 +31,10 @@ export const FloorDialog = ({ open, onOpenChange, floorId, buildingId, buildingT
   const { createFloor, updateFloor, isCreating, isUpdating } = useFloors(buildingId);
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FloorFormData>();
   const terminology = getTerminology(buildingType);
+  const requiresFloorNumber = usesFloors(buildingType);
   
   const hasAccessControl = watch('has_access_control');
+  const floorNumber = watch('floor_number');
 
   const { data: floor } = useQuery({
     queryKey: ['floor', floorId],
@@ -68,6 +70,22 @@ export const FloorDialog = ({ open, onOpenChange, floorId, buildingId, buildingT
     }
   }, [floor, reset, open]);
 
+  // Auto-gerar nome para andares baseado no número
+  useEffect(() => {
+    if (requiresFloorNumber && floorNumber !== undefined && floorNumber !== null && !floorId) {
+      const num = Number(floorNumber);
+      let autoName = '';
+      if (num < 0) {
+        autoName = `Subsolo ${Math.abs(num)}`;
+      } else if (num === 0) {
+        autoName = 'Térreo';
+      } else {
+        autoName = `${num}º Andar`;
+      }
+      setValue('name', autoName);
+    }
+  }, [floorNumber, requiresFloorNumber, floorId, setValue]);
+
   const onSubmit = (data: FloorFormData) => {
     const formData = {
       ...data,
@@ -92,34 +110,69 @@ export const FloorDialog = ({ open, onOpenChange, floorId, buildingId, buildingT
           <DialogTitle>{floorId ? terminology.editLevel : terminology.newLevel}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome do {terminology.level.singular} *</Label>
-            <Input
-              id="name"
-              {...register('name', { 
-                required: 'Nome é obrigatório',
-              })}
-              placeholder={terminology.level.singular === 'Andar' ? 'Ex: 2º Andar, Térreo, Subsolo' : 'Ex: Setor A, Setor Administrativo'}
-            />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
-            )}
-          </div>
+          {requiresFloorNumber ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="floor_number">{terminology.levelNumber} *</Label>
+                <Input
+                  id="floor_number"
+                  type="number"
+                  {...register('floor_number', { 
+                    required: 'Número do andar é obrigatório',
+                    valueAsNumber: true,
+                  })}
+                  placeholder="Ex: 2, 0, -1"
+                />
+                {errors.floor_number && (
+                  <p className="text-sm text-destructive">{errors.floor_number.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Números negativos para subsolos (ex: -1 para Subsolo 1)
+                </p>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="floor_number">{terminology.levelNumber}</Label>
-            <Input
-              id="floor_number"
-              type="number"
-              {...register('floor_number')}
-              placeholder={terminology.level.singular === 'Andar' ? 'Ex: 2, 0, -1' : 'Ex: 1, 2, 3'}
-            />
-            {terminology.level.singular === 'Andar' && (
-              <p className="text-xs text-muted-foreground">
-                Números negativos para subsolos (ex: -1 para Subsolo 1)
-              </p>
-            )}
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome do {terminology.level.singular}</Label>
+                <Input
+                  id="name"
+                  {...register('name')}
+                  placeholder="Gerado automaticamente baseado no número"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Opcional - será gerado automaticamente se não informado
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome do {terminology.level.singular} *</Label>
+                <Input
+                  id="name"
+                  {...register('name', { 
+                    required: 'Nome é obrigatório',
+                  })}
+                  placeholder="Ex: Setor A, Setor Administrativo, Produção"
+                />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="floor_number">{terminology.levelNumber}</Label>
+                <Input
+                  id="floor_number"
+                  type="number"
+                  {...register('floor_number')}
+                  placeholder="Ex: 1, 2, 3 (opcional, para ordenação)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Opcional - usado apenas para ordenação
+                </p>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="area_sqm">Área útil (m²)</Label>
