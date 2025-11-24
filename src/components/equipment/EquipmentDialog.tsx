@@ -55,7 +55,8 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     serialNumber: '',
     hostname: '',
     ipAddress: '',
-    notes: ''
+    notes: '',
+    mountSide: 'front'
   });
 
   const { buildings } = useBuildings();
@@ -121,7 +122,8 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         serial_number: formData.serialNumber || undefined,
         hostname: formData.hostname || undefined,
         ip_address: formData.ipAddress || undefined,
-        notes: formData.notes || undefined
+        notes: formData.notes || undefined,
+        mount_side: formData.mountSide as any
       },
       portGroups
     }, {
@@ -137,7 +139,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           buildingId: '', floorId: '', roomId: '', rackId: '',
           positionStart: '', positionEnd: '', name: '', type: '',
           manufacturer: '', model: '', serialNumber: '', hostname: '',
-          ipAddress: '', notes: ''
+          ipAddress: '', notes: '', mountSide: 'front'
         });
       }
     });
@@ -294,6 +296,26 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
 
             {selectedRack && (
               <>
+                <div>
+                  <Label>Lado de Montagem *</Label>
+                  <Select value={formData.mountSide} onValueChange={(v) => setFormData({ ...formData, mountSide: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="front">Frontal (Padrão)</SelectItem>
+                      <SelectItem value="rear">Traseira</SelectItem>
+                      <SelectItem value="both">Ambos os Lados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.type === 'pdu' || formData.type === 'ups' ? 
+                      '💡 PDU/UPS geralmente ficam na traseira' :
+                      formData.type === 'switch' || formData.type === 'patch_panel' ?
+                      '💡 Switches/Patch Panels ficam frontais' :
+                      'Selecione onde o equipamento será instalado'
+                    }
+                  </p>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>U Inicial *</Label>

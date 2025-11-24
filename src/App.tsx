@@ -29,6 +29,7 @@ import Alerts from "./pages/Alerts";
 import AlertSettings from "./pages/AlertSettings";
 import MyConnections from "./pages/MyConnections";
 import NetworkMap from "./pages/NetworkMap";
+import RackComparison from "./pages/RackComparison";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -220,7 +221,15 @@ const App = () => (
               } 
             />
             <Route 
-              path="/network-map" 
+            path="/racks/compare" 
+            element={
+              <ProtectedRoute requiredRole={['admin', 'technician']}>
+                <RackComparison />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/network-map"
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <NetworkMap />

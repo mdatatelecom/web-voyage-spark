@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { FlipHorizontal } from 'lucide-react';
 
 interface Equipment {
   id: string;
@@ -11,6 +13,7 @@ interface Equipment {
   model?: string;
   ip_address?: string;
   hostname?: string;
+  mount_side?: string;
 }
 
 interface RackVisualizationProps {
@@ -44,14 +47,21 @@ const getTypeLabel = (type: string) => {
 
 export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVisualizationProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [view, setView] = useState<'front' | 'rear'>('front');
   
   const width = 400;
   const uHeight = 20;
   const height = sizeU * uHeight;
 
+  // Filter equipment by current view
+  const filteredEquipment = equipment.filter(eq => {
+    const mountSide = eq.mount_side || 'front';
+    return mountSide === view || mountSide === 'both';
+  });
+
   // Create a map of which equipment is at each U position
   const uMap = new Map<number, Equipment>();
-  equipment.forEach((eq) => {
+  filteredEquipment.forEach((eq) => {
     for (let u = eq.position_u_start; u <= eq.position_u_end; u++) {
       uMap.set(u, eq);
     }
@@ -62,6 +72,24 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
 
   return (
     <div className="relative">
+      {/* View Toggle */}
+      <div className="flex gap-2 mb-2">
+        <Button
+          variant={view === 'front' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setView('front')}
+        >
+          🔵 Frontal
+        </Button>
+        <Button
+          variant={view === 'rear' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setView('rear')}
+        >
+          🔴 Traseira
+        </Button>
+      </div>
+      
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="border-2 border-border rounded-lg">
         {/* Background */}
         <rect x="0" y="0" width={width} height={height} fill="hsl(var(--card))" />
