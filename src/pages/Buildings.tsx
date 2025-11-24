@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Building2, MapPin, Layers, Edit, Trash2 } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useUserRole } from '@/hooks/useUserRole';
-import { BuildingDialog } from '@/components/buildings/BuildingDialog';
+import { BuildingWizard } from '@/components/buildings/BuildingWizard';
 import {
   Table,
   TableBody,
@@ -164,7 +164,7 @@ export default function Buildings() {
         </div>
       </div>
 
-      <BuildingDialog
+      <BuildingWizard
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         buildingId={editingId}

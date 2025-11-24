@@ -28,7 +28,14 @@ export const useRooms = (floorId?: string) => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: { name: string; room_type?: string; floor_id: string }) => {
+    mutationFn: async (values: { 
+      name: string; 
+      room_type?: string; 
+      floor_id: string;
+      capacity?: number;
+      has_access_control?: boolean;
+      notes?: string;
+    }) => {
       const { data, error } = await supabase
         .from('rooms')
         .insert([values])
@@ -48,7 +55,14 @@ export const useRooms = (floorId?: string) => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...values }: { id: string; name: string; room_type?: string }) => {
+    mutationFn: async ({ id, ...values }: { 
+      id: string; 
+      name: string; 
+      room_type?: string;
+      capacity?: number;
+      has_access_control?: boolean;
+      notes?: string;
+    }) => {
       const { data, error } = await supabase
         .from('rooms')
         .update(values)
