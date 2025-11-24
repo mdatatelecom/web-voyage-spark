@@ -239,26 +239,44 @@ export default function RackDetails() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-center">
-                {view === '2d' ? (
-                  <RackVisualization
-                    rackId={rack.id}
-                    sizeU={rack.size_u}
-                    equipment={rack.equipment || []}
-                    onEquipmentClick={(eq) => {
-                      navigate(`/equipment/${eq.id}`);
-                    }}
-                  />
-                ) : (
-                  <Rack3DVisualization
-                    rackId={rack.id}
-                    sizeU={rack.size_u}
-                    equipment={rack.equipment || []}
-                    onEquipmentClick={(eq) => {
-                      navigate(`/equipment/${eq.id}`);
-                    }}
-                  />
-                )}
+              <div className="relative w-full">
+                {/* 2D View with fade transition */}
+                <div 
+                  className={`transition-opacity duration-500 ${
+                    view === '2d' ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
+                  }`}
+                >
+                  {view === '2d' && (
+                    <div className="flex justify-center">
+                      <RackVisualization
+                        rackId={rack.id}
+                        sizeU={rack.size_u}
+                        equipment={rack.equipment || []}
+                        onEquipmentClick={(eq) => {
+                          navigate(`/equipment/${eq.id}`);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {/* 3D View with fade transition */}
+                <div 
+                  className={`transition-opacity duration-500 ${
+                    view === '3d' ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
+                  }`}
+                >
+                  {view === '3d' && (
+                    <Rack3DVisualization
+                      rackId={rack.id}
+                      sizeU={rack.size_u}
+                      equipment={rack.equipment || []}
+                      onEquipmentClick={(eq) => {
+                        navigate(`/equipment/${eq.id}`);
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

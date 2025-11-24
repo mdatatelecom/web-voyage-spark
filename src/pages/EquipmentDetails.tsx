@@ -148,9 +148,11 @@ export default function EquipmentDetails() {
   };
   
   const handleUpdateEquipment = (updatedEquipment: any) => {
+    // Don't pass the id inside updatedEquipment, use it as first param
+    const { id: _unused, ...updates } = updatedEquipment;
     updateEquipment({
       id: id!,
-      ...updatedEquipment
+      ...updates
     }, {
       onSuccess: () => {
         setEditDialogOpen(false);
