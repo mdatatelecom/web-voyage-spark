@@ -681,6 +681,7 @@ export type Database = {
           has_access_control: boolean | null
           id: string
           name: string
+          notes: string | null
           room_type: string | null
           updated_at: string
         }
@@ -691,6 +692,7 @@ export type Database = {
           has_access_control?: boolean | null
           id?: string
           name: string
+          notes?: string | null
           room_type?: string | null
           updated_at?: string
         }
@@ -701,6 +703,7 @@ export type Database = {
           has_access_control?: boolean | null
           id?: string
           name?: string
+          notes?: string | null
           room_type?: string | null
           updated_at?: string
         }
