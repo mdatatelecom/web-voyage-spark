@@ -6,9 +6,12 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PortManageDialog } from '@/components/equipment/PortManageDialog';
+import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Plus, MoreHorizontal } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import {
   DropdownMenu,
@@ -16,16 +19,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useEquipment } from '@/hooks/useEquipment';
+import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
 
 export default function EquipmentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [portTypeFilter, setPortTypeFilter] = useState<string>('all');
+  const [speedFilter, setSpeedFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const portsPerPage = 20;
   const [portDialogOpen, setPortDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedPort, setSelectedPort] = useState<any>(null);
+  
+  const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: ['equipment', id],
@@ -50,6 +60,7 @@ export default function EquipmentDetails() {
             id,
             name,
             port_number,
+            port_type,
             status,
             speed,
             notes,
@@ -88,9 +99,14 @@ export default function EquipmentDetails() {
 
   const filteredPorts = equipment?.ports?.filter((port: any) => {
     const matchesStatus = statusFilter === 'all' || port.status === statusFilter;
+    const matchesPortType = portTypeFilter === 'all' || port.port_type === portTypeFilter;
+    const matchesSpeed = speedFilter === 'all' || port.speed === speedFilter;
     const matchesSearch = port.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesPortType && matchesSpeed && matchesSearch;
   }) || [];
+  
+  // Get unique speeds from equipment's ports for filter
+  const availableSpeeds = Array.from(new Set(equipment?.ports?.map((p: any) => p.speed).filter(Boolean))) as string[];
 
   const totalPages = Math.ceil(filteredPorts.length / portsPerPage);
   const startIndex = (currentPage - 1) * portsPerPage;
@@ -125,6 +141,30 @@ export default function EquipmentDetails() {
     const { label, color } = config[status] || { label: status, color: 'bg-gray-500' };
     return <Badge className={color}>{label}</Badge>;
   };
+  
+  const getPortTypeLabel = (portType: string) => {
+    const type = PORT_TYPES.find(pt => pt.value === portType);
+    return type ? type.label : portType;
+  };
+  
+  const handleUpdateEquipment = (updatedEquipment: any) => {
+    updateEquipment({
+      id: id!,
+      ...updatedEquipment
+    }, {
+      onSuccess: () => {
+        setEditDialogOpen(false);
+      }
+    });
+  };
+  
+  const handleDeleteEquipment = () => {
+    deleteEquipment(id!, {
+      onSuccess: () => {
+        navigate('/equipment');
+      }
+    });
+  };
 
   if (isLoading) {
     return (
@@ -152,10 +192,32 @@ export default function EquipmentDetails() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
               <Edit className="w-4 h-4 mr-2" />
               Editar Equipamento
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja excluir o equipamento <strong>{equipment?.name}</strong>? Esta ação não pode ser desfeita e todas as portas associadas serão removidas.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteEquipment} disabled={isDeleting}>
+                    {isDeleting ? 'Excluindo...' : 'Excluir'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button onClick={() => {
               setSelectedPort(null);
               setPortDialogOpen(true);
@@ -231,49 +293,82 @@ export default function EquipmentDetails() {
                 Portas do Equipamento ({filteredPorts.length})
               </h2>
 
-              <div className="flex gap-4 mb-4">
-                <div className="flex gap-2">
-                  <Button
-                    variant={statusFilter === 'all' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('all')}
-                  >
-                    Todas
-                  </Button>
-                  <Button
-                    variant={statusFilter === 'available' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('available')}
-                  >
-                    Disponíveis
-                  </Button>
-                  <Button
-                    variant={statusFilter === 'in_use' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('in_use')}
-                  >
-                    Em Uso
-                  </Button>
-                  <Button
-                    variant={statusFilter === 'reserved' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setStatusFilter('reserved')}
-                  >
-                    Reservadas
-                  </Button>
+              <div className="space-y-4 mb-4">
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Tipo de Porta</label>
+                    <Select value={portTypeFilter} onValueChange={setPortTypeFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos os tipos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os tipos</SelectItem>
+                        {PORT_TYPE_CATEGORIES.map(cat => (
+                          <div key={cat.id}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                              {cat.label}
+                            </div>
+                            {PORT_TYPES.filter(pt => pt.category === cat.id).map(pt => (
+                              <SelectItem key={pt.value} value={pt.value}>
+                                <div className="flex items-center gap-2">
+                                  <pt.icon className="w-3 h-3" />
+                                  {pt.label}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Velocidade</label>
+                    <Select value={speedFilter} onValueChange={setSpeedFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {availableSpeeds.map(speed => (
+                          <SelectItem key={speed} value={speed}>{speed}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Status</label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="available">Disponíveis</SelectItem>
+                        <SelectItem value="in_use">Em Uso</SelectItem>
+                        <SelectItem value="reserved">Reservadas</SelectItem>
+                        <SelectItem value="disabled">Desabilitadas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Buscar</label>
+                    <Input
+                      placeholder="Nome da porta..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <Input
-                  placeholder="Buscar porta..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-xs"
-                />
               </div>
 
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Porta</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Velocidade</TableHead>
                     <TableHead>Conexão</TableHead>
@@ -281,13 +376,24 @@ export default function EquipmentDetails() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedPorts.map((port: any) => (
-                    <TableRow key={port.id}>
-                      <TableCell className="font-medium">{port.name}</TableCell>
-                      <TableCell>{getStatusBadge(port.status)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {port.speed || '-'}
-                      </TableCell>
+                  {paginatedPorts.map((port: any) => {
+                    const portType = PORT_TYPES.find(pt => pt.value === port.port_type);
+                    const PortIcon = portType?.icon;
+                    return (
+                      <TableRow key={port.id}>
+                        <TableCell className="font-medium">{port.name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {PortIcon && <PortIcon className="w-4 h-4 text-muted-foreground" />}
+                            <span className="text-sm text-muted-foreground">
+                              {getPortTypeLabel(port.port_type)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(port.status)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {port.speed || '-'}
+                        </TableCell>
                       <TableCell>
                         {port.connection ? (
                           <Button
@@ -324,8 +430,9 @@ export default function EquipmentDetails() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
-                    </TableRow>
-                  ))}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
 
@@ -362,6 +469,16 @@ export default function EquipmentDetails() {
           equipmentId={id!}
           port={selectedPort}
         />
+        
+        {equipment && (
+          <EquipmentEditDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            equipment={equipment}
+            onSave={handleUpdateEquipment}
+            isLoading={isUpdating}
+          />
+        )}
       </div>
     </AppLayout>
   );

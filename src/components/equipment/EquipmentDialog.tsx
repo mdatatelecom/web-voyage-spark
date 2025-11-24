@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,8 +11,9 @@ import { useRooms } from '@/hooks/useRooms';
 import { useRacks } from '@/hooks/useRacks';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronLeft, X, Plus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Plus, Sparkles } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
+import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
 
 interface EquipmentDialogProps {
   open: boolean;
@@ -29,11 +30,16 @@ interface PortGroup {
 }
 
 export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedManufacturer, setSelectedManufacturer] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [portGroups, setPortGroups] = useState<PortGroup[]>([
     { id: '1', type: 'rj45', quantity: 24, speed: '1Gbps', prefix: 'Gi1/0/', startNumber: 1 }
   ]);
+  
+  const templatesByManufacturer = getTemplatesByManufacturer();
   
   const [formData, setFormData] = useState({
     buildingId: '',
@@ -77,6 +83,30 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
   const updatePortGroup = (id: string, updates: Partial<PortGroup>) => {
     setPortGroups(portGroups.map(g => g.id === id ? { ...g, ...updates } : g));
   };
+  
+  const applyTemplate = (templateId: string) => {
+    const template = getTemplateById(templateId);
+    if (template) {
+      setFormData(prev => ({
+        ...prev,
+        manufacturer: template.manufacturer,
+        model: template.model,
+        type: template.type,
+        name: template.model
+      }));
+      setSelectedCategory(template.category);
+      setPortGroups(template.portGroups.map((pg, idx) => ({
+        id: (idx + 1).toString(),
+        ...pg
+      })));
+    }
+  };
+  
+  useEffect(() => {
+    if (selectedTemplateId) {
+      applyTemplate(selectedTemplateId);
+    }
+  }, [selectedTemplateId]);
 
   const handleSubmit = () => {
     createEquipment({
@@ -97,7 +127,10 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     }, {
       onSuccess: () => {
         onOpenChange(false);
-        setStep(1);
+        setStep(0);
+        setUseTemplate(false);
+        setSelectedManufacturer('');
+        setSelectedTemplateId('');
         setSelectedCategory('');
         setPortGroups([{ id: '1', type: 'rj45', quantity: 24, speed: '1Gbps', prefix: 'Gi1/0/', startNumber: 1 }]);
         setFormData({
@@ -114,17 +147,108 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Adicionar Equipamento - Passo {step}/5</DialogTitle>
+          <DialogTitle>
+            {step === 0 ? 'Usar Template?' : `Adicionar Equipamento - Passo ${step}/5`}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex gap-2 mb-6">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <div
-              key={s}
-              className={`h-2 flex-1 rounded ${s <= step ? 'bg-primary' : 'bg-muted'}`}
-            />
-          ))}
-        </div>
+        {step > 0 && (
+          <div className="flex gap-2 mb-6">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <div
+                key={s}
+                className={`h-2 flex-1 rounded ${s <= step ? 'bg-primary' : 'bg-muted'}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {step === 0 && (
+          <div className="space-y-6">
+            <div className="text-center py-6">
+              <Sparkles className="w-12 h-12 mx-auto mb-4 text-primary" />
+              <h3 className="text-lg font-semibold mb-2">Criar a partir de um Template?</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Templates incluem configurações pré-definidas de portas para equipamentos de fabricantes conhecidos
+              </p>
+              
+              <div className="flex gap-3 justify-center">
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  onClick={() => {
+                    setUseTemplate(false);
+                    setStep(1);
+                  }}
+                >
+                  Criar Manualmente
+                </Button>
+                <Button 
+                  size="lg"
+                  onClick={() => {
+                    setUseTemplate(true);
+                    setStep(1);
+                  }}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Usar Template
+                </Button>
+              </div>
+            </div>
+            
+            {useTemplate && (
+              <div className="space-y-4 border-t pt-6">
+                <div>
+                  <Label>Fabricante</Label>
+                  <Select value={selectedManufacturer} onValueChange={(v) => {
+                    setSelectedManufacturer(v);
+                    setSelectedTemplateId('');
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o fabricante" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templatesByManufacturer.map(({ manufacturer }) => (
+                        <SelectItem key={manufacturer} value={manufacturer}>
+                          {manufacturer}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {selectedManufacturer && (
+                  <div>
+                    <Label>Modelo</Label>
+                    <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o modelo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templatesByManufacturer
+                          .find(t => t.manufacturer === selectedManufacturer)
+                          ?.models.map(template => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.model}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {selectedTemplateId && (
+                  <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                    <p className="text-sm font-medium text-primary mb-2">✨ Template Selecionado</p>
+                    <p className="text-xs text-muted-foreground">
+                      As informações do equipamento e portas serão pré-preenchidas. Você poderá ajustá-las nos próximos passos.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {step === 1 && (
           <div className="space-y-4">

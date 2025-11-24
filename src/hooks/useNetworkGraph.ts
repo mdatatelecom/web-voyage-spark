@@ -26,7 +26,7 @@ export interface NetworkGraphData {
   links: GraphLink[];
 }
 
-export function useNetworkGraph(buildingFilter?: string) {
+export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string>) {
   const { data: equipment, isLoading: equipmentLoading } = useQuery({
     queryKey: ['network-equipment', buildingFilter],
     queryFn: async () => {
@@ -93,8 +93,14 @@ export function useNetworkGraph(buildingFilter?: string) {
       return { nodes: [], links: [] };
     }
 
-    // Create nodes from equipment
-    const nodes: GraphNode[] = equipment.map((eq: any) => ({
+    // Filter equipment by type if typeFilter is provided
+    let filteredEquipment = equipment;
+    if (typeFilter && typeFilter.size > 0) {
+      filteredEquipment = equipment.filter((eq: any) => typeFilter.has(eq.type));
+    }
+
+    // Create nodes from filtered equipment
+    const nodes: GraphNode[] = filteredEquipment.map((eq: any) => ({
       id: eq.id,
       name: eq.name,
       type: eq.type,
@@ -104,8 +110,11 @@ export function useNetworkGraph(buildingFilter?: string) {
       rack: eq.racks?.name || 'Unknown',
       val: 10
     }));
+    
+    // Get IDs of filtered equipment
+    const filteredEquipmentIds = new Set(filteredEquipment.map((eq: any) => eq.id));
 
-    // Create links from connections
+    // Create links from connections, only including those connected to filtered equipment
     const links: GraphLink[] = connections
       .map((conn: any) => {
         // Get equipment IDs from ports
@@ -120,9 +129,17 @@ export function useNetworkGraph(buildingFilter?: string) {
 
         if (!portBQuery) return null;
 
+        const sourceId = portA.equipment_id;
+        const targetId = portBQuery.ports?.equipment_id || '';
+        
+        // Only include link if both endpoints are in filtered equipment
+        if (!filteredEquipmentIds.has(sourceId) || !filteredEquipmentIds.has(targetId)) {
+          return null;
+        }
+
         return {
-          source: portA.equipment_id,
-          target: portBQuery.ports?.equipment_id || '',
+          source: sourceId,
+          target: targetId,
           cableType: conn.cable_type,
           status: conn.status,
           connectionCode: conn.connection_code
@@ -136,7 +153,7 @@ export function useNetworkGraph(buildingFilter?: string) {
       );
 
     return { nodes, links };
-  }, [equipment, connections]);
+  }, [equipment, connections, typeFilter]);
 
   return {
     graphData,
