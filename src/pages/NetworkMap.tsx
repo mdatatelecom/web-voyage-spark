@@ -11,43 +11,7 @@ import { ZoomIn, ZoomOut, Maximize, Download } from 'lucide-react';
 import { useNetworkGraph } from '@/hooks/useNetworkGraph';
 import { useBuildings } from '@/hooks/useBuildings';
 import { EQUIPMENT_CATEGORIES } from '@/constants/equipmentTypes';
-
-// Color definitions
-const EQUIPMENT_COLORS: Record<string, string> = {
-  switch: '#3b82f6',
-  router: '#8b5cf6',
-  server: '#10b981',
-  firewall: '#ef4444',
-  patch_panel: '#f59e0b',
-  patch_panel_fiber: '#f97316',
-  storage: '#06b6d4',
-  load_balancer: '#ec4899',
-  waf: '#f43f5e',
-  access_point: '#14b8a6',
-  pdu: '#a3e635',
-  ups: '#84cc16',
-  dvr: '#fb923c',
-  nvr: '#f87171',
-  pabx: '#c084fc',
-  voip_gateway: '#a78bfa',
-  modem: '#60a5fa',
-  olt: '#fbbf24',
-  onu: '#fcd34d',
-  kvm: '#94a3b8',
-  console_server: '#64748b',
-  other: '#6b7280'
-};
-
-const CABLE_COLORS: Record<string, string> = {
-  utp_cat5e: '#94a3b8',
-  utp_cat6: '#64748b',
-  utp_cat6a: '#475569',
-  fiber_om3: '#f97316',
-  fiber_om4: '#ea580c',
-  fiber_os2: '#dc2626',
-  dac: '#22d3ee',
-  other: '#9ca3af'
-};
+import { EQUIPMENT_COLORS, CABLE_COLORS, getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
 
 export default function NetworkMap() {
   const navigate = useNavigate();
@@ -211,7 +175,7 @@ export default function NetworkMap() {
                 nodeAutoColorBy="type"
                 width={dimensions.width}
                 height={dimensions.height}
-                nodeColor={(node: any) => EQUIPMENT_COLORS[node.type] || EQUIPMENT_COLORS.other}
+                nodeColor={(node: any) => getEquipmentColor(node.type)}
                 nodeRelSize={6}
                 nodeCanvasObject={(node: any, ctx, globalScale) => {
                   const label = node.name;
@@ -229,7 +193,7 @@ export default function NetworkMap() {
                     Status: ${link.status}
                   </div>
                 `}
-                linkColor={(link: any) => CABLE_COLORS[link.cableType] || CABLE_COLORS.other}
+                linkColor={(link: any) => getCableColor(link.cableType)}
                 linkWidth={2}
                 linkDirectionalParticles={2}
                 linkDirectionalParticleWidth={2}
@@ -251,9 +215,9 @@ export default function NetworkMap() {
                 </div>
                 <div className="space-y-2">
                   {EQUIPMENT_CATEGORIES.flatMap(cat => cat.types)
-                    .filter(type => availableTypes.includes(type.value))
+                     .filter(type => availableTypes.includes(type.value))
                     .map(type => {
-                      const color = EQUIPMENT_COLORS[type.value] || '#999';
+                      const color = getEquipmentColor(type.value);
                       const isSelected = selectedTypes.size === 0 || selectedTypes.has(type.value);
                       const Icon = type.icon;
                       return (
@@ -281,10 +245,10 @@ export default function NetworkMap() {
               <div>
                 <h3 className="font-semibold mb-4">🔗 Legenda - Cabos</h3>
                 <div className="space-y-2">
-                  {Object.entries(CABLE_COLORS).map(([type, color]) => (
+                  {Object.entries(CABLE_COLORS).map(([type, { hex, name }]) => (
                     <div key={type} className="flex items-center gap-2 text-sm">
-                      <div className="w-8 h-0.5" style={{ backgroundColor: color }} />
-                      <span className="capitalize">{type.replace('_', ' ')}</span>
+                      <div className="w-8 h-0.5" style={{ backgroundColor: hex }} />
+                      <span>{name}</span>
                     </div>
                   ))}
                 </div>

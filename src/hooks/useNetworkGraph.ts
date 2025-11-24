@@ -67,6 +67,7 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
   const { data: connections, isLoading: connectionsLoading } = useQuery({
     queryKey: ['network-connections'],
     queryFn: async () => {
+      // Query connections with both ports
       const { data, error } = await supabase
         .from('connections')
         .select(`
@@ -75,16 +76,30 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
           cable_type,
           status,
           port_a_id,
-          port_b_id,
-          ports!connections_port_a_id_fkey(
-            id,
-            equipment_id
-          )
+          port_b_id
         `)
         .eq('status', 'active');
 
       if (error) throw error;
-      return data;
+
+      // Now get port details for both port_a and port_b
+      const portIds = data.flatMap(c => [c.port_a_id, c.port_b_id]);
+      const { data: ports, error: portsError } = await supabase
+        .from('ports')
+        .select('id, equipment_id')
+        .in('id', portIds);
+
+      if (portsError) throw portsError;
+
+      // Map ports to equipment_id
+      const portToEquipment = new Map(ports.map(p => [p.id, p.equipment_id]));
+
+      // Attach equipment_ids to connections
+      return data.map(conn => ({
+        ...conn,
+        equipment_a_id: portToEquipment.get(conn.port_a_id),
+        equipment_b_id: portToEquipment.get(conn.port_b_id)
+      }));
     }
   });
 
@@ -117,20 +132,10 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
     // Create links from connections, only including those connected to filtered equipment
     const links: GraphLink[] = connections
       .map((conn: any) => {
-        // Get equipment IDs from ports
-        const portA = conn.ports;
+        const sourceId = conn.equipment_a_id;
+        const targetId = conn.equipment_b_id;
         
-        if (!portA || !portA.equipment_id) return null;
-
-        // Find port B
-        const portBQuery = connections.find((c: any) => 
-          c.port_b_id === conn.port_a_id || c.port_a_id === conn.port_b_id
-        );
-
-        if (!portBQuery) return null;
-
-        const sourceId = portA.equipment_id;
-        const targetId = portBQuery.ports?.equipment_id || '';
+        if (!sourceId || !targetId) return null;
         
         // Only include link if both endpoints are in filtered equipment
         if (!filteredEquipmentIds.has(sourceId) || !filteredEquipmentIds.has(targetId)) {
