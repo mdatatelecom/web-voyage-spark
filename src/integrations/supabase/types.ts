@@ -469,6 +469,7 @@ export type Database = {
           name: string
           notes: string | null
           port_number: number | null
+          port_type: Database["public"]["Enums"]["port_type"] | null
           speed: string | null
           status: Database["public"]["Enums"]["port_status"]
           updated_at: string
@@ -480,6 +481,7 @@ export type Database = {
           name: string
           notes?: string | null
           port_number?: number | null
+          port_type?: Database["public"]["Enums"]["port_type"] | null
           speed?: string | null
           status?: Database["public"]["Enums"]["port_status"]
           updated_at?: string
@@ -491,6 +493,7 @@ export type Database = {
           name?: string
           notes?: string | null
           port_number?: number | null
+          port_type?: Database["public"]["Enums"]["port_type"] | null
           speed?: string | null
           status?: Database["public"]["Enums"]["port_status"]
           updated_at?: string
@@ -776,7 +779,46 @@ export type Database = {
         | "firewall"
         | "storage"
         | "other"
+        | "load_balancer"
+        | "waf"
+        | "access_point"
+        | "pdu"
+        | "ups"
+        | "dvr"
+        | "nvr"
+        | "pabx"
+        | "voip_gateway"
+        | "modem"
+        | "olt"
+        | "onu"
+        | "kvm"
+        | "console_server"
+        | "patch_panel_fiber"
       port_status: "available" | "in_use" | "reserved" | "disabled"
+      port_type:
+        | "rj45"
+        | "sfp"
+        | "sfp_plus"
+        | "sfp28"
+        | "qsfp"
+        | "qsfp28"
+        | "fiber_lc"
+        | "fiber_sc"
+        | "bnc"
+        | "hdmi"
+        | "vga"
+        | "usb"
+        | "serial"
+        | "console_rj45"
+        | "console_usb"
+        | "fxo_fxs"
+        | "e1_t1"
+        | "power_ac"
+        | "power_dc"
+        | "antenna_sma"
+        | "rs485_rs232"
+        | "io"
+        | "other"
       user_role: "admin" | "technician" | "viewer" | "network_viewer"
     }
     CompositeTypes: {
@@ -933,8 +975,48 @@ export const Constants = {
         "firewall",
         "storage",
         "other",
+        "load_balancer",
+        "waf",
+        "access_point",
+        "pdu",
+        "ups",
+        "dvr",
+        "nvr",
+        "pabx",
+        "voip_gateway",
+        "modem",
+        "olt",
+        "onu",
+        "kvm",
+        "console_server",
+        "patch_panel_fiber",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
+      port_type: [
+        "rj45",
+        "sfp",
+        "sfp_plus",
+        "sfp28",
+        "qsfp",
+        "qsfp28",
+        "fiber_lc",
+        "fiber_sc",
+        "bnc",
+        "hdmi",
+        "vga",
+        "usb",
+        "serial",
+        "console_rj45",
+        "console_usb",
+        "fxo_fxs",
+        "e1_t1",
+        "power_ac",
+        "power_dc",
+        "antenna_sma",
+        "rs485_rs232",
+        "io",
+        "other",
+      ],
       user_role: ["admin", "technician", "viewer", "network_viewer"],
     },
   },

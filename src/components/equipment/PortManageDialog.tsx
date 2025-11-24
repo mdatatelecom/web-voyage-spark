@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
 
 interface PortManageDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   // Single port form
   const [name, setName] = useState(port?.name || '');
   const [portNumber, setPortNumber] = useState(port?.port_number?.toString() || '');
+  const [portType, setPortType] = useState(port?.port_type || 'rj45');
   const [speed, setSpeed] = useState(port?.speed || '');
   const [notes, setNotes] = useState(port?.notes || '');
   const [status, setStatus] = useState(port?.status || 'available');
@@ -45,7 +47,11 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   const [prefix, setPrefix] = useState('');
   const [startNumber, setStartNumber] = useState('1');
   const [quantity, setQuantity] = useState('24');
+  const [batchPortType, setBatchPortType] = useState('rj45');
   const [batchSpeed, setBatchSpeed] = useState('1Gbps');
+
+  const selectedPortType = PORT_TYPES.find(pt => pt.value === portType);
+  const batchSelectedPortType = PORT_TYPES.find(pt => pt.value === batchPortType);
 
   const handleSaveSingle = async () => {
     setLoading(true);
@@ -57,6 +63,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
           .update({
             name,
             port_number: portNumber ? parseInt(portNumber) : null,
+            port_type: portType,
             speed,
             notes,
             status,
@@ -80,6 +87,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
             equipment_id: equipmentId,
             name,
             port_number: portNumber ? parseInt(portNumber) : null,
+            port_type: portType,
             speed,
             notes,
             status,
@@ -118,6 +126,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
           equipment_id: equipmentId,
           name: `${prefix}${portNum}`,
           port_number: portNum,
+          port_type: batchPortType,
           speed: batchSpeed,
           status: 'available',
         });
@@ -186,13 +195,52 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="portType">Tipo de Porta</Label>
+              <Select value={portType} onValueChange={setPortType}>
+                <SelectTrigger id="portType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PORT_TYPE_CATEGORIES.map(cat => (
+                    <div key={cat.id}>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                        {cat.label}
+                      </div>
+                      {PORT_TYPES.filter(pt => pt.category === cat.id).map(pt => (
+                        <SelectItem key={pt.value} value={pt.value}>
+                          <div className="flex items-center gap-2">
+                            <pt.icon className="w-3 h-3" />
+                            {pt.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="speed">Velocidade</Label>
-              <Input
-                id="speed"
-                placeholder="Ex: 1Gbps, 10Gbps"
-                value={speed}
-                onChange={(e) => setSpeed(e.target.value)}
-              />
+              {selectedPortType?.speeds && selectedPortType.speeds.length > 0 ? (
+                <Select value={speed} onValueChange={setSpeed}>
+                  <SelectTrigger id="speed">
+                    <SelectValue placeholder="Selecione a velocidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedPortType.speeds.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="speed"
+                  placeholder="Ex: N/A"
+                  value={speed}
+                  onChange={(e) => setSpeed(e.target.value)}
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -268,13 +316,52 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="batchPortType">Tipo de Porta</Label>
+                <Select value={batchPortType} onValueChange={setBatchPortType}>
+                  <SelectTrigger id="batchPortType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PORT_TYPE_CATEGORIES.map(cat => (
+                      <div key={cat.id}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                          {cat.label}
+                        </div>
+                        {PORT_TYPES.filter(pt => pt.category === cat.id).map(pt => (
+                          <SelectItem key={pt.value} value={pt.value}>
+                            <div className="flex items-center gap-2">
+                              <pt.icon className="w-3 h-3" />
+                              {pt.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="batchSpeed">Velocidade</Label>
-                <Input
-                  id="batchSpeed"
-                  placeholder="Ex: 1Gbps"
-                  value={batchSpeed}
-                  onChange={(e) => setBatchSpeed(e.target.value)}
-                />
+                {batchSelectedPortType?.speeds && batchSelectedPortType.speeds.length > 0 ? (
+                  <Select value={batchSpeed} onValueChange={setBatchSpeed}>
+                    <SelectTrigger id="batchSpeed">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batchSelectedPortType.speeds.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="batchSpeed"
+                    placeholder="Ex: N/A"
+                    value={batchSpeed}
+                    onChange={(e) => setBatchSpeed(e.target.value)}
+                  />
+                )}
               </div>
 
               <DialogFooter>
