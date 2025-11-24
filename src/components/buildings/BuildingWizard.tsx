@@ -11,7 +11,7 @@ import { useViaCEP } from '@/hooks/useViaCEP';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BUILDING_TYPES, BRAZILIAN_STATES } from '@/constants/locationTypes';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Navigation } from 'lucide-react';
 
 interface BuildingWizardProps {
   open: boolean;
@@ -146,6 +146,27 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
         setValue('state', addressData.state);
       }
     }
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setValue('latitude', position.coords.latitude);
+        setValue('longitude', position.coords.longitude);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   };
 
   return (
@@ -293,7 +314,18 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
               </div>
 
               <div className="space-y-2">
-                <Label>Coordenadas (opcional)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Coordenadas (opcional)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGetCurrentLocation}
+                  >
+                    <Navigation className="mr-2 h-4 w-4" />
+                    Usar minha localização
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Input

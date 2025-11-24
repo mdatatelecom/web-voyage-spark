@@ -151,6 +151,7 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           name: string
+          notes: string | null
           state: string | null
           updated_at: string
           zip_code: string | null
@@ -168,6 +169,7 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name: string
+          notes?: string | null
           state?: string | null
           updated_at?: string
           zip_code?: string | null
@@ -185,6 +187,7 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name?: string
+          notes?: string | null
           state?: string | null
           updated_at?: string
           zip_code?: string | null
