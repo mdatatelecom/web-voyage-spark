@@ -12,12 +12,31 @@ export const useBuildings = () => {
         .from('buildings')
         .select(`
           *,
-          floors(count)
+          floors:floors(
+            count,
+            rooms:rooms(
+              count,
+              racks:racks(count)
+            )
+          )
         `)
         .order('name');
-      
+
       if (error) throw error;
-      return data;
+      
+      // Aggregate room and rack counts
+      return data.map(building => ({
+        ...building,
+        rooms: [{
+          count: building.floors?.reduce((acc: number, floor: any) => 
+            acc + (floor.rooms?.[0]?.count || 0), 0) || 0
+        }],
+        racks: [{
+          count: building.floors?.reduce((acc: number, floor: any) => 
+            floor.rooms?.reduce((rAcc: number, room: any) => 
+              rAcc + (room.racks?.[0]?.count || 0), acc) || acc, 0) || 0
+        }]
+      }));
     },
   });
 

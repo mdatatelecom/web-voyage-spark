@@ -206,6 +206,9 @@ export type Database = {
           port_b_id: string
           status: Database["public"]["Enums"]["connection_status"]
           updated_at: string
+          vlan_id: number | null
+          vlan_name: string | null
+          vlan_tagging: string | null
         }
         Insert: {
           cable_color?: string | null
@@ -221,6 +224,9 @@ export type Database = {
           port_b_id: string
           status?: Database["public"]["Enums"]["connection_status"]
           updated_at?: string
+          vlan_id?: number | null
+          vlan_name?: string | null
+          vlan_tagging?: string | null
         }
         Update: {
           cable_color?: string | null
@@ -236,6 +242,9 @@ export type Database = {
           port_b_id?: string
           status?: Database["public"]["Enums"]["connection_status"]
           updated_at?: string
+          vlan_id?: number | null
+          vlan_name?: string | null
+          vlan_tagging?: string | null
         }
         Relationships: [
           {
@@ -246,39 +255,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "connections_port_a_id_fkey"
-            columns: ["port_a_id"]
-            isOneToOne: false
-            referencedRelation: "v_connection_details"
-            referencedColumns: ["port_a_id"]
-          },
-          {
-            foreignKeyName: "connections_port_a_id_fkey"
-            columns: ["port_a_id"]
-            isOneToOne: false
-            referencedRelation: "v_connection_details"
-            referencedColumns: ["port_b_id"]
-          },
-          {
             foreignKeyName: "connections_port_b_id_fkey"
             columns: ["port_b_id"]
             isOneToOne: false
             referencedRelation: "ports"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "connections_port_b_id_fkey"
-            columns: ["port_b_id"]
-            isOneToOne: false
-            referencedRelation: "v_connection_details"
-            referencedColumns: ["port_a_id"]
-          },
-          {
-            foreignKeyName: "connections_port_b_id_fkey"
-            columns: ["port_b_id"]
-            isOneToOne: false
-            referencedRelation: "v_connection_details"
-            referencedColumns: ["port_b_id"]
           },
         ]
       }
@@ -725,8 +706,26 @@ export type Database = {
           rack_b_id: string | null
           rack_b_name: string | null
           status: Database["public"]["Enums"]["connection_status"] | null
+          vlan_id: number | null
+          vlan_name: string | null
+          vlan_tagging: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "connections_port_a_id_fkey"
+            columns: ["port_a_id"]
+            isOneToOne: false
+            referencedRelation: "ports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_port_b_id_fkey"
+            columns: ["port_b_id"]
+            isOneToOne: false
+            referencedRelation: "ports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_port_availability: {
         Row: {

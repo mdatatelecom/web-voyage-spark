@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBuildings } from '@/hooks/useBuildings';
+import { useViaCEP } from '@/hooks/useViaCEP';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BUILDING_TYPES, BRAZILIAN_STATES } from '@/constants/locationTypes';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface BuildingWizardProps {
   open: boolean;
@@ -44,6 +45,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
   const [currentStep, setCurrentStep] = useState(1);
   const { createBuilding, updateBuilding, isCreating, isUpdating } = useBuildings();
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BuildingFormData>();
+  const { fetchAddress, isLoading: isFetchingCEP } = useViaCEP();
 
   const buildingType = watch('building_type');
   const state = watch('state');
@@ -129,6 +131,21 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
       return name && name.trim() !== '';
     }
     return true;
+  };
+
+  const handleCEPChange = async (cep: string) => {
+    setValue('zip_code', cep);
+    
+    // Only fetch if we have 8 digits (ignoring non-numeric)
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length === 8) {
+      const addressData = await fetchAddress(cep);
+      if (addressData) {
+        setValue('address', addressData.address);
+        setValue('city', addressData.city);
+        setValue('state', addressData.state);
+      }
+    }
   };
 
   return (
@@ -221,6 +238,25 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="zip_code">CEP</Label>
+                <div className="relative">
+                  <Input
+                    id="zip_code"
+                    {...register('zip_code')}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    onChange={(e) => handleCEPChange(e.target.value)}
+                  />
+                  {isFetchingCEP && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Digite o CEP para preencher automaticamente o endereço
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="address">Endereço Completo</Label>
                 <Input
                   id="address"
@@ -229,17 +265,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="zip_code">CEP</Label>
-                  <Input
-                    id="zip_code"
-                    {...register('zip_code')}
-                    placeholder="00000-000"
-                    maxLength={9}
-                  />
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="city">Cidade</Label>
                   <Input

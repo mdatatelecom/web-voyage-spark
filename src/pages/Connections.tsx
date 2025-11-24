@@ -117,17 +117,26 @@ export default function Connections() {
                   </div>
 
                   <div className="flex items-center justify-center">
-                    <div className="text-center">
-                      <Cable className="w-6 h-6 mx-auto mb-1 text-primary" />
-                      <p className="text-xs text-muted-foreground">
-                        {conn.cable_type}
-                        {conn.cable_length_meters && ` | ${conn.cable_length_meters}m`}
-                      </p>
-                      {conn.cable_color && (
-                        <div
-                          className="w-8 h-2 mx-auto mt-1 rounded"
-                          style={{ backgroundColor: conn.cable_color }}
-                        />
+                    <div className="text-center space-y-2">
+                      <div>
+                        <Cable className="w-6 h-6 mx-auto mb-1 text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          {conn.cable_type}
+                          {conn.cable_length_meters && ` | ${conn.cable_length_meters}m`}
+                        </p>
+                        {conn.cable_color && (
+                          <div
+                            className="w-8 h-2 mx-auto mt-1 rounded"
+                            style={{ backgroundColor: conn.cable_color }}
+                          />
+                        )}
+                      </div>
+                      {conn.vlan_id && (
+                        <Badge variant="outline" className="text-xs">
+                          🌐 VLAN {conn.vlan_id}
+                          {conn.vlan_name && `: ${conn.vlan_name}`}
+                          {conn.vlan_tagging === 'tagged' && ' (Tagged)'}
+                        </Badge>
                       )}
                     </div>
                   </div>

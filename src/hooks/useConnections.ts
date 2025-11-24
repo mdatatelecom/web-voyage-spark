@@ -14,6 +14,9 @@ interface ConnectionData {
   cable_color?: string;
   status?: ConnectionStatus;
   notes?: string;
+  vlan_id?: number;
+  vlan_name?: string;
+  vlan_tagging?: 'tagged' | 'untagged' | 'native';
 }
 
 export const useConnections = () => {
@@ -60,6 +63,9 @@ export const useConnections = () => {
       if (values.cable_length_meters) insertData.cable_length_meters = values.cable_length_meters;
       if (values.cable_color) insertData.cable_color = values.cable_color;
       if (values.notes) insertData.notes = values.notes;
+      if (values.vlan_id) insertData.vlan_id = values.vlan_id;
+      if (values.vlan_name) insertData.vlan_name = values.vlan_name;
+      if (values.vlan_tagging) insertData.vlan_tagging = values.vlan_tagging;
       
       const { data: newConnection, error: connError } = await supabase
         .from('connections')

@@ -29,7 +29,10 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
     cableLength: '',
     cableColor: '#3b82f6',
     status: 'active' as const,
-    notes: ''
+    notes: '',
+    vlanId: '',
+    vlanName: '',
+    vlanTagging: 'untagged' as 'tagged' | 'untagged' | 'native'
   });
 
   const { createConnection, isCreating } = useConnections();
@@ -42,7 +45,10 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
       cable_length_meters: formData.cableLength ? parseFloat(formData.cableLength) : undefined,
       cable_color: formData.cableColor,
       status: formData.status,
-      notes: formData.notes || undefined
+      notes: formData.notes || undefined,
+      vlan_id: formData.vlanId ? parseInt(formData.vlanId) : undefined,
+      vlan_name: formData.vlanName || undefined,
+      vlan_tagging: formData.vlanTagging
     }, {
       onSuccess: () => {
         onOpenChange(false);
@@ -50,7 +56,8 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
         setFormData({
           portAId: '', portAInfo: null, portBId: '', portBInfo: null,
           cableType: '', cableLength: '', cableColor: '#3b82f6',
-          status: 'active', notes: ''
+          status: 'active', notes: '',
+          vlanId: '', vlanName: '', vlanTagging: 'untagged'
         });
       }
     });
@@ -156,6 +163,53 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
               />
+            </div>
+
+            {/* VLAN Configuration */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                🌐 Configuração de VLAN (Opcional)
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>VLAN ID</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="4094"
+                    value={formData.vlanId}
+                    onChange={(e) => setFormData({ ...formData, vlanId: e.target.value })}
+                    placeholder="Ex: 100"
+                  />
+                </div>
+
+                <div>
+                  <Label>Nome da VLAN</Label>
+                  <Input
+                    value={formData.vlanName}
+                    onChange={(e) => setFormData({ ...formData, vlanName: e.target.value })}
+                    placeholder="Ex: VLAN_GESTAO"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <Label>Tipo de Tagging</Label>
+                <Select 
+                  value={formData.vlanTagging} 
+                  onValueChange={(v: any) => setFormData({ ...formData, vlanTagging: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="untagged">Untagged (sem tag 802.1Q)</SelectItem>
+                    <SelectItem value="tagged">Tagged (com tag 802.1Q)</SelectItem>
+                    <SelectItem value="native">Native (VLAN nativa do trunk)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )}
