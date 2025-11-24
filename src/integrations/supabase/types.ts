@@ -140,24 +140,54 @@ export type Database = {
       buildings: {
         Row: {
           address: string | null
+          building_type: string | null
+          city: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
           id: string
+          internal_code: string | null
+          latitude: number | null
+          longitude: number | null
           name: string
+          state: string | null
           updated_at: string
+          zip_code: string | null
         }
         Insert: {
           address?: string | null
+          building_type?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
+          internal_code?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name: string
+          state?: string | null
           updated_at?: string
+          zip_code?: string | null
         }
         Update: {
           address?: string | null
+          building_type?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
+          internal_code?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name?: string
+          state?: string | null
           updated_at?: string
+          zip_code?: string | null
         }
         Relationships: []
       }
@@ -327,25 +357,31 @@ export type Database = {
       }
       floors: {
         Row: {
+          area_sqm: number | null
           building_id: string
           created_at: string
           floor_number: number | null
+          has_access_control: boolean | null
           id: string
           name: string
           updated_at: string
         }
         Insert: {
+          area_sqm?: number | null
           building_id: string
           created_at?: string
           floor_number?: number | null
+          has_access_control?: boolean | null
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
+          area_sqm?: number | null
           building_id?: string
           created_at?: string
           floor_number?: number | null
+          has_access_control?: boolean | null
           id?: string
           name?: string
           updated_at?: string
@@ -573,24 +609,30 @@ export type Database = {
       }
       rooms: {
         Row: {
+          capacity: number | null
           created_at: string
           floor_id: string
+          has_access_control: boolean | null
           id: string
           name: string
           room_type: string | null
           updated_at: string
         }
         Insert: {
+          capacity?: number | null
           created_at?: string
           floor_id: string
+          has_access_control?: boolean | null
           id?: string
           name: string
           room_type?: string | null
           updated_at?: string
         }
         Update: {
+          capacity?: number | null
           created_at?: string
           floor_id?: string
+          has_access_control?: boolean | null
           id?: string
           name?: string
           room_type?: string | null

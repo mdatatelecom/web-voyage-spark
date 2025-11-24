@@ -22,7 +22,21 @@ export const useBuildings = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: { name: string; address?: string }) => {
+    mutationFn: async (values: { 
+      name: string; 
+      internal_code?: string;
+      building_type?: string;
+      address?: string;
+      zip_code?: string;
+      city?: string;
+      state?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      contact_name?: string;
+      contact_phone?: string;
+      contact_email?: string;
+      notes?: string;
+    }) => {
       const { data, error } = await supabase
         .from('buildings')
         .insert([values])
@@ -42,7 +56,22 @@ export const useBuildings = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...values }: { id: string; name: string; address?: string }) => {
+    mutationFn: async ({ id, ...values }: { 
+      id: string; 
+      name: string; 
+      internal_code?: string;
+      building_type?: string;
+      address?: string;
+      zip_code?: string;
+      city?: string;
+      state?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      contact_name?: string;
+      contact_phone?: string;
+      contact_email?: string;
+      notes?: string;
+    }) => {
       const { data, error } = await supabase
         .from('buildings')
         .update(values)
