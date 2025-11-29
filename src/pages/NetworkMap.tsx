@@ -177,14 +177,30 @@ export default function NetworkMap() {
                 height={dimensions.height}
                 nodeColor={(node: any) => getEquipmentColor(node.type)}
                 nodeRelSize={6}
+                nodeCanvasObjectMode={() => 'replace'}
                 nodeCanvasObject={(node: any, ctx, globalScale) => {
+                  const color = getEquipmentColor(node.type);
+                  const nodeSize = 8;
+                  
+                  // Desenhar círculo (bolinha) colorida
+                  ctx.beginPath();
+                  ctx.arc(node.x, node.y, nodeSize, 0, 2 * Math.PI, false);
+                  ctx.fillStyle = color;
+                  ctx.fill();
+                  
+                  // Borda branca para contraste
+                  ctx.strokeStyle = '#fff';
+                  ctx.lineWidth = 2;
+                  ctx.stroke();
+                  
+                  // Label do equipamento
                   const label = node.name;
                   const fontSize = 12 / globalScale;
                   ctx.font = `${fontSize}px Sans-Serif`;
                   ctx.textAlign = 'center';
-                  ctx.textBaseline = 'middle';
+                  ctx.textBaseline = 'top';
                   ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                  ctx.fillText(label, node.x, node.y + 15 / globalScale);
+                  ctx.fillText(label, node.x, node.y + nodeSize + 3);
                 }}
                 linkLabel={(link: any) => `
                   <div style="background: white; padding: 6px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
