@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ForceGraph2D from 'react-force-graph-2d';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { ZoomIn, ZoomOut, Maximize, Download } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ZoomIn, ZoomOut, Maximize, Download, MapPin } from 'lucide-react';
 import { useNetworkGraph } from '@/hooks/useNetworkGraph';
 import { useBuildings } from '@/hooks/useBuildings';
 import { EQUIPMENT_CATEGORIES } from '@/constants/equipmentTypes';
 import { EQUIPMENT_COLORS, CABLE_COLORS, getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
+import { CABLE_TYPES, getCableTypeLabel } from '@/constants/cables';
 
 export default function NetworkMap() {
   const navigate = useNavigate();
@@ -19,17 +21,67 @@ export default function NetworkMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [buildingFilter, setBuildingFilter] = useState<string>('all');
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [selectedCableTypes, setSelectedCableTypes] = useState<Set<string>>(new Set());
+  const [selectedStatus, setSelectedStatus] = useState<Set<string>>(new Set());
   const [zoomLevel, setZoomLevel] = useState(1);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [hoveredNode, setHoveredNode] = useState<any>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   
   const { graphData, isLoading } = useNetworkGraph(
     buildingFilter === 'all' ? undefined : buildingFilter,
-    selectedTypes.size > 0 ? selectedTypes : undefined
+    selectedTypes.size > 0 ? selectedTypes : undefined,
+    selectedCableTypes.size > 0 ? selectedCableTypes : undefined,
+    selectedStatus.size > 0 ? selectedStatus : undefined
   );
   const { buildings } = useBuildings();
   
   // Get all unique equipment types from graphData
   const availableTypes = Array.from(new Set(graphData.nodes.map(n => n.type)));
+  
+  // Get all unique cable types and statuses from graphData
+  const availableCableTypes = Array.from(new Set(graphData.links.map(l => l.cableType)));
+  const availableStatuses = Array.from(new Set(graphData.links.map(l => l.status)));
+  
+  // Calculate connection counts per node
+  const connectionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    graphData.links.forEach(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : (link.source as any)?.id;
+      const targetId = typeof link.target === 'string' ? link.target : (link.target as any)?.id;
+      if (sourceId) counts.set(sourceId, (counts.get(sourceId) || 0) + 1);
+      if (targetId) counts.set(targetId, (counts.get(targetId) || 0) + 1);
+    });
+    return counts;
+  }, [graphData.links]);
+  
+  // Generate building colors for clusters
+  const buildingColors = useMemo(() => {
+    const buildings = [...new Set(graphData.nodes.map(n => n.building))];
+    const palette = [
+      'rgba(254, 243, 199, 0.3)', // amber
+      'rgba(219, 234, 254, 0.3)', // blue
+      'rgba(220, 252, 231, 0.3)', // green
+      'rgba(252, 231, 243, 0.3)', // pink
+      'rgba(224, 231, 255, 0.3)', // indigo
+      'rgba(254, 202, 202, 0.3)', // red
+    ];
+    return new Map(buildings.map((b, i) => [b, palette[i % palette.length]]));
+  }, [graphData.nodes]);
+  
+  // Building colors for node borders
+  const buildingBorderColors = useMemo(() => {
+    const buildings = [...new Set(graphData.nodes.map(n => n.building))];
+    const palette = [
+      '#f59e0b', // amber
+      '#3b82f6', // blue
+      '#10b981', // green
+      '#ec4899', // pink
+      '#6366f1', // indigo
+      '#ef4444', // red
+    ];
+    return new Map(buildings.map((b, i) => [b, palette[i % palette.length]]));
+  }, [graphData.nodes]);
   
   // Responsive dimensions
   useEffect(() => {
@@ -62,6 +114,38 @@ export default function NetworkMap() {
   
   const clearTypeFilter = useCallback(() => {
     setSelectedTypes(new Set());
+  }, []);
+  
+  const toggleCableType = useCallback((type: string) => {
+    setSelectedCableTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
+  
+  const clearCableFilter = useCallback(() => {
+    setSelectedCableTypes(new Set());
+  }, []);
+  
+  const toggleStatus = useCallback((status: string) => {
+    setSelectedStatus(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }, []);
+  
+  const clearStatusFilter = useCallback(() => {
+    setSelectedStatus(new Set());
   }, []);
 
   const handleZoomChange = useCallback((value: number) => {
@@ -101,6 +185,32 @@ export default function NetworkMap() {
   const handleNodeClick = useCallback((node: any) => {
     navigate(`/equipment/${node.id}`);
   }, [navigate]);
+  
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  }, []);
+  
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      active: 'Ativo',
+      inactive: 'Inativo',
+      reserved: 'Reservado',
+      testing: 'Teste',
+      faulty: 'Falha',
+    };
+    return labels[status] || status;
+  };
+  
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      active: 'bg-green-500',
+      inactive: 'bg-gray-400',
+      reserved: 'bg-yellow-500',
+      testing: 'bg-blue-500',
+      faulty: 'bg-red-500',
+    };
+    return colors[status] || 'bg-gray-400';
+  };
 
   return (
     <AppLayout>
@@ -166,8 +276,8 @@ export default function NetworkMap() {
             <p className="text-muted-foreground">Carregando mapa da rede...</p>
           </Card>
         ) : (
-          <div className="grid grid-cols-[1fr_300px] gap-6">
-            <Card className="p-4" ref={containerRef}>
+          <div className="grid grid-cols-[1fr_340px] gap-6">
+            <Card className="p-4 relative" ref={containerRef} onMouseMove={handleMouseMove}>
               <ForceGraph2D
                 ref={graphRef}
                 graphData={graphData}
@@ -178,9 +288,53 @@ export default function NetworkMap() {
                 nodeColor={(node: any) => getEquipmentColor(node.type)}
                 nodeRelSize={6}
                 nodeCanvasObjectMode={() => 'replace'}
+                onNodeHover={(node) => setHoveredNode(node)}
+                onRenderFramePre={(ctx) => {
+                  // Draw building clusters in background
+                  const clusterNodes = new Map<string, any[]>();
+                  graphData.nodes.forEach((node: any) => {
+                    if (!clusterNodes.has(node.building)) {
+                      clusterNodes.set(node.building, []);
+                    }
+                    clusterNodes.get(node.building)!.push(node);
+                  });
+                  
+                  clusterNodes.forEach((nodes, building) => {
+                    if (nodes.length === 0) return;
+                    
+                    const xs = nodes.map(n => n.x);
+                    const ys = nodes.map(n => n.y);
+                    const minX = Math.min(...xs) - 40;
+                    const maxX = Math.max(...xs) + 40;
+                    const minY = Math.min(...ys) - 40;
+                    const maxY = Math.max(...ys) + 40;
+                    
+                    const color = buildingColors.get(building) || 'rgba(200, 200, 200, 0.1)';
+                    ctx.fillStyle = color;
+                    ctx.strokeStyle = buildingBorderColors.get(building) || '#ccc';
+                    ctx.lineWidth = 2;
+                    
+                    const radius = 20;
+                    ctx.beginPath();
+                    ctx.moveTo(minX + radius, minY);
+                    ctx.lineTo(maxX - radius, minY);
+                    ctx.arcTo(maxX, minY, maxX, minY + radius, radius);
+                    ctx.lineTo(maxX, maxY - radius);
+                    ctx.arcTo(maxX, maxY, maxX - radius, maxY, radius);
+                    ctx.lineTo(minX + radius, maxY);
+                    ctx.arcTo(minX, maxY, minX, maxY - radius, radius);
+                    ctx.lineTo(minX, minY + radius);
+                    ctx.arcTo(minX, minY, minX + radius, minY, radius);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                  });
+                }}
                 nodeCanvasObject={(node: any, ctx, globalScale) => {
                   const color = getEquipmentColor(node.type);
+                  const buildingBorder = buildingBorderColors.get(node.building) || '#fff';
                   const nodeSize = 8;
+                  const isHovered = hoveredNode?.id === node.id;
                   
                   // Desenhar círculo (bolinha) colorida
                   ctx.beginPath();
@@ -188,9 +342,9 @@ export default function NetworkMap() {
                   ctx.fillStyle = color;
                   ctx.fill();
                   
-                  // Borda branca para contraste
-                  ctx.strokeStyle = '#fff';
-                  ctx.lineWidth = 2;
+                  // Borda colorida por prédio
+                  ctx.strokeStyle = isHovered ? '#000' : buildingBorder;
+                  ctx.lineWidth = isHovered ? 3 : 2;
                   ctx.stroke();
                   
                   // Label do equipamento
@@ -217,6 +371,36 @@ export default function NetworkMap() {
                 cooldownTicks={100}
                 d3VelocityDecay={0.3}
               />
+              
+              {/* Tooltip */}
+              {hoveredNode && (
+                <div 
+                  className="absolute z-50 bg-white p-3 rounded-lg shadow-lg border pointer-events-none"
+                  style={{
+                    left: mousePos.x - (containerRef.current?.getBoundingClientRect().left || 0) + 15,
+                    top: mousePos.y - (containerRef.current?.getBoundingClientRect().top || 0) - 15,
+                  }}
+                >
+                  <h4 className="font-bold text-sm mb-1">{hoveredNode.name}</h4>
+                  <div className="space-y-0.5 text-xs">
+                    <p className="text-muted-foreground">
+                      <span className="font-medium">Tipo:</span> {EQUIPMENT_CATEGORIES.flatMap(c => c.types).find(t => t.value === hoveredNode.type)?.label || hoveredNode.type}
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-medium">Prédio:</span> {hoveredNode.building}
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-medium">Sala:</span> {hoveredNode.room}
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-medium">Rack:</span> {hoveredNode.rack}
+                    </p>
+                    <Badge variant="secondary" className="mt-1 text-xs">
+                      🔗 {connectionCounts.get(hoveredNode.id) || 0} conexões
+                    </Badge>
+                  </div>
+                </div>
+              )}
             </Card>
             
             <Card className="p-6 space-y-6">
@@ -259,14 +443,93 @@ export default function NetworkMap() {
               </div>
               
               <div>
-                <h3 className="font-semibold mb-4">🔗 Legenda - Cabos</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">🔗 Filtrar Cabos</h3>
+                  {selectedCableTypes.size > 0 && (
+                    <Button variant="ghost" size="sm" onClick={clearCableFilter}>
+                      Mostrar Todos
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  {Object.entries(CABLE_COLORS).map(([type, { hex, name }]) => (
-                    <div key={type} className="flex items-center gap-2 text-sm">
-                      <div className="w-8 h-0.5" style={{ backgroundColor: hex }} />
-                      <span>{name}</span>
-                    </div>
-                  ))}
+                  {CABLE_TYPES.filter(ct => availableCableTypes.includes(ct.value)).map(cableType => {
+                    const color = getCableColor(cableType.value);
+                    const isSelected = selectedCableTypes.size === 0 || selectedCableTypes.has(cableType.value);
+                    const count = graphData.links.filter(l => l.cableType === cableType.value).length;
+                    return (
+                      <button
+                        key={cableType.value}
+                        onClick={() => toggleCableType(cableType.value)}
+                        className={`w-full flex items-center gap-2 p-2 rounded-md transition-all ${
+                          isSelected 
+                            ? 'bg-primary/10 hover:bg-primary/20' 
+                            : 'opacity-40 hover:opacity-60'
+                        }`}
+                      >
+                        <div className="w-8 h-0.5 flex-shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-xs flex-1 text-left">{cableType.label}</span>
+                        <Badge variant="secondary" className="text-xs">{count}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">📊 Status</h3>
+                  {selectedStatus.size > 0 && (
+                    <Button variant="ghost" size="sm" onClick={clearStatusFilter}>
+                      Mostrar Todos
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {availableStatuses.map(status => {
+                    const isSelected = selectedStatus.size === 0 || selectedStatus.has(status);
+                    const count = graphData.links.filter(l => l.status === status).length;
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => toggleStatus(status)}
+                        className={`w-full flex items-center gap-2 p-2 rounded-md transition-all ${
+                          isSelected 
+                            ? 'bg-primary/10 hover:bg-primary/20' 
+                            : 'opacity-40 hover:opacity-60'
+                        }`}
+                      >
+                        <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`} />
+                        <span className="text-xs flex-1 text-left">{getStatusLabel(status)}</span>
+                        <Badge variant="secondary" className="text-xs">{count}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Clusters
+                </h3>
+                <div className="space-y-2">
+                  {Array.from(buildingColors.entries()).map(([building, color]) => {
+                    const borderColor = buildingBorderColors.get(building);
+                    const nodeCount = graphData.nodes.filter(n => n.building === building).length;
+                    return (
+                      <div key={building} className="flex items-center gap-2 text-xs">
+                        <div 
+                          className="w-4 h-4 rounded border-2 flex-shrink-0" 
+                          style={{ 
+                            backgroundColor: color,
+                            borderColor: borderColor
+                          }} 
+                        />
+                        <span className="flex-1">{building}</span>
+                        <Badge variant="outline" className="text-xs">{nodeCount}</Badge>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               

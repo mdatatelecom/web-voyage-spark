@@ -26,7 +26,12 @@ export interface NetworkGraphData {
   links: GraphLink[];
 }
 
-export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string>) {
+export function useNetworkGraph(
+  buildingFilter?: string, 
+  typeFilter?: Set<string>,
+  cableTypeFilter?: Set<string>,
+  statusFilter?: Set<string>
+) {
   const { data: equipment, isLoading: equipmentLoading } = useQuery({
     queryKey: ['network-equipment', buildingFilter],
     queryFn: async () => {
@@ -67,7 +72,7 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
   const { data: connections, isLoading: connectionsLoading } = useQuery({
     queryKey: ['network-connections'],
     queryFn: async () => {
-      // Query connections with both ports
+      // Query all connections (not just active)
       const { data, error } = await supabase
         .from('connections')
         .select(`
@@ -77,8 +82,7 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
           status,
           port_a_id,
           port_b_id
-        `)
-        .eq('status', 'active');
+        `);
 
       if (error) throw error;
 
@@ -142,6 +146,16 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
           return null;
         }
 
+        // Apply cable type filter
+        if (cableTypeFilter && cableTypeFilter.size > 0 && !cableTypeFilter.has(conn.cable_type)) {
+          return null;
+        }
+
+        // Apply status filter
+        if (statusFilter && statusFilter.size > 0 && !statusFilter.has(conn.status)) {
+          return null;
+        }
+
         return {
           source: sourceId,
           target: targetId,
@@ -158,7 +172,7 @@ export function useNetworkGraph(buildingFilter?: string, typeFilter?: Set<string
       );
 
     return { nodes, links };
-  }, [equipment, connections, typeFilter]);
+  }, [equipment, connections, typeFilter, cableTypeFilter, statusFilter]);
 
   return {
     graphData,
