@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ZoomIn, ZoomOut, Maximize, Download, MapPin, Route } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Download, MapPin, Route, AlertTriangle } from 'lucide-react';
 import { useNetworkGraph } from '@/hooks/useNetworkGraph';
 import { useBuildings } from '@/hooks/useBuildings';
 import { EQUIPMENT_CATEGORIES } from '@/constants/equipmentTypes';
@@ -34,6 +34,9 @@ export default function NetworkMap() {
   const [pathSource, setPathSource] = useState<string | null>(null);
   const [pathTarget, setPathTarget] = useState<string | null>(null);
   const [highlightedPath, setHighlightedPath] = useState<Set<string>>(new Set());
+  
+  // Isolated nodes state
+  const [showIsolated, setShowIsolated] = useState(true);
   
   const { graphData, isLoading } = useNetworkGraph(
     buildingFilter === 'all' ? undefined : buildingFilter,
@@ -61,6 +64,13 @@ export default function NetworkMap() {
     });
     return counts;
   }, [graphData.links]);
+  
+  // Calculate isolated nodes (no connections)
+  const isolatedNodes = useMemo(() => {
+    return graphData.nodes.filter(node => 
+      (connectionCounts.get(node.id) || 0) === 0
+    );
+  }, [graphData.nodes, connectionCounts]);
   
   // Generate building colors for clusters
   const buildingColors = useMemo(() => {
@@ -440,6 +450,8 @@ export default function NetworkMap() {
                   const isSource = node.id === pathSource;
                   const isTarget = node.id === pathTarget;
                   const isHovered = hoveredNode?.id === node.id;
+                  const connCount = connectionCounts.get(node.id) || 0;
+                  const isIsolated = connCount === 0;
                   
                   let color = getEquipmentColor(node.type);
                   let nodeSize = 8;
@@ -462,6 +474,17 @@ export default function NetworkMap() {
                     ctx.strokeStyle = '#fbbf24';
                     ctx.lineWidth = 3;
                     ctx.stroke();
+                  }
+                  
+                  // Highlight isolated nodes with orange dashed circle
+                  if (isIsolated && showIsolated) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, nodeSize + 6, 0, 2 * Math.PI);
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#f97316'; // Orange
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
                   }
                   
                   // Draw node circle
@@ -649,6 +672,57 @@ export default function NetworkMap() {
                   })}
                 </div>
               </div>
+              
+              {isolatedNodes.length > 0 && (
+                <div className="p-3 border-2 border-orange-500 bg-orange-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="w-4 h-4 text-orange-500" />
+                    <span className="font-medium text-sm">Equipamentos Isolados</span>
+                    <Badge variant="destructive">{isolatedNodes.length}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Equipamentos sem conexões detectadas
+                  </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Checkbox 
+                      id="show-isolated"
+                      checked={showIsolated}
+                      onCheckedChange={(v) => setShowIsolated(!!v)}
+                    />
+                    <label htmlFor="show-isolated" className="text-xs cursor-pointer">
+                      Destacar isolados
+                    </label>
+                  </div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {isolatedNodes.map(node => (
+                      <button
+                        key={node.id}
+                        onClick={() => {
+                          if (graphRef.current) {
+                            const graphNode = graphData.nodes.find(n => n.id === node.id) as any;
+                            if (graphNode && graphNode.x !== undefined && graphNode.y !== undefined) {
+                              graphRef.current.centerAt(graphNode.x, graphNode.y, 1000);
+                              graphRef.current.zoom(2, 1000);
+                            }
+                          }
+                        }}
+                        className="w-full text-left p-2 rounded hover:bg-orange-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0" 
+                            style={{ backgroundColor: getEquipmentColor(node.type) }} 
+                          />
+                          <span className="text-xs font-medium truncate">{node.name}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground ml-5 truncate">
+                          {node.building} → {node.room}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               <div>
                 <h3 className="font-semibold mb-4 flex items-center gap-2">
