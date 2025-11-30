@@ -98,9 +98,10 @@ export default function System() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [applyingPreset, setApplyingPreset] = useState(false);
 
-  const applyPreset = (preset: ColorPreset) => {
+  const applyPreset = async (preset: ColorPreset) => {
     setApplyingPreset(true);
     setLocalColors(preset.colors);
+    await saveThemeColors(preset.colors);
     setTimeout(() => setApplyingPreset(false), 300);
   };
 
@@ -447,46 +448,6 @@ export default function System() {
 
                 <Separator />
 
-                <div className="space-y-4">
-                  <h4 className="font-medium">Galeria de Logos Predefinidos</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Escolha um logo profissional ou faça upload do seu próprio
-                  </p>
-                  
-                  <Tabs defaultValue={LOGO_CATEGORIES[0]} className="w-full">
-                    <TabsList className="grid grid-cols-4 w-full">
-                      {LOGO_CATEGORIES.map(cat => (
-                        <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
-                      ))}
-                    </TabsList>
-                    
-                    {LOGO_CATEGORIES.map(category => (
-                      <TabsContent key={category} value={category}>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          {LOGO_PRESETS.filter(p => p.category === category).map(preset => (
-                            <Card 
-                              key={preset.id}
-                              className={`cursor-pointer hover:border-primary transition-all ${
-                                localBranding.logoUrl === preset.url ? 'border-primary ring-2 ring-primary' : ''
-                              }`}
-                              onClick={() => setLocalBranding({ ...localBranding, logoUrl: preset.url })}
-                            >
-                              <CardContent className="p-3">
-                                <div className="aspect-square rounded bg-muted flex items-center justify-center mb-2">
-                                  <img src={preset.thumbnail} alt={preset.name} className="h-12 w-12 object-contain" />
-                                </div>
-                                <p className="text-xs text-center font-medium truncate">{preset.name}</p>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                </div>
-
-                <Separator />
-
                 <div className="space-y-2">
                   <Label htmlFor="logo">Ou faça upload do seu logo</Label>
                   <div className="flex gap-4 items-start">
@@ -614,43 +575,6 @@ export default function System() {
               </div>
             </Card>
 
-            <Separator />
-
-            {/* Validação de Contraste WCAG */}
-            <Card className="p-6 border-blue-500">
-              <CardHeader className="px-0 pt-0">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CheckCircle className="h-5 w-5" />
-                  Validação de Acessibilidade WCAG
-                </CardTitle>
-                <CardDescription>
-                  Verificação automática de contraste para garantir acessibilidade
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 px-0 pb-0">
-                <ContrastValidator
-                  foreground={localColors.primaryForeground}
-                  background={localColors.primary}
-                  label="Botão Primário"
-                />
-                <ContrastValidator
-                  foreground={localColors.sidebarForeground}
-                  background={localColors.sidebarBackground}
-                  label="Texto Sidebar"
-                />
-                <ContrastValidator
-                  foreground={localColors.iconColor}
-                  background={localColors.sidebarBackground}
-                  label="Ícones Sidebar"
-                />
-                <ContrastValidator
-                  foreground={localColors.sidebarPrimary}
-                  background={localColors.sidebarAccent}
-                  label="Item Ativo Menu"
-                />
-              </CardContent>
-            </Card>
-
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Palette className="w-5 h-5" />
@@ -725,6 +649,21 @@ export default function System() {
                 />
               </div>
 
+              <div className="flex gap-2 mt-6">
+                <Button 
+                  onClick={() => saveThemeColors(localColors)} 
+                  className="flex-1"
+                >
+                  <Palette className="w-4 h-4 mr-2" />
+                  Salvar Cores
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setLocalColors(DEFAULT_COLORS)}
+                >
+                  Restaurar Padrão
+                </Button>
+              </div>
             </Card>
           </TabsContent>
 
