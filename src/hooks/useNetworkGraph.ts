@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { isNetworkEquipment } from '@/constants/equipmentTypes';
 
 interface GraphNode {
   id: string;
@@ -112,10 +113,12 @@ export function useNetworkGraph(
       return { nodes: [], links: [] };
     }
 
+    // Filter out non-network equipment (cable organizers, brush panels)
+    let filteredEquipment = equipment.filter((eq: any) => isNetworkEquipment(eq.type));
+    
     // Filter equipment by type if typeFilter is provided
-    let filteredEquipment = equipment;
     if (typeFilter && typeFilter.size > 0) {
-      filteredEquipment = equipment.filter((eq: any) => typeFilter.has(eq.type));
+      filteredEquipment = filteredEquipment.filter((eq: any) => typeFilter.has(eq.type));
     }
 
     // Create nodes from filtered equipment
