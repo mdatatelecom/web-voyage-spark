@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ZoomIn, ZoomOut, Maximize, Download, MapPin } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Download, MapPin, Route } from 'lucide-react';
 import { useNetworkGraph } from '@/hooks/useNetworkGraph';
 import { useBuildings } from '@/hooks/useBuildings';
 import { EQUIPMENT_CATEGORIES } from '@/constants/equipmentTypes';
 import { EQUIPMENT_COLORS, CABLE_COLORS, getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
 import { CABLE_TYPES, getCableTypeLabel } from '@/constants/cables';
+import { toast } from 'sonner';
 
 export default function NetworkMap() {
   const navigate = useNavigate();
@@ -27,6 +28,12 @@ export default function NetworkMap() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [hoveredNode, setHoveredNode] = useState<any>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  
+  // Path visualization state
+  const [pathMode, setPathMode] = useState(false);
+  const [pathSource, setPathSource] = useState<string | null>(null);
+  const [pathTarget, setPathTarget] = useState<string | null>(null);
+  const [highlightedPath, setHighlightedPath] = useState<Set<string>>(new Set());
   
   const { graphData, isLoading } = useNetworkGraph(
     buildingFilter === 'all' ? undefined : buildingFilter,
@@ -182,9 +189,72 @@ export default function NetworkMap() {
     }
   }, []);
 
+  // BFS algorithm to find path between two nodes
+  const findPath = useCallback((sourceId: string, targetId: string) => {
+    // Build adjacency list
+    const adjacencyList = new Map<string, string[]>();
+    graphData.links.forEach(link => {
+      const source = typeof link.source === 'string' ? link.source : (link.source as any)?.id;
+      const target = typeof link.target === 'string' ? link.target : (link.target as any)?.id;
+      
+      if (!source || !target) return;
+      
+      if (!adjacencyList.has(source)) adjacencyList.set(source, []);
+      if (!adjacencyList.has(target)) adjacencyList.set(target, []);
+      adjacencyList.get(source)!.push(target);
+      adjacencyList.get(target)!.push(source);
+    });
+    
+    // BFS to find shortest path
+    const queue: string[][] = [[sourceId]];
+    const visited = new Set<string>([sourceId]);
+    
+    while (queue.length > 0) {
+      const path = queue.shift()!;
+      const current = path[path.length - 1];
+      
+      if (current === targetId) {
+        return path; // Path found!
+      }
+      
+      for (const neighbor of adjacencyList.get(current) || []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push([...path, neighbor]);
+        }
+      }
+    }
+    
+    return null; // No path
+  }, [graphData.links]);
+  
+  const clearPath = useCallback(() => {
+    setPathSource(null);
+    setPathTarget(null);
+    setHighlightedPath(new Set());
+  }, []);
+  
   const handleNodeClick = useCallback((node: any) => {
-    navigate(`/equipment/${node.id}`);
-  }, [navigate]);
+    if (pathMode) {
+      if (!pathSource) {
+        setPathSource(node.id);
+        toast.info(`Origem selecionada: ${node.name}`);
+      } else if (!pathTarget && node.id !== pathSource) {
+        setPathTarget(node.id);
+        // Calculate path
+        const path = findPath(pathSource, node.id);
+        if (path) {
+          setHighlightedPath(new Set(path));
+          toast.success(`Caminho encontrado com ${path.length} equipamentos`);
+        } else {
+          toast.error('Não há caminho entre estes equipamentos');
+          clearPath();
+        }
+      }
+    } else {
+      navigate(`/equipment/${node.id}`);
+    }
+  }, [pathMode, pathSource, pathTarget, findPath, navigate, clearPath]);
   
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -224,6 +294,16 @@ export default function NetworkMap() {
           </div>
           
           <div className="flex gap-2">
+            <Button 
+              variant={pathMode ? "default" : "outline"} 
+              onClick={() => {
+                setPathMode(!pathMode);
+                if (pathMode) clearPath();
+              }}
+            >
+              <Route className="w-4 h-4 mr-2" />
+              Modo Caminho
+            </Button>
             <Button variant="outline" size="icon" onClick={handleZoomOut}>
               <ZoomOut className="w-4 h-4" />
             </Button>
@@ -238,6 +318,31 @@ export default function NetworkMap() {
             </Button>
           </div>
         </div>
+        
+        {pathMode && (
+          <Card className="p-4 bg-blue-50 border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium mb-1">
+                  {!pathSource 
+                    ? "🔵 Clique no equipamento de ORIGEM"
+                    : !pathTarget
+                    ? "🔴 Clique no equipamento de DESTINO"
+                    : `Caminho: ${graphData.nodes.find(n => n.id === pathSource)?.name} → ${graphData.nodes.find(n => n.id === pathTarget)?.name}`
+                  }
+                </p>
+                {highlightedPath.size > 0 && (
+                  <Badge variant="secondary" className="mt-1">
+                    📍 {highlightedPath.size} equipamentos no caminho
+                  </Badge>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" onClick={clearPath}>
+                Limpar
+              </Button>
+            </div>
+          </Card>
+        )}
         
         <div className="flex gap-4">
           <div className="w-64">
@@ -331,23 +436,47 @@ export default function NetworkMap() {
                   });
                 }}
                 nodeCanvasObject={(node: any, ctx, globalScale) => {
-                  const color = getEquipmentColor(node.type);
-                  const buildingBorder = buildingBorderColors.get(node.building) || '#fff';
-                  const nodeSize = 8;
+                  const isInPath = highlightedPath.has(node.id);
+                  const isSource = node.id === pathSource;
+                  const isTarget = node.id === pathTarget;
                   const isHovered = hoveredNode?.id === node.id;
                   
-                  // Desenhar círculo (bolinha) colorida
+                  let color = getEquipmentColor(node.type);
+                  let nodeSize = 8;
+                  
+                  // Special styling for path nodes
+                  if (isSource) {
+                    color = '#22c55e'; // Green - source
+                    nodeSize = 12;
+                  } else if (isTarget) {
+                    color = '#ef4444'; // Red - target
+                    nodeSize = 12;
+                  } else if (isInPath) {
+                    nodeSize = 10;
+                  }
+                  
+                  // Pulsing border for nodes in path
+                  if (isInPath && !isSource && !isTarget) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, nodeSize + 4, 0, 2 * Math.PI);
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                  }
+                  
+                  // Draw node circle
                   ctx.beginPath();
                   ctx.arc(node.x, node.y, nodeSize, 0, 2 * Math.PI, false);
                   ctx.fillStyle = color;
                   ctx.fill();
                   
-                  // Borda colorida por prédio
-                  ctx.strokeStyle = isHovered ? '#000' : buildingBorder;
+                  // Border - building color or hover/path color
+                  const buildingBorder = buildingBorderColors.get(node.building) || '#fff';
+                  ctx.strokeStyle = isHovered ? '#000' : (isInPath ? '#fbbf24' : buildingBorder);
                   ctx.lineWidth = isHovered ? 3 : 2;
                   ctx.stroke();
                   
-                  // Label do equipamento
+                  // Label
                   const label = node.name;
                   const fontSize = 12 / globalScale;
                   ctx.font = `${fontSize}px Sans-Serif`;
@@ -363,8 +492,22 @@ export default function NetworkMap() {
                     Status: ${link.status}
                   </div>
                 `}
-                linkColor={(link: any) => getCableColor(link.cableType)}
-                linkWidth={2}
+                linkWidth={(link: any) => {
+                  const sourceId = typeof link.source === 'string' ? link.source : (link.source as any)?.id;
+                  const targetId = typeof link.target === 'string' ? link.target : (link.target as any)?.id;
+                  
+                  // Check if both endpoints are in highlighted path
+                  const isInPath = sourceId && targetId && highlightedPath.has(sourceId) && highlightedPath.has(targetId);
+                  return isInPath ? 5 : 2;
+                }}
+                linkColor={(link: any) => {
+                  const sourceId = typeof link.source === 'string' ? link.source : (link.source as any)?.id;
+                  const targetId = typeof link.target === 'string' ? link.target : (link.target as any)?.id;
+                  
+                  // Highlight path connections
+                  const isInPath = sourceId && targetId && highlightedPath.has(sourceId) && highlightedPath.has(targetId);
+                  return isInPath ? '#fbbf24' : getCableColor(link.cableType);
+                }}
                 linkDirectionalParticles={2}
                 linkDirectionalParticleWidth={2}
                 onNodeClick={handleNodeClick}

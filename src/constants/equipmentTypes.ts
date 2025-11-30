@@ -102,6 +102,18 @@ export const EQUIPMENT_CATEGORIES = [
   }
 ];
 
+// Equipment types that don't appear on network map (no network ports or passive devices)
+export const NON_NETWORK_EQUIPMENT_TYPES = [
+  'cable_organizer_horizontal',
+  'cable_organizer_vertical',
+  'brush_panel',
+] as const;
+
+// Helper to check if equipment is network-capable
+export const isNetworkEquipment = (type: string): boolean => {
+  return !NON_NETWORK_EQUIPMENT_TYPES.includes(type as any);
+};
+
 export const PORT_TYPES = [
   // Ethernet
   { value: 'rj45', label: 'Ethernet (RJ45)', category: 'ethernet', icon: Cable, speeds: ['10Mbps', '100Mbps', '1Gbps', '2.5Gbps', '5Gbps', '10Gbps'] },
