@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ZoomIn, ZoomOut, Maximize, Download, MapPin, Route, AlertTriangle } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Download, MapPin, Route, AlertTriangle, AlertOctagon, Lightbulb } from 'lucide-react';
 import { useNetworkGraph } from '@/hooks/useNetworkGraph';
 import { useBuildings } from '@/hooks/useBuildings';
+import { useConnectionSuggestions } from '@/hooks/useConnectionSuggestions';
 import { EQUIPMENT_CATEGORIES } from '@/constants/equipmentTypes';
 import { EQUIPMENT_COLORS, CABLE_COLORS, getEquipmentColor, getCableColor } from '@/constants/equipmentColors';
 import { CABLE_TYPES, getCableTypeLabel } from '@/constants/cables';
@@ -37,6 +38,8 @@ export default function NetworkMap() {
   
   // Isolated nodes state
   const [showIsolated, setShowIsolated] = useState(true);
+  const [showSpof, setShowSpof] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   
   const { graphData, isLoading } = useNetworkGraph(
     buildingFilter === 'all' ? undefined : buildingFilter,
@@ -71,6 +74,132 @@ export default function NetworkMap() {
       (connectionCounts.get(node.id) || 0) === 0
     );
   }, [graphData.nodes, connectionCounts]);
+
+  // Fetch connection suggestions for isolated equipment
+  const isolatedEquipmentIds = useMemo(() => 
+    isolatedNodes.map(n => n.id), 
+    [isolatedNodes]
+  );
+  
+  const { data: suggestions = [] } = useConnectionSuggestions(isolatedEquipmentIds);
+
+  // Tarjan's algorithm to find articulation points (SPOFs)
+  const spofNodes = useMemo(() => {
+    const buildAdjacencyList = (links: any[]) => {
+      const adj = new Map<string, string[]>();
+      links.forEach(link => {
+        if (!adj.has(link.source)) adj.set(link.source, []);
+        if (!adj.has(link.target)) adj.set(link.target, []);
+        adj.get(link.source)!.push(link.target);
+        adj.get(link.target)!.push(link.source);
+      });
+      return adj;
+    };
+
+    const adjacencyList = buildAdjacencyList(graphData.links);
+    const visited = new Set<string>();
+    const disc = new Map<string, number>();
+    const low = new Map<string, number>();
+    const parent = new Map<string, string | null>();
+    const articulationPoints = new Set<string>();
+    let time = 0;
+
+    const dfs = (nodeId: string) => {
+      visited.add(nodeId);
+      disc.set(nodeId, time);
+      low.set(nodeId, time);
+      time++;
+
+      let children = 0;
+      const neighbors = adjacencyList.get(nodeId) || [];
+
+      for (const neighborId of neighbors) {
+        if (!visited.has(neighborId)) {
+          children++;
+          parent.set(neighborId, nodeId);
+          dfs(neighborId);
+
+          low.set(nodeId, Math.min(low.get(nodeId)!, low.get(neighborId)!));
+
+          if (parent.get(nodeId) === null && children > 1) {
+            articulationPoints.add(nodeId);
+          }
+          if (parent.get(nodeId) !== null && low.get(neighborId)! >= disc.get(nodeId)!) {
+            articulationPoints.add(nodeId);
+          }
+        } else if (neighborId !== parent.get(nodeId)) {
+          low.set(nodeId, Math.min(low.get(nodeId)!, disc.get(neighborId)!));
+        }
+      }
+    };
+
+    graphData.nodes.forEach(node => {
+      if (!visited.has(node.id)) {
+        parent.set(node.id, null);
+        dfs(node.id);
+      }
+    });
+
+    return articulationPoints;
+  }, [graphData]);
+
+  // Calculate impact of each SPOF
+  const spofImpact = useMemo(() => {
+    const impacts = new Map<string, number>();
+    
+    spofNodes.forEach(spofId => {
+      // Simulate removal: count disconnected nodes
+      const remainingNodes = new Set(graphData.nodes.map(n => n.id).filter(id => id !== spofId));
+      const remainingLinks = graphData.links.filter(l => 
+        l.source !== spofId && l.target !== spofId
+      );
+      
+      // Build adjacency for remaining graph
+      const adj = new Map<string, string[]>();
+      remainingLinks.forEach(link => {
+        if (!adj.has(link.source)) adj.set(link.source, []);
+        if (!adj.has(link.target)) adj.set(link.target, []);
+        adj.get(link.source)!.push(link.target);
+        adj.get(link.target)!.push(link.source);
+      });
+      
+      // Find largest component
+      const visited = new Set<string>();
+      let largestComponent = 0;
+      
+      const bfs = (start: string) => {
+        const queue = [start];
+        const component = new Set<string>();
+        visited.add(start);
+        component.add(start);
+        
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          const neighbors = adj.get(current) || [];
+          for (const neighbor of neighbors) {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              component.add(neighbor);
+              queue.push(neighbor);
+            }
+          }
+        }
+        return component.size;
+      };
+      
+      remainingNodes.forEach(nodeId => {
+        if (!visited.has(nodeId)) {
+          const componentSize = bfs(nodeId);
+          largestComponent = Math.max(largestComponent, componentSize);
+        }
+      });
+      
+      const isolated = remainingNodes.size - largestComponent;
+      impacts.set(spofId, isolated);
+    });
+    
+    return impacts;
+  }, [spofNodes, graphData]);
   
   // Generate building colors for clusters
   const buildingColors = useMemo(() => {
@@ -452,6 +581,7 @@ export default function NetworkMap() {
                   const isHovered = hoveredNode?.id === node.id;
                   const connCount = connectionCounts.get(node.id) || 0;
                   const isIsolated = connCount === 0;
+                  const isSpof = spofNodes.has(node.id);
                   
                   let color = getEquipmentColor(node.type);
                   let nodeSize = 8;
@@ -474,6 +604,29 @@ export default function NetworkMap() {
                     ctx.strokeStyle = '#fbbf24';
                     ctx.lineWidth = 3;
                     ctx.stroke();
+                  }
+                  
+                  // Highlight SPOF nodes with red hexagon
+                  if (isSpof && showSpof) {
+                    ctx.beginPath();
+                    const hexRadius = nodeSize + 8;
+                    for (let i = 0; i < 6; i++) {
+                      const angle = (Math.PI / 3) * i - Math.PI / 2;
+                      const x = node.x + hexRadius * Math.cos(angle);
+                      const y = node.y + hexRadius * Math.sin(angle);
+                      if (i === 0) ctx.moveTo(x, y);
+                      else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = '#dc2626';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    // Alert icon
+                    ctx.fillStyle = '#dc2626';
+                    ctx.font = `bold ${12}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('!', node.x, node.y - nodeSize - 12);
                   }
                   
                   // Highlight isolated nodes with orange dashed circle
@@ -515,6 +668,27 @@ export default function NetworkMap() {
                     Status: ${link.status}
                   </div>
                 `}
+                linkCanvasObjectMode={() => 'after'}
+                linkCanvasObject={(link: any, ctx, globalScale) => {
+                  // Draw suggestion lines
+                  if (showSuggestions) {
+                    suggestions.forEach(sug => {
+                      const sourceNode = graphData.nodes.find(n => n.id === sug.sourceEquipment.id);
+                      const targetNode = graphData.nodes.find(n => n.id === sug.targetEquipment.id);
+                      
+                      if (sourceNode && targetNode) {
+                        ctx.beginPath();
+                        ctx.moveTo((sourceNode as any).x, (sourceNode as any).y);
+                        ctx.lineTo((targetNode as any).x, (targetNode as any).y);
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = '#22c55e';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                      }
+                    });
+                  }
+                }}
                 linkWidth={(link: any) => {
                   const sourceId = typeof link.source === 'string' ? link.source : (link.source as any)?.id;
                   const targetId = typeof link.target === 'string' ? link.target : (link.target as any)?.id;
@@ -719,6 +893,131 @@ export default function NetworkMap() {
                           {node.building} → {node.room}
                         </div>
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* SPOF Section */}
+              {spofNodes.size > 0 && (
+                <div className="p-3 border-2 border-destructive bg-destructive/5 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertOctagon className="w-4 h-4 text-destructive" />
+                    <span className="font-medium text-sm">Pontos de Falha (SPOF)</span>
+                    <Badge variant="destructive">{spofNodes.size}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Equipamentos críticos - se removerem, isolam outros
+                  </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Checkbox 
+                      id="show-spof"
+                      checked={showSpof} 
+                      onCheckedChange={(v) => setShowSpof(!!v)} 
+                    />
+                    <label htmlFor="show-spof" className="text-xs cursor-pointer">
+                      Destacar SPOFs
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {Array.from(spofNodes).map(nodeId => {
+                      const node = graphData.nodes.find(n => n.id === nodeId);
+                      const impact = spofImpact.get(nodeId) || 0;
+                      if (!node) return null;
+                      return (
+                        <button
+                          key={nodeId} 
+                          onClick={() => {
+                            if (graphRef.current) {
+                              const graphNode = graphData.nodes.find(n => n.id === nodeId) as any;
+                              if (graphNode && graphNode.x !== undefined && graphNode.y !== undefined) {
+                                graphRef.current.centerAt(graphNode.x, graphNode.y, 1000);
+                                graphRef.current.zoom(3, 1000);
+                              }
+                            }
+                          }}
+                          className="w-full text-left p-2 rounded hover:bg-destructive/10 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: getEquipmentColor(node.type) }} 
+                            />
+                            <span className="text-xs font-medium truncate">{node.name}</span>
+                          </div>
+                          <div className="text-xs text-destructive ml-5">
+                            ⚠️ Isolaria {impact} equipamento(s)
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Connection Suggestions Section */}
+              {isolatedNodes.length > 0 && suggestions.length > 0 && (
+                <div className="p-3 border-2 border-green-500 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Lightbulb className="w-4 h-4 text-green-600" />
+                    <span className="font-medium text-sm">Sugestões de Conexão</span>
+                    <Badge variant="secondary">{suggestions.length}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Conexões recomendadas para equipamentos isolados
+                  </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Checkbox 
+                      id="show-suggestions"
+                      checked={showSuggestions} 
+                      onCheckedChange={(v) => setShowSuggestions(!!v)} 
+                    />
+                    <label htmlFor="show-suggestions" className="text-xs cursor-pointer">
+                      Mostrar no mapa
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {suggestions.map((sug, idx) => (
+                      <div key={idx} className="p-2 border rounded-lg bg-background">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant={
+                            sug.proximity === 'same_rack' ? 'default' :
+                            sug.proximity === 'same_room' ? 'secondary' : 'outline'
+                          } className="text-xs">
+                            {sug.proximity === 'same_rack' ? '📦 Mesmo Rack' :
+                             sug.proximity === 'same_room' ? '🚪 Mesma Sala' : '🏢 Outra Sala'}
+                          </Badge>
+                        </div>
+                        
+                        <div className="text-xs space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium truncate">{sug.sourceEquipment.name}</span>
+                            <span className="text-muted-foreground">({sug.sourcePort.name})</span>
+                          </div>
+                          <div className="text-center text-muted-foreground">↓ {sug.recommendedCable}</div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium truncate">{sug.targetEquipment.name}</span>
+                            <span className="text-muted-foreground">({sug.targetPort.name})</span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          {sug.reason}
+                        </p>
+                        
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="w-full mt-2 text-xs"
+                          onClick={() => {
+                            navigate(`/connections?sourcePort=${sug.sourcePort.id}&targetPort=${sug.targetPort.id}`);
+                          }}
+                        >
+                          Criar Conexão
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 </div>

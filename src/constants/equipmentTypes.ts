@@ -164,3 +164,47 @@ export const PORT_TYPE_CATEGORIES = [
   { id: 'power', label: 'Energia' },
   { id: 'other', label: 'Outros' },
 ];
+
+// Port compatibility mapping for connection suggestions
+export const PORT_COMPATIBILITY: Record<string, string[]> = {
+  // Ethernet - compatível entre si
+  'rj45': ['rj45'],
+  
+  // Fibra - SFP família
+  'sfp': ['sfp', 'fiber_lc', 'fiber_sc'],
+  'sfp_plus': ['sfp_plus', 'fiber_lc', 'fiber_sc'],
+  'sfp28': ['sfp28', 'fiber_lc', 'fiber_sc'],
+  'qsfp': ['qsfp'],
+  'qsfp28': ['qsfp28'],
+  'fiber_lc': ['fiber_lc', 'sfp', 'sfp_plus', 'sfp28'],
+  'fiber_sc': ['fiber_sc', 'sfp', 'sfp_plus', 'sfp28'],
+  
+  // Vídeo
+  'bnc': ['bnc'],
+  'hdmi': ['hdmi'],
+  'vga': ['vga'],
+  
+  // Console/Serial
+  'console_rj45': ['console_rj45', 'serial'],
+  'console_usb': ['console_usb', 'usb'],
+  'serial': ['serial', 'console_rj45'],
+  
+  // Telecom
+  'fxo_fxs': ['fxo_fxs'],
+  'e1_t1': ['e1_t1'],
+  
+  // Power
+  'power_ac': ['power_ac'],
+  'power_dc': ['power_dc'],
+  
+  // Other
+  'antenna_sma': ['antenna_sma'],
+  'rs485_rs232': ['rs485_rs232'],
+  'io': ['io'],
+  'usb': ['usb', 'console_usb'],
+  'other': ['other'],
+};
+
+export const getCompatiblePortTypes = (portType: string): string[] => {
+  return PORT_COMPATIBILITY[portType] || [portType];
+};
