@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text } from '@react-three/drei';
+import { OrbitControls, Text, Environment, ContactShadows, SoftShadows } from '@react-three/drei';
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,8 @@ import { Annotation3D } from './Annotation3D';
 import { AnnotationDialog } from './AnnotationDialog';
 import { useRackAnnotations } from '@/hooks/useRackAnnotations';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { StatusLED } from './StatusLED';
+import { DataCenterFloor } from './DataCenterFloor';
 
 interface Equipment {
   id: string;
@@ -40,36 +42,70 @@ interface Connection {
   equipment_b_id: string;
 }
 
-// Rack Frame Component
+// Material configurations by equipment type
+const MATERIAL_CONFIGS: Record<string, { metalness: number; roughness: number }> = {
+  server: { metalness: 0.3, roughness: 0.7 },
+  switch: { metalness: 0.5, roughness: 0.4 },
+  router: { metalness: 0.5, roughness: 0.4 },
+  firewall: { metalness: 0.4, roughness: 0.5 },
+  storage: { metalness: 0.3, roughness: 0.7 },
+  pdu: { metalness: 0.9, roughness: 0.1 },
+  ups: { metalness: 0.8, roughness: 0.2 },
+  patch_panel: { metalness: 0.6, roughness: 0.5 },
+  patch_panel_fiber: { metalness: 0.6, roughness: 0.5 },
+  default: { metalness: 0.4, roughness: 0.6 }
+};
+
+// Rack Frame Component with enhanced PBR materials
 function RackFrame({ sizeU }: { sizeU: number }) {
   const rackHeight = sizeU * 0.044; // 44mm per U in meters
   const rackWidth = 0.482; // Standard 19" rack width
   const rackDepth = 0.8; // 800mm depth
 
   return (
-    <group>
+    <group castShadow receiveShadow>
       {/* Left rail */}
-      <mesh position={[-rackWidth / 2, rackHeight / 2, 0]}>
+      <mesh position={[-rackWidth / 2, rackHeight / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.02, rackHeight, rackDepth]} />
-        <meshStandardMaterial color="#404040" metalness={0.8} roughness={0.2} />
+        <meshStandardMaterial 
+          color="#404040" 
+          metalness={0.95} 
+          roughness={0.15}
+          envMapIntensity={1.2}
+        />
       </mesh>
       
       {/* Right rail */}
-      <mesh position={[rackWidth / 2, rackHeight / 2, 0]}>
+      <mesh position={[rackWidth / 2, rackHeight / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.02, rackHeight, rackDepth]} />
-        <meshStandardMaterial color="#404040" metalness={0.8} roughness={0.2} />
+        <meshStandardMaterial 
+          color="#404040" 
+          metalness={0.95} 
+          roughness={0.15}
+          envMapIntensity={1.2}
+        />
       </mesh>
       
       {/* Base */}
-      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
         <boxGeometry args={[rackWidth, rackDepth, 0.02]} />
-        <meshStandardMaterial color="#303030" metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial 
+          color="#303030" 
+          metalness={0.85} 
+          roughness={0.2}
+          envMapIntensity={1.0}
+        />
       </mesh>
       
       {/* Top */}
-      <mesh position={[0, rackHeight, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, rackHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
         <boxGeometry args={[rackWidth, rackDepth, 0.02]} />
-        <meshStandardMaterial color="#303030" metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial 
+          color="#303030" 
+          metalness={0.85} 
+          roughness={0.2}
+          envMapIntensity={1.0}
+        />
       </mesh>
     </group>
   );
@@ -115,7 +151,49 @@ function Cable3D({
   );
 }
 
-// Equipment Block Component with X-ray support and rear mounting
+// Fan Animation Component
+function FanAnimation({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.z += delta * 10;
+    }
+  });
+  
+  return (
+    <mesh ref={meshRef} position={position}>
+      <cylinderGeometry args={[0.02, 0.02, 0.005, 8]} />
+      <meshStandardMaterial color="#555555" metalness={0.7} roughness={0.3} />
+    </mesh>
+  );
+}
+
+// Port Visual Component
+function PortVisual({ 
+  position, 
+  status 
+}: { 
+  position: [number, number, number]; 
+  status: 'available' | 'in_use' 
+}) {
+  const color = status === 'in_use' ? '#22c55e' : '#64748b';
+  
+  return (
+    <mesh position={position}>
+      <boxGeometry args={[0.008, 0.006, 0.004]} />
+      <meshStandardMaterial 
+        color={color}
+        metalness={0.9}
+        roughness={0.1}
+        emissive={status === 'in_use' ? color : '#000000'}
+        emissiveIntensity={status === 'in_use' ? 0.5 : 0}
+      />
+    </mesh>
+  );
+}
+
+// Equipment Block Component with enhanced details
 function EquipmentBlock({
   equipment,
   sizeU,
@@ -146,6 +224,15 @@ function EquipmentBlock({
   const color = getEquipmentColor(equipment.type);
   const emissive = (hovered || highlighted) ? color : '#000000';
   const emissiveIntensity = (hovered || highlighted) ? 0.4 : 0;
+  
+  // Get material config for equipment type
+  const materialConfig = MATERIAL_CONFIGS[equipment.type] || MATERIAL_CONFIGS.default;
+  
+  // Determine if equipment should have fans (servers, switches)
+  const hasFans = ['server', 'switch', 'router', 'storage'].includes(equipment.type);
+  
+  // Determine number of ports to display (simplified representation)
+  const portCount = equipment.type === 'switch' ? 24 : equipment.type === 'router' ? 8 : 0;
 
   return (
     <group position={[0, yPosition, zPosition]}>
@@ -153,18 +240,64 @@ function EquipmentBlock({
         onClick={onClick}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
+        castShadow
+        receiveShadow
       >
         <boxGeometry args={[width, height, depth]} />
         <meshStandardMaterial
           color={color}
           emissive={emissive}
           emissiveIntensity={emissiveIntensity}
-          metalness={0.3}
-          roughness={0.7}
+          metalness={materialConfig.metalness}
+          roughness={materialConfig.roughness}
           transparent={xrayMode}
           opacity={xrayMode ? 0.3 : 1}
+          envMapIntensity={1.2}
         />
       </mesh>
+      
+      {/* Status LEDs */}
+      {!xrayMode && (
+        <>
+          {/* Power LED */}
+          <StatusLED 
+            position={[width / 2 - 0.02, height / 2 - 0.01, depth / 2 + 0.001]} 
+            status="online" 
+          />
+          
+          {/* Activity LED */}
+          <StatusLED 
+            position={[width / 2 - 0.05, height / 2 - 0.01, depth / 2 + 0.001]} 
+            status="warning" 
+            size={0.006}
+          />
+        </>
+      )}
+      
+      {/* Fans for servers/switches */}
+      {hasFans && !xrayMode && (
+        <>
+          <FanAnimation position={[-width / 4, 0, -depth / 2 - 0.005]} />
+          <FanAnimation position={[width / 4, 0, -depth / 2 - 0.005]} />
+        </>
+      )}
+      
+      {/* Port representations */}
+      {portCount > 0 && !xrayMode && (
+        <group>
+          {Array.from({ length: Math.min(portCount, 12) }).map((_, i) => {
+            const xPos = -width / 2 + 0.05 + (i * 0.035);
+            const status = Math.random() > 0.5 ? 'in_use' : 'available';
+            return (
+              <PortVisual 
+                key={i} 
+                position={[xPos, -height / 2 + 0.01, depth / 2 + 0.001]} 
+                status={status}
+              />
+            );
+          })}
+        </group>
+      )}
       
       {/* Mount side indicator badge */}
       {mountSide === 'rear' && !xrayMode && (
@@ -483,7 +616,7 @@ export function Rack3DVisualization({
   return (
     <div className="flex gap-4">
       {/* 3D Canvas */}
-      <div className="flex-1 h-[600px] bg-background rounded-lg border relative">
+      <div className="flex-1 h-[600px] bg-neutral-950 rounded-lg border relative">
         {/* Controls Overlay */}
         <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
           <Button
@@ -553,18 +686,45 @@ export function Rack3DVisualization({
         <Canvas
           camera={{ position: [1.5, sizeU * 0.022, 2], fov: 50 }}
           shadows
+          gl={{ 
+            toneMapping: THREE.ACESFilmicToneMapping, 
+            toneMappingExposure: 1.2
+          }}
+          onCreated={({ gl }) => {
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          }}
         >
-          {/* Lights */}
-          <ambientLight intensity={xrayMode ? 0.6 : 0.4} />
+          {/* HDRI Environment */}
+          <Environment preset="warehouse" environmentIntensity={0.8} />
+          
+          {/* Soft Shadows */}
+          <SoftShadows size={40} samples={16} focus={0.5} />
+          
+          {/* Contact Shadows on floor */}
+          <ContactShadows
+            position={[0, -0.05, 0]}
+            opacity={0.4}
+            scale={10}
+            blur={2}
+            far={4}
+          />
+          
+          {/* Enhanced Lighting */}
+          <ambientLight intensity={xrayMode ? 0.3 : 0.2} />
           <directionalLight
             position={[5, 10, 5]}
-            intensity={xrayMode ? 1.2 : 0.8}
+            intensity={xrayMode ? 0.8 : 0.6}
             castShadow
-            shadow-mapSize-width={1024}
-            shadow-mapSize-height={1024}
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-near={0.1}
+            shadow-camera-far={50}
+            shadow-camera-left={-5}
+            shadow-camera-right={5}
+            shadow-camera-top={5}
+            shadow-camera-bottom={-5}
           />
-          <pointLight position={[-5, 5, 5]} intensity={xrayMode ? 0.5 : 0.3} />
-          <pointLight position={[5, 5, -5]} intensity={xrayMode ? 0.5 : 0.3} />
+          <pointLight position={[-3, 3, 3]} intensity={0.3} color="#ffffff" />
+          <pointLight position={[3, 3, -3]} intensity={0.3} color="#ffffff" />
           
           {/* Rack */}
           <RackFrame sizeU={sizeU} />
@@ -605,8 +765,8 @@ export function Rack3DVisualization({
             );
           })}
           
-          {/* Grid floor */}
-          <gridHelper args={[3, 20, '#333333', '#222222']} position={[0, -0.05, 0]} />
+          {/* Data Center Floor */}
+          <DataCenterFloor size={10} />
           
           {/* Airflow Particles */}
           {(airflowMode === 'flow' || airflowMode === 'both') && (
