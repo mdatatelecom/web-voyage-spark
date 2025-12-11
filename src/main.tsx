@@ -6,12 +6,25 @@ import "./index.css";
 async function initApp() {
   const rootElement = document.getElementById("root")!;
   
-  // Mostrar loading HTML inicial
+  // Ler cache ANTES de mostrar loading para usar cores corretas
+  const cachedColors = localStorage.getItem('theme_colors_cache');
+  let primaryHsl = '222.2 47.4% 11.2%';
+  let bgColor = '#f8fafc';
+  let bgGradient = 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
+  
+  if (cachedColors) {
+    try {
+      const colors = JSON.parse(cachedColors);
+      primaryHsl = colors.primary || primaryHsl;
+    } catch (e) {}
+  }
+  
+  // Mostrar loading HTML inicial com cores do cache
   rootElement.innerHTML = `
-    <div style="position: fixed; inset: 0; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease-out;">
+    <div style="position: fixed; inset: 0; background: ${bgGradient}; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s ease-out;">
       <div style="text-center;">
-        <div style="font-size: 2rem; font-weight: bold; color: #1e293b; animation: pulse 2s ease-in-out infinite; margin-bottom: 1.5rem;">Carregando...</div>
-        <div style="width: 3rem; height: 3rem; border: 3px solid #e2e8f0; border-top-color: #1e293b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+        <div style="font-size: 2rem; font-weight: bold; color: hsl(${primaryHsl}); animation: pulse 2s ease-in-out infinite; margin-bottom: 1.5rem;">Carregando...</div>
+        <div style="width: 3rem; height: 3rem; border: 3px solid #e2e8f0; border-top-color: hsl(${primaryHsl}); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
       </div>
       <style>
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -30,8 +43,8 @@ async function initApp() {
   const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
   const cachedBranding = localStorage.getItem(brandingCacheKey);
-  const cachedColors = localStorage.getItem(colorsCacheKey);
-  const needsRefresh = !cachedBranding || !cachedColors || cacheAge > CACHE_DURATION;
+  const cachedColorsForRefresh = localStorage.getItem(colorsCacheKey);
+  const needsRefresh = !cachedBranding || !cachedColorsForRefresh || cacheAge > CACHE_DURATION;
 
   try {
     if (needsRefresh) {

@@ -47,19 +47,21 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center mb-8">
+        <div className="flex flex-col items-center justify-center mb-8">
           {settingsLoading ? (
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          ) : branding.logoUrl ? (
-            <img 
-              src={branding.logoUrl} 
-              alt={branding.systemName} 
-              className="h-16 w-auto object-contain"
-            />
           ) : (
             <>
-              <Network className="h-12 w-12 text-primary mr-3" />
-              <h1 className="text-4xl font-bold">{branding.systemName}</h1>
+              {branding.logoUrl ? (
+                <img 
+                  src={branding.logoUrl} 
+                  alt={branding.systemName} 
+                  className="h-20 w-auto object-contain mb-4"
+                />
+              ) : (
+                <Network className="h-12 w-12 text-primary mb-4" />
+              )}
+              <h1 className="text-3xl font-bold text-primary">{branding.systemName}</h1>
             </>
           )}
         </div>
