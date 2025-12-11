@@ -10,6 +10,8 @@ interface AlertSettings {
   rack_critical_threshold: number;
   port_warning_threshold: number;
   port_critical_threshold: number;
+  poe_warning_threshold: number;
+  poe_critical_threshold: number;
 }
 
 Deno.serve(async (req) => {
@@ -199,6 +201,87 @@ Deno.serve(async (req) => {
           }
         } else {
           console.log(`Alert already exists for equipment ${eq.name}`);
+        }
+      }
+    }
+
+    // Check PoE capacity for PoE-enabled equipment
+    console.log('Checking PoE capacity...');
+    
+    const { data: poeEquipment, error: poeError } = await supabaseClient
+      .from('equipment')
+      .select(`
+        id,
+        name,
+        poe_budget_watts,
+        poe_power_per_port
+      `)
+      .not('poe_budget_watts', 'is', null)
+      .gt('poe_budget_watts', 0);
+
+    if (poeError) {
+      console.error('Error fetching PoE equipment:', poeError);
+    } else {
+      console.log(`Checking ${poeEquipment?.length || 0} PoE-enabled equipment...`);
+
+      for (const eq of poeEquipment || []) {
+        const powerPerPort = eq.poe_power_per_port as Record<string, number> || {};
+        const usedWatts = Object.values(powerPerPort).reduce((sum: number, watts: number) => sum + (watts || 0), 0);
+        const usagePercentage = (usedWatts / eq.poe_budget_watts) * 100;
+
+        console.log(`Equipment ${eq.name}: ${usagePercentage.toFixed(1)}% PoE used (${usedWatts}W/${eq.poe_budget_watts}W)`);
+
+        let severity: 'warning' | 'critical' | null = null;
+        let threshold = 0;
+
+        if (usagePercentage >= (settings.poe_critical_threshold || 90)) {
+          severity = 'critical';
+          threshold = settings.poe_critical_threshold || 90;
+        } else if (usagePercentage >= (settings.poe_warning_threshold || 80)) {
+          severity = 'warning';
+          threshold = settings.poe_warning_threshold || 80;
+        }
+
+        if (severity) {
+          // Check if alert already exists
+          const { data: existingAlert } = await supabaseClient
+            .from('alerts')
+            .select('id')
+            .eq('related_entity_id', eq.id)
+            .eq('related_entity_type', 'equipment')
+            .eq('type', 'poe_capacity')
+            .eq('status', 'active')
+            .maybeSingle();
+
+          if (!existingAlert) {
+            console.log(`Creating ${severity} PoE alert for equipment ${eq.name}`);
+
+            const alertData = {
+              type: 'poe_capacity',
+              severity,
+              status: 'active',
+              title: `PoE Budget alto em ${eq.name}`,
+              message: `O equipamento ${eq.name} está usando ${usagePercentage.toFixed(1)}% do budget PoE (${usedWatts}W/${eq.poe_budget_watts}W). Limite: ${threshold}%`,
+              related_entity_id: eq.id,
+              related_entity_type: 'equipment',
+              threshold_value: threshold,
+              current_value: usagePercentage,
+            };
+
+            const { error: insertError } = await supabaseClient
+              .from('alerts')
+              .insert(alertData);
+
+            if (insertError) {
+              console.error('Error creating PoE alert:', insertError);
+            } else {
+              console.log('PoE alert created successfully');
+              alertsCreated++;
+              createdAlerts.push(alertData);
+            }
+          } else {
+            console.log(`PoE alert already exists for equipment ${eq.name}`);
+          }
         }
       }
     }

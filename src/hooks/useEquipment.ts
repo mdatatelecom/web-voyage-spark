@@ -34,6 +34,9 @@ interface EquipmentData {
   weight_kg?: number;
   airflow?: string;
   equipment_status?: string;
+  // PoE fields
+  poe_budget_watts?: number;
+  poe_power_per_port?: Record<string, number>;
 }
 
 export const useEquipment = (rackId?: string) => {

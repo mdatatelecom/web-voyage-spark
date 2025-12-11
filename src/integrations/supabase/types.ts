@@ -864,7 +864,11 @@ export type Database = {
     Enums: {
       alert_severity: "info" | "warning" | "critical"
       alert_status: "active" | "acknowledged" | "resolved"
-      alert_type: "rack_capacity" | "port_capacity" | "equipment_failure"
+      alert_type:
+        | "rack_capacity"
+        | "port_capacity"
+        | "equipment_failure"
+        | "poe_capacity"
       cable_type:
         | "utp_cat5e"
         | "utp_cat6"
@@ -1083,7 +1087,12 @@ export const Constants = {
     Enums: {
       alert_severity: ["info", "warning", "critical"],
       alert_status: ["active", "acknowledged", "resolved"],
-      alert_type: ["rack_capacity", "port_capacity", "equipment_failure"],
+      alert_type: [
+        "rack_capacity",
+        "port_capacity",
+        "equipment_failure",
+        "poe_capacity",
+      ],
       cable_type: [
         "utp_cat5e",
         "utp_cat6",

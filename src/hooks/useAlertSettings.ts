@@ -6,7 +6,9 @@ type AlertSettingKey =
   | 'rack_warning_threshold' 
   | 'rack_critical_threshold' 
   | 'port_warning_threshold' 
-  | 'port_critical_threshold';
+  | 'port_critical_threshold'
+  | 'poe_warning_threshold'
+  | 'poe_critical_threshold';
 
 interface AlertSetting {
   id: string;
@@ -56,6 +58,8 @@ export const useAlertSettings = () => {
         { key: 'rack_critical_threshold', value: 95 },
         { key: 'port_warning_threshold', value: 80 },
         { key: 'port_critical_threshold', value: 95 },
+        { key: 'poe_warning_threshold', value: 80 },
+        { key: 'poe_critical_threshold', value: 90 },
       ];
 
       for (const { key, value } of defaults) {

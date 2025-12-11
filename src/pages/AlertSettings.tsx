@@ -19,6 +19,8 @@ export default function AlertSettings() {
   const [rackCritical, setRackCritical] = useState(95);
   const [portWarning, setPortWarning] = useState(80);
   const [portCritical, setPortCritical] = useState(95);
+  const [poeWarning, setPoeWarning] = useState(80);
+  const [poeCritical, setPoeCritical] = useState(90);
 
   useEffect(() => {
     if (settings) {
@@ -26,6 +28,8 @@ export default function AlertSettings() {
       setRackCritical(getSetting('rack_critical_threshold')?.setting_value || 95);
       setPortWarning(getSetting('port_warning_threshold')?.setting_value || 80);
       setPortCritical(getSetting('port_critical_threshold')?.setting_value || 95);
+      setPoeWarning(getSetting('poe_warning_threshold')?.setting_value || 80);
+      setPoeCritical(getSetting('poe_critical_threshold')?.setting_value || 90);
     }
   }, [settings, getSetting]);
 
@@ -50,6 +54,8 @@ export default function AlertSettings() {
     updateSetting({ key: 'rack_critical_threshold', value: rackCritical });
     updateSetting({ key: 'port_warning_threshold', value: portWarning });
     updateSetting({ key: 'port_critical_threshold', value: portCritical });
+    updateSetting({ key: 'poe_warning_threshold', value: poeWarning });
+    updateSetting({ key: 'poe_critical_threshold', value: poeCritical });
   };
 
   const handleReset = () => {
@@ -194,6 +200,59 @@ export default function AlertSettings() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+            <CardHeader>
+              <CardTitle>PoE Budget</CardTitle>
+              <CardDescription>
+                Configure os limites de uso para alertas de PoE em switches
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="poe-warning">
+                  Limite de Warning (%)
+                </Label>
+                <Input
+                  id="poe-warning"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={poeWarning}
+                  onChange={(e) => setPoeWarning(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Alerta de aviso quando consumo PoE atingir este valor
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="poe-critical">
+                  Limite de Critical (%)
+                </Label>
+                <Input
+                  id="poe-critical"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={poeCritical}
+                  onChange={(e) => setPoeCritical(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Alerta crítico quando consumo PoE atingir este valor
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-2">Preview</p>
+                <div className="space-y-1 text-xs">
+                  <p>• 0% - {poeWarning - 1}%: Sem alerta</p>
+                  <p className="text-yellow-600">• {poeWarning}% - {poeCritical - 1}%: Warning</p>
+                  <p className="text-red-600">• {poeCritical}% - 100%: Critical</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
         <Card>
           <CardHeader>
