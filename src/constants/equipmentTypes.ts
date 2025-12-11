@@ -112,6 +112,14 @@ export const EQUIPMENT_CATEGORIES = [
     ]
   },
   {
+    id: 'accessories',
+    label: 'Acessórios',
+    icon: Box,
+    types: [
+      { value: 'fixed_shelf', label: 'Bandeja Fixa', icon: Box },
+    ]
+  },
+  {
     id: 'other',
     label: 'Outros',
     icon: Box,
@@ -185,6 +193,9 @@ export const POE_POWER_CONSUMPTION: Record<string, number> = {
   kvm: 0,
   console_server: 0,
   
+  // Accessories
+  fixed_shelf: 0, // Passive accessory
+  
   // Other
   other: 0,
 };
@@ -198,6 +209,7 @@ export const NON_NETWORK_EQUIPMENT_TYPES = [
   'poe_splitter',
   'ip_camera',
   'environment_sensor',
+  'fixed_shelf',
 ] as const;
 
 // Helper to check if equipment is network-capable
@@ -604,6 +616,18 @@ export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
     recommendedMountSide: 'front',
     defaultUHeight: 1,
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  
+  // === ACCESSORIES ===
+  fixed_shelf: {
+    hasNetwork: false,
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: [],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: false, airflow: false, weight: true }
   },
   
   // === OTHER ===
