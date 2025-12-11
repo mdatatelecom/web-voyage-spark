@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PortManageDialog } from '@/components/equipment/PortManageDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
+import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, Plus, MoreHorizontal, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,6 +120,27 @@ export default function EquipmentDetails() {
     reserved: equipment?.ports?.filter((p: any) => p.status === 'reserved').length || 0,
     faulty: equipment?.ports?.filter((p: any) => p.status === 'faulty').length || 0
   };
+
+  // Calculate PoE power usage for switch_poe or equipment with poe_budget_watts
+  const poePowerData = useMemo(() => {
+    if (!equipment) return null;
+    
+    const budgetWatts = equipment.poe_budget_watts || 0;
+    if (budgetWatts <= 0 && equipment.type !== 'switch_poe') return null;
+    
+    const powerPerPort = (equipment.poe_power_per_port as Record<string, number>) || {};
+    const usedWatts = Object.values(powerPerPort).reduce((sum, p) => sum + (p || 0), 0);
+    const activePorts = equipment.ports?.filter((p: any) => p.status === 'in_use').length || 0;
+    const totalPorts = equipment.ports?.length || 0;
+    
+    return {
+      budgetWatts: budgetWatts || 370, // Default 370W if switch_poe without budget
+      usedWatts,
+      activePorts,
+      totalPorts,
+      powerPerPort
+    };
+  }, [equipment]);
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -344,6 +366,17 @@ export default function EquipmentDetails() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* PoE Budget Indicator */}
+            {poePowerData && (
+              <PoeBudgetIndicator
+                budgetWatts={poePowerData.budgetWatts}
+                usedWatts={poePowerData.usedWatts}
+                activePorts={poePowerData.activePorts}
+                totalPorts={poePowerData.totalPorts}
+                powerPerPort={poePowerData.powerPerPort}
+              />
             )}
           </Card>
 
