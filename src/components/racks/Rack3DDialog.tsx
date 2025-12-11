@@ -11,6 +11,7 @@ import { Rack3DToolbar } from './Rack3DToolbar';
 import { Rack3DPanel } from './Rack3DPanel';
 import { AnnotationDialog } from './AnnotationDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 // Lazy load the heavy 3D canvas component
 const Rack3DCanvas = lazy(() => import('./Rack3DCanvas'));
@@ -45,6 +46,8 @@ export function Rack3DDialog({
   equipment,
   onEquipmentClick,
 }: Rack3DDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [xrayMode, setXrayMode] = useState(false);
   const [tourActive, setTourActive] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
@@ -220,6 +223,46 @@ export function Rack3DDialog({
     setResetCamera(prev => prev + 1);
   }, []);
 
+  // Fullscreen toggle function
+  const toggleFullscreen = useCallback(() => {
+    if (!dialogRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      dialogRef.current.requestFullscreen().then(() => {
+        toast.info('Modo tela cheia ativado', { description: 'Pressione ESC ou F11 para sair' });
+      }).catch((err) => {
+        console.error('Erro ao entrar em fullscreen:', err);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // F11 keyboard shortcut
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, toggleFullscreen]);
+
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
@@ -227,13 +270,24 @@ export function Rack3DDialog({
       setTourIndex(0);
       setXrayMode(false);
       setAirflowMode('off');
+      // Exit fullscreen if dialog closes while in fullscreen
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
     }
   }, [open]);
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 gap-0 flex flex-col">
+        <DialogContent 
+          ref={dialogRef}
+          className={`p-0 gap-0 flex flex-col ${
+            isFullscreen 
+              ? 'max-w-full w-full h-full rounded-none' 
+              : 'max-w-[95vw] w-[95vw] h-[90vh]'
+          }`}
+        >
           {/* Header */}
           <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -302,6 +356,8 @@ export function Rack3DDialog({
                   onZoomChange={setZoom}
                   panelOpen={panelOpen}
                   onPanelToggle={() => setPanelOpen(!panelOpen)}
+                  isFullscreen={isFullscreen}
+                  onFullscreenToggle={toggleFullscreen}
                 />
               </TooltipProvider>
             </div>
