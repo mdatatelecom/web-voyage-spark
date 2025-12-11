@@ -22,6 +22,12 @@ interface ThemeColors {
   sidebarAccent: string;
   sidebarAccentForeground: string;
   sidebarBorder: string;
+  // Chart colors
+  chart1: string;
+  chart2: string;
+  chart3: string;
+  chart4: string;
+  chart5: string;
 }
 
 const getBrandingFromCache = (): BrandingSettings => {
@@ -66,6 +72,11 @@ const getThemeColorsFromCache = (): ThemeColors => {
     sidebarAccent: '240 4.8% 95.9%',
     sidebarAccentForeground: '240 5.9% 10%',
     sidebarBorder: '220 13% 91%',
+    chart1: '222.2 47.4% 11.2%',
+    chart2: '142.1 76.2% 36.3%',
+    chart3: '47.9 95.8% 53.1%',
+    chart4: '262.1 83.3% 57.8%',
+    chart5: '24.6 95% 53.1%',
   };
 };
 
@@ -211,12 +222,12 @@ export const useSystemSettings = () => {
     root.style.setProperty('--sidebar-accent-foreground', colors.sidebarAccentForeground);
     root.style.setProperty('--sidebar-border', colors.sidebarBorder);
     
-    // Aplicar cores de chart baseadas no primary
-    root.style.setProperty('--chart-1', colors.primary);
-    root.style.setProperty('--chart-2', '142.1 76.2% 36.3%');
-    root.style.setProperty('--chart-3', '47.9 95.8% 53.1%');
-    root.style.setProperty('--chart-4', '262.1 83.3% 57.8%');
-    root.style.setProperty('--chart-5', '24.6 95% 53.1%');
+    // Aplicar cores de chart customizáveis
+    root.style.setProperty('--chart-1', colors.chart1 || colors.primary);
+    root.style.setProperty('--chart-2', colors.chart2 || '142.1 76.2% 36.3%');
+    root.style.setProperty('--chart-3', colors.chart3 || '47.9 95.8% 53.1%');
+    root.style.setProperty('--chart-4', colors.chart4 || '262.1 83.3% 57.8%');
+    root.style.setProperty('--chart-5', colors.chart5 || '24.6 95% 53.1%');
   };
 
   const uploadImage = async (file: File, type: 'logo' | 'favicon'): Promise<string | null> => {

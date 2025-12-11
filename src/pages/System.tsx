@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
+import { ChartPreview } from '@/components/system/ChartPreview';
 import { ContrastValidator } from '@/components/system/ContrastValidator';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -91,6 +92,11 @@ export default function System() {
     sidebarAccent: '240 4.8% 95.9%',
     sidebarAccentForeground: '240 5.9% 10%',
     sidebarBorder: '220 13% 91%',
+    chart1: '222.2 47.4% 11.2%',
+    chart2: '142.1 76.2% 36.3%',
+    chart3: '47.9 95.8% 53.1%',
+    chart4: '262.1 83.3% 57.8%',
+    chart5: '24.6 95% 53.1%',
   };
   
   const [localBranding, setLocalBranding] = useState(branding);
@@ -647,6 +653,56 @@ export default function System() {
                   value={localColors.iconColor}
                   onChange={(v) => setLocalColors({ ...localColors, iconColor: v })}
                 />
+              </div>
+
+              <Separator className="my-6" />
+
+              <h4 className="font-semibold mb-4">Cores dos Gráficos</h4>
+              <p className="text-sm text-muted-foreground mb-4">
+                Personalize as cores usadas nos gráficos do Dashboard
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <ColorPicker
+                  label="Chart 1 (Principal)"
+                  description="Cor primária dos gráficos"
+                  value={localColors.chart1}
+                  onChange={(v) => setLocalColors({ ...localColors, chart1: v })}
+                />
+                <ColorPicker
+                  label="Chart 2 (Sucesso)"
+                  description="Conexões ativas, indicadores positivos"
+                  value={localColors.chart2}
+                  onChange={(v) => setLocalColors({ ...localColors, chart2: v })}
+                />
+                <ColorPicker
+                  label="Chart 3 (Alerta)"
+                  description="Itens em teste, avisos"
+                  value={localColors.chart3}
+                  onChange={(v) => setLocalColors({ ...localColors, chart3: v })}
+                />
+                <ColorPicker
+                  label="Chart 4 (Info)"
+                  description="Itens reservados, informações"
+                  value={localColors.chart4}
+                  onChange={(v) => setLocalColors({ ...localColors, chart4: v })}
+                />
+                <ColorPicker
+                  label="Chart 5 (Secundário)"
+                  description="Outras categorias, complemento"
+                  value={localColors.chart5}
+                  onChange={(v) => setLocalColors({ ...localColors, chart5: v })}
+                />
+              </div>
+
+              {/* Preview ao vivo */}
+              <div className="mt-6">
+                <ChartPreview colors={{
+                  chart1: localColors.chart1,
+                  chart2: localColors.chart2,
+                  chart3: localColors.chart3,
+                  chart4: localColors.chart4,
+                  chart5: localColors.chart5,
+                }} />
               </div>
 
               <div className="flex gap-2 mt-6">

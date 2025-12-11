@@ -15,6 +15,12 @@ export interface ColorPreset {
     sidebarAccent: string;
     sidebarAccentForeground: string;
     sidebarBorder: string;
+    // Chart colors
+    chart1: string;
+    chart2: string;
+    chart3: string;
+    chart4: string;
+    chart5: string;
   };
 }
 
@@ -36,6 +42,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '240 4.8% 95.9%',
       sidebarAccentForeground: '240 5.9% 10%',
       sidebarBorder: '220 13% 91%',
+      chart1: '222.2 47.4% 11.2%',
+      chart2: '142.1 76.2% 36.3%',
+      chart3: '47.9 95.8% 53.1%',
+      chart4: '262.1 83.3% 57.8%',
+      chart5: '24.6 95% 53.1%',
     }
   },
   {
@@ -55,6 +66,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '217.2 32.6% 17.5%',
       sidebarAccentForeground: '210 40% 98%',
       sidebarBorder: '217.2 32.6% 17.5%',
+      chart1: '210 40% 70%',
+      chart2: '142.1 70.6% 45.3%',
+      chart3: '47.9 95.8% 53.1%',
+      chart4: '262.1 83.3% 67.8%',
+      chart5: '24.6 95% 63.1%',
     }
   },
   {
@@ -74,6 +90,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '210 40% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '214.3 31.8% 91.4%',
+      chart1: '221.2 83.2% 53.3%',
+      chart2: '199 89% 48%',
+      chart3: '174 62% 47%',
+      chart4: '245 58% 51%',
+      chart5: '280 65% 60%',
     }
   },
   {
@@ -93,6 +114,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '210 40% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '214.3 31.8% 91.4%',
+      chart1: '142.1 76.2% 36.3%',
+      chart2: '161 94% 30%',
+      chart3: '84 81% 44%',
+      chart4: '45 93% 47%',
+      chart5: '27 96% 61%',
     }
   },
   {
@@ -112,6 +138,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '33 100% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '27.8 87.8% 88%',
+      chart1: '24.6 95% 53.1%',
+      chart2: '45 93% 47%',
+      chart3: '0 84% 60%',
+      chart4: '339 90% 51%',
+      chart5: '280 65% 60%',
     }
   },
   {
@@ -131,6 +162,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '48 100% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '47.9 95.8% 88.2%',
+      chart1: '45 93% 47%',
+      chart2: '24.6 95% 53.1%',
+      chart3: '142.1 76.2% 36.3%',
+      chart4: '199 89% 48%',
+      chart5: '339 90% 51%',
     }
   },
   {
@@ -150,6 +186,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '270 60% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '270 60% 88%',
+      chart1: '262.1 83.3% 57.8%',
+      chart2: '280 65% 60%',
+      chart3: '339 90% 51%',
+      chart4: '221.2 83.2% 53.3%',
+      chart5: '199 89% 48%',
     }
   },
   {
@@ -169,6 +210,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '0 100% 92%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '0 72% 89%',
+      chart1: '0 72% 51%',
+      chart2: '339 90% 51%',
+      chart3: '24.6 95% 53.1%',
+      chart4: '45 93% 47%',
+      chart5: '262.1 83.3% 57.8%',
     }
   },
   {
@@ -188,6 +234,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '187 100% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '188 95% 88%',
+      chart1: '189 94% 43%',
+      chart2: '174 62% 47%',
+      chart3: '142.1 76.2% 36.3%',
+      chart4: '221.2 83.2% 53.3%',
+      chart5: '262.1 83.3% 57.8%',
     }
   },
   {
@@ -207,6 +258,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '330 100% 92%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '330 81% 90%',
+      chart1: '330 81% 60%',
+      chart2: '339 90% 51%',
+      chart3: '280 65% 60%',
+      chart4: '262.1 83.3% 57.8%',
+      chart5: '0 72% 51%',
     }
   },
   {
@@ -226,6 +282,11 @@ export const COLOR_PRESETS: ColorPreset[] = [
       sidebarAccent: '210 20% 90%',
       sidebarAccentForeground: '222.2 47.4% 11.2%',
       sidebarBorder: '214 20% 88%',
+      chart1: '215 16% 47%',
+      chart2: '215 16% 60%',
+      chart3: '215 16% 35%',
+      chart4: '189 94% 43%',
+      chart5: '221.2 83.2% 53.3%',
     }
   },
 ];
