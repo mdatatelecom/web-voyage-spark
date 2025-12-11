@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable, AlertCircle, Box, LayoutGrid } from 'lucide-react';
+import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable, AlertCircle, Box } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RackVisualization } from '@/components/racks/RackVisualization';
-import { Rack3DVisualization } from '@/components/racks/Rack3DVisualization';
+import { Rack3DDialog } from '@/components/racks/Rack3DDialog';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -18,7 +18,7 @@ export default function RackDetails() {
   const navigate = useNavigate();
   const { isAdmin, isTechnician } = useUserRole();
   const { data: rackAlerts } = useAlertsByEntity(rackId, 'rack');
-  const [view, setView] = useState<'2d' | '3d'>('2d');
+  const [show3DDialog, setShow3DDialog] = useState(false);
 
   const { data: rack, isLoading } = useQuery({
     queryKey: ['rack-details', rackId],
@@ -218,69 +218,44 @@ export default function RackDetails() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Visualização do Rack</CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant={view === '2d' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('2d')}
-                  >
-                    <LayoutGrid className="mr-2 h-4 w-4" />
-                    Vista 2D
-                  </Button>
-                  <Button
-                    variant={view === '3d' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('3d')}
-                  >
-                    <Box className="mr-2 h-4 w-4" />
-                    Vista 3D
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShow3DDialog(true)}
+                >
+                  <Box className="mr-2 h-4 w-4" />
+                  Abrir em 3D
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="relative w-full">
-                {/* 2D View with fade transition */}
-                <div 
-                  className={`transition-opacity duration-500 ${
-                    view === '2d' ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
-                  }`}
-                >
-                  {view === '2d' && (
-                    <div className="flex justify-center">
-                      <RackVisualization
-                        rackId={rack.id}
-                        sizeU={rack.size_u}
-                        equipment={rack.equipment || []}
-                        onEquipmentClick={(eq) => {
-                          navigate(`/equipment/${eq.id}`);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-                
-                {/* 3D View with fade transition */}
-                <div 
-                  className={`transition-opacity duration-500 ${
-                    view === '3d' ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
-                  }`}
-                >
-                  {view === '3d' && (
-                    <Rack3DVisualization
-                      rackId={rack.id}
-                      sizeU={rack.size_u}
-                      equipment={rack.equipment || []}
-                      onEquipmentClick={(eq) => {
-                        navigate(`/equipment/${eq.id}`);
-                      }}
-                    />
-                  )}
-                </div>
+              <div className="flex justify-center">
+                <RackVisualization
+                  rackId={rack.id}
+                  sizeU={rack.size_u}
+                  equipment={rack.equipment || []}
+                  onEquipmentClick={(eq) => {
+                    navigate(`/equipment/${eq.id}`);
+                  }}
+                />
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* 3D Dialog */}
+        <Rack3DDialog
+          open={show3DDialog}
+          onOpenChange={setShow3DDialog}
+          rackId={rack.id}
+          rackName={rack.name}
+          sizeU={rack.size_u}
+          equipment={rack.equipment || []}
+          onEquipmentClick={(eq) => {
+            navigate(`/equipment/${eq.id}`);
+            setShow3DDialog(false);
+          }}
+        />
       </div>
     </AppLayout>
   );
