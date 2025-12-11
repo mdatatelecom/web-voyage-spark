@@ -1,7 +1,8 @@
 import { 
   Network, Server, HardDrive, Cable, Shield, Scale, ShieldCheck, Wifi, 
   Plug, Battery, Video, Camera, Phone, PhoneCall, Radio, Zap, Monitor, 
-  Terminal, Box, Usb, CircleDot, ToggleLeft, Circle, Square
+  Terminal, Box, Usb, CircleDot, ToggleLeft, Circle, Square, Activity,
+  Thermometer, Gauge, ArrowRightLeft, Layers
 } from 'lucide-react';
 
 export const EQUIPMENT_CATEGORIES = [
@@ -11,11 +12,14 @@ export const EQUIPMENT_CATEGORIES = [
     icon: Network,
     types: [
       { value: 'switch', label: 'Switch', icon: Network },
+      { value: 'switch_poe', label: 'Switch PoE', icon: Network },
       { value: 'router', label: 'Roteador', icon: Network },
       { value: 'firewall', label: 'Firewall', icon: Shield },
       { value: 'load_balancer', label: 'Load Balancer', icon: Scale },
       { value: 'waf', label: 'WAF', icon: ShieldCheck },
       { value: 'access_point', label: 'Access Point', icon: Wifi },
+      { value: 'media_converter', label: 'Media Converter', icon: ArrowRightLeft },
+      { value: 'media_converter_chassis', label: 'Chassis Media Converter', icon: Layers },
     ]
   },
   {
@@ -49,7 +53,10 @@ export const EQUIPMENT_CATEGORIES = [
     icon: Plug,
     types: [
       { value: 'pdu', label: 'PDU', icon: Plug },
+      { value: 'pdu_smart', label: 'PDU Inteligente', icon: Activity },
       { value: 'ups', label: 'UPS/NoBreak', icon: Battery },
+      { value: 'poe_injector', label: 'Injetor PoE', icon: Zap },
+      { value: 'poe_splitter', label: 'Splitter PoE', icon: Zap },
     ]
   },
   {
@@ -59,6 +66,7 @@ export const EQUIPMENT_CATEGORIES = [
     types: [
       { value: 'dvr', label: 'DVR', icon: Video },
       { value: 'nvr', label: 'NVR', icon: Camera },
+      { value: 'ip_camera', label: 'Câmera IP', icon: Camera },
     ]
   },
   {
@@ -71,6 +79,8 @@ export const EQUIPMENT_CATEGORIES = [
       { value: 'modem', label: 'Modem', icon: Radio },
       { value: 'olt', label: 'OLT', icon: Zap },
       { value: 'onu', label: 'ONU/ONT', icon: Wifi },
+      { value: 'dslam', label: 'DSLAM', icon: Network },
+      { value: 'msan', label: 'MSAN', icon: Layers },
     ]
   },
   {
@@ -93,6 +103,15 @@ export const EQUIPMENT_CATEGORIES = [
     ]
   },
   {
+    id: 'environmental',
+    label: 'Monitoramento Ambiental',
+    icon: Thermometer,
+    types: [
+      { value: 'environment_sensor', label: 'Sensor Ambiental', icon: Thermometer },
+      { value: 'rack_monitor', label: 'Monitor de Rack', icon: Gauge },
+    ]
+  },
+  {
     id: 'other',
     label: 'Outros',
     icon: Box,
@@ -107,6 +126,10 @@ export const NON_NETWORK_EQUIPMENT_TYPES = [
   'cable_organizer_horizontal',
   'cable_organizer_vertical',
   'brush_panel',
+  'poe_injector',
+  'poe_splitter',
+  'ip_camera',
+  'environment_sensor',
 ] as const;
 
 // Helper to check if equipment is network-capable
@@ -395,6 +418,126 @@ export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
   },
   
+  // === NEW NETWORK EQUIPMENT ===
+  switch_poe: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45_poe_plus', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  media_converter: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45', 'sfp'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  media_converter_chassis: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  
+  // === NEW POWER EQUIPMENT ===
+  pdu_smart: {
+    hasNetwork: true,
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['power_ac'],
+    recommendedMountSide: 'rear',
+    defaultUHeight: 0,
+    fields: { hostname: true, ipAddress: true, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  poe_injector: {
+    hasNetwork: false,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45', 'rj45_poe_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  poe_splitter: {
+    hasNetwork: false,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45_poe', 'rj45', 'power_dc'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: false, airflow: false, weight: false }
+  },
+  
+  // === NEW SURVEILLANCE ===
+  ip_camera: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45_poe'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  
+  // === NEW TELECOM ===
+  dslam: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  msan: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp', 'fxo_fxs'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 3,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  
+  // === ENVIRONMENTAL MONITORING ===
+  environment_sensor: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45', 'sensor_io'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  rack_monitor: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45', 'sensor_io'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  
   // === OTHER ===
   other: {
     hasNetwork: true,
@@ -435,6 +578,9 @@ export const AIRFLOW_OPTIONS = [
 export const PORT_TYPES = [
   // Ethernet
   { value: 'rj45', label: 'Ethernet (RJ45)', category: 'ethernet', icon: Cable, speeds: ['10Mbps', '100Mbps', '1Gbps', '2.5Gbps', '5Gbps', '10Gbps'] },
+  { value: 'rj45_poe', label: 'Ethernet PoE (802.3af)', category: 'ethernet', icon: Zap, speeds: ['10Mbps', '100Mbps', '1Gbps'] },
+  { value: 'rj45_poe_plus', label: 'Ethernet PoE+ (802.3at)', category: 'ethernet', icon: Zap, speeds: ['10Mbps', '100Mbps', '1Gbps', '2.5Gbps'] },
+  { value: 'rj45_poe_plus_plus', label: 'Ethernet PoE++ (802.3bt)', category: 'ethernet', icon: Zap, speeds: ['1Gbps', '2.5Gbps', '5Gbps', '10Gbps'] },
   
   // Fibra - Transceivers
   { value: 'sfp', label: 'Fibra – SFP', category: 'fiber', icon: Zap, speeds: ['1Gbps'] },
@@ -466,6 +612,9 @@ export const PORT_TYPES = [
   { value: 'power_ac', label: 'Energia AC', category: 'power', icon: Plug, speeds: [] },
   { value: 'power_dc', label: 'Energia DC', category: 'power', icon: Battery, speeds: [] },
   
+  // Sensores
+  { value: 'sensor_io', label: 'Sensor I/O', category: 'sensor', icon: Thermometer, speeds: [] },
+  
   // Outros
   { value: 'antenna_sma', label: 'Antena SMA', category: 'other', icon: Radio, speeds: [] },
   { value: 'rs485_rs232', label: 'RS-485 / RS-232', category: 'other', icon: Terminal, speeds: [] },
@@ -480,13 +629,17 @@ export const PORT_TYPE_CATEGORIES = [
   { id: 'management', label: 'Gerenciamento' },
   { id: 'telecom', label: 'Telecom' },
   { id: 'power', label: 'Energia' },
+  { id: 'sensor', label: 'Sensores' },
   { id: 'other', label: 'Outros' },
 ];
 
 // Port compatibility mapping for connection suggestions
 export const PORT_COMPATIBILITY: Record<string, string[]> = {
   // Ethernet - compatível entre si
-  'rj45': ['rj45'],
+  'rj45': ['rj45', 'rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'],
+  'rj45_poe': ['rj45', 'rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'],
+  'rj45_poe_plus': ['rj45', 'rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'],
+  'rj45_poe_plus_plus': ['rj45', 'rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'],
   
   // Fibra - SFP família
   'sfp': ['sfp', 'fiber_lc', 'fiber_sc'],
@@ -515,10 +668,13 @@ export const PORT_COMPATIBILITY: Record<string, string[]> = {
   'power_ac': ['power_ac'],
   'power_dc': ['power_dc'],
   
+  // Sensor
+  'sensor_io': ['sensor_io', 'io'],
+  
   // Other
   'antenna_sma': ['antenna_sma'],
   'rs485_rs232': ['rs485_rs232'],
-  'io': ['io'],
+  'io': ['io', 'sensor_io'],
   'usb': ['usb', 'console_usb'],
   'other': ['other'],
 };
