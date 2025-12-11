@@ -53,6 +53,9 @@ export const EQUIPMENT_COLORS: Record<string, { hex: string; name: string }> = {
   environment_sensor: { hex: '#16a34a', name: 'Verde Sensor' },
   rack_monitor: { hex: '#15803d', name: 'Verde Escuro' },
   
+  // Accessories
+  fixed_shelf: { hex: '#78716c', name: 'Cinza Stone' },
+  
   // Other
   other: { hex: '#9ca3af', name: 'Cinza Claro' }
 };

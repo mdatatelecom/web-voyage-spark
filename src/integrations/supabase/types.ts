@@ -928,6 +928,7 @@ export type Database = {
         | "rack_monitor"
         | "dslam"
         | "msan"
+        | "fixed_shelf"
       port_status: "available" | "in_use" | "reserved" | "disabled"
       port_type:
         | "rj45"
@@ -1155,6 +1156,7 @@ export const Constants = {
         "rack_monitor",
         "dslam",
         "msan",
+        "fixed_shelf",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
       port_type: [

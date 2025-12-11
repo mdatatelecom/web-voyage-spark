@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useConnections } from '@/hooks/useConnections';
-import { ChevronRight, ChevronLeft, Cable } from 'lucide-react';
+import { usePoeSwitchSuggestions, getDevicePoeConsumption, getPoeClass } from '@/hooks/usePoeSwitchSuggestions';
+import { ChevronRight, ChevronLeft, Cable, Zap } from 'lucide-react';
 import { PortSelector } from './PortSelector';
 import { Database } from '@/integrations/supabase/types';
 import { CABLE_TYPES, CABLE_COLORS } from '@/constants/cables';
@@ -92,11 +95,9 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
         )}
 
         {step === 2 && (
-          <PortSelector
-            label="📍 Ponto B (Destino)"
-            selectedPortId={formData.portBId}
-            onPortSelect={(portId, portInfo) => setFormData({ ...formData, portBId: portId, portBInfo: portInfo })}
-            excludePortId={formData.portAId}
+          <PoeSuggestionStep 
+            formData={formData}
+            setFormData={setFormData}
           />
         )}
 
@@ -290,5 +291,97 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// PoE Suggestion Step Component
+function PoeSuggestionStep({ 
+  formData, 
+  setFormData 
+}: { 
+  formData: any; 
+  setFormData: (data: any) => void;
+}) {
+  const deviceType = formData.portAInfo?.equipmentType;
+  const roomId = formData.portAInfo?.roomId;
+  const consumption = getDevicePoeConsumption(deviceType || '');
+  
+  const { data: suggestions = [], isLoading } = usePoeSwitchSuggestions(deviceType, roomId);
+  
+  const handleSelectSuggestion = (suggestion: any) => {
+    if (suggestion.availablePorts.length > 0) {
+      const port = suggestion.availablePorts[0];
+      setFormData({
+        ...formData,
+        portBId: port.id,
+        portBInfo: {
+          equipmentName: suggestion.name,
+          portName: port.name,
+          equipmentType: 'switch_poe',
+          roomId: null
+        }
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* PoE Suggestions Card */}
+      {consumption > 0 && (
+        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Zap className="w-4 h-4 text-yellow-600" />
+              Switches PoE com Budget Disponível
+            </CardTitle>
+            <CardDescription>
+              O dispositivo selecionado consome ~{consumption}W via PoE ({getPoeClass(consumption)})
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Buscando switches PoE...</p>
+            ) : suggestions.length > 0 ? (
+              suggestions.slice(0, 5).map((sw) => (
+                <Button
+                  key={sw.id}
+                  variant="outline"
+                  className="w-full justify-between h-auto py-2"
+                  onClick={() => handleSelectSuggestion(sw)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">{sw.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {sw.rackName} • {sw.roomName}
+                      {sw.sameRoom && <Badge variant="secondary" className="ml-2 text-xs">Mesma sala</Badge>}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                      {sw.availableWatts}W disp.
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {sw.availablePorts.length} porta(s) PoE
+                    </span>
+                  </div>
+                </Button>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Nenhum switch PoE com budget suficiente encontrado.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Regular Port Selector */}
+      <PortSelector
+        label="📍 Ponto B (Destino)"
+        selectedPortId={formData.portBId}
+        onPortSelect={(portId, portInfo) => setFormData({ ...formData, portBId: portId, portBInfo: portInfo })}
+        excludePortId={formData.portAId}
+      />
+    </div>
   );
 }
