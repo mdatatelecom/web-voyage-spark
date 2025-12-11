@@ -210,6 +210,13 @@ export const useSystemSettings = () => {
     root.style.setProperty('--sidebar-accent', colors.sidebarAccent);
     root.style.setProperty('--sidebar-accent-foreground', colors.sidebarAccentForeground);
     root.style.setProperty('--sidebar-border', colors.sidebarBorder);
+    
+    // Aplicar cores de chart baseadas no primary
+    root.style.setProperty('--chart-1', colors.primary);
+    root.style.setProperty('--chart-2', '142.1 76.2% 36.3%');
+    root.style.setProperty('--chart-3', '47.9 95.8% 53.1%');
+    root.style.setProperty('--chart-4', '262.1 83.3% 57.8%');
+    root.style.setProperty('--chart-5', '24.6 95% 53.1%');
   };
 
   const uploadImage = async (file: File, type: 'logo' | 'favicon'): Promise<string | null> => {
