@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Eye, EyeOff, Play, Square, Wind, Flame, StickyNote, Plus, 
-  RotateCcw, Camera, Move, Maximize2, ChevronLeft, ChevronRight
+  RotateCcw, Camera, Move, Maximize2, Minimize2, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 
@@ -23,6 +23,8 @@ interface Rack3DToolbarProps {
   onZoomChange: (zoom: number) => void;
   panelOpen: boolean;
   onPanelToggle: () => void;
+  isFullscreen?: boolean;
+  onFullscreenToggle?: () => void;
 }
 
 export function Rack3DToolbar({
@@ -42,6 +44,8 @@ export function Rack3DToolbar({
   onZoomChange,
   panelOpen,
   onPanelToggle,
+  isFullscreen = false,
+  onFullscreenToggle,
 }: Rack3DToolbarProps) {
   return (
     <div className="flex items-center gap-1 p-2 bg-background/95 backdrop-blur border-t rounded-b-lg">
@@ -207,6 +211,25 @@ export function Rack3DToolbar({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Fullscreen Toggle */}
+      {onFullscreenToggle && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={isFullscreen ? 'default' : 'ghost'}
+              size="sm"
+              onClick={onFullscreenToggle}
+              className="h-8"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isFullscreen ? 'Sair Tela Cheia (ESC/F11)' : 'Tela Cheia (F11)'}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Panel Toggle */}
       <Tooltip>
