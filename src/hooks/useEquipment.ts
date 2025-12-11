@@ -27,6 +27,13 @@ interface EquipmentData {
   ip_address?: string;
   notes?: string;
   mount_side?: string;
+  // New fields inspired by NetBox
+  asset_tag?: string;
+  primary_mac_address?: string;
+  power_consumption_watts?: number;
+  weight_kg?: number;
+  airflow?: string;
+  equipment_status?: string;
 }
 
 export const useEquipment = (rackId?: string) => {

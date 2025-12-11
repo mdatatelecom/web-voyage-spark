@@ -268,7 +268,10 @@ export type Database = {
       }
       equipment: {
         Row: {
+          airflow: string | null
+          asset_tag: string | null
           created_at: string
+          equipment_status: string | null
           hostname: string | null
           id: string
           ip_address: string | null
@@ -279,13 +282,19 @@ export type Database = {
           notes: string | null
           position_u_end: number | null
           position_u_start: number | null
+          power_consumption_watts: number | null
+          primary_mac_address: string | null
           rack_id: string
           serial_number: string | null
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at: string
+          weight_kg: number | null
         }
         Insert: {
+          airflow?: string | null
+          asset_tag?: string | null
           created_at?: string
+          equipment_status?: string | null
           hostname?: string | null
           id?: string
           ip_address?: string | null
@@ -296,13 +305,19 @@ export type Database = {
           notes?: string | null
           position_u_end?: number | null
           position_u_start?: number | null
+          power_consumption_watts?: number | null
+          primary_mac_address?: string | null
           rack_id: string
           serial_number?: string | null
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string
+          weight_kg?: number | null
         }
         Update: {
+          airflow?: string | null
+          asset_tag?: string | null
           created_at?: string
+          equipment_status?: string | null
           hostname?: string | null
           id?: string
           ip_address?: string | null
@@ -313,10 +328,13 @@ export type Database = {
           notes?: string | null
           position_u_end?: number | null
           position_u_start?: number | null
+          power_consumption_watts?: number | null
+          primary_mac_address?: string | null
           rack_id?: string
           serial_number?: string | null
           type?: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string
+          weight_kg?: number | null
         }
         Relationships: [
           {
@@ -856,6 +874,13 @@ export type Database = {
         | "reserved"
         | "testing"
         | "faulty"
+      equipment_status:
+        | "active"
+        | "planned"
+        | "offline"
+        | "staged"
+        | "failed"
+        | "decommissioning"
       equipment_type:
         | "switch"
         | "router"
@@ -1054,6 +1079,14 @@ export const Constants = {
         "reserved",
         "testing",
         "faulty",
+      ],
+      equipment_status: [
+        "active",
+        "planned",
+        "offline",
+        "staged",
+        "failed",
+        "decommissioning",
       ],
       equipment_type: [
         "switch",
