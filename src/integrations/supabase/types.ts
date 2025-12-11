@@ -280,6 +280,8 @@ export type Database = {
           mount_side: string | null
           name: string
           notes: string | null
+          poe_budget_watts: number | null
+          poe_power_per_port: Json | null
           position_u_end: number | null
           position_u_start: number | null
           power_consumption_watts: number | null
@@ -303,6 +305,8 @@ export type Database = {
           mount_side?: string | null
           name: string
           notes?: string | null
+          poe_budget_watts?: number | null
+          poe_power_per_port?: Json | null
           position_u_end?: number | null
           position_u_start?: number | null
           power_consumption_watts?: number | null
@@ -326,6 +330,8 @@ export type Database = {
           mount_side?: string | null
           name?: string
           notes?: string | null
+          poe_budget_watts?: number | null
+          poe_power_per_port?: Json | null
           position_u_end?: number | null
           position_u_start?: number | null
           power_consumption_watts?: number | null
@@ -907,6 +913,17 @@ export type Database = {
         | "cable_organizer_horizontal"
         | "cable_organizer_vertical"
         | "brush_panel"
+        | "switch_poe"
+        | "poe_injector"
+        | "poe_splitter"
+        | "pdu_smart"
+        | "ip_camera"
+        | "media_converter"
+        | "media_converter_chassis"
+        | "environment_sensor"
+        | "rack_monitor"
+        | "dslam"
+        | "msan"
       port_status: "available" | "in_use" | "reserved" | "disabled"
       port_type:
         | "rj45"
@@ -932,6 +949,10 @@ export type Database = {
         | "rs485_rs232"
         | "io"
         | "other"
+        | "rj45_poe"
+        | "rj45_poe_plus"
+        | "rj45_poe_plus_plus"
+        | "sensor_io"
       user_role: "admin" | "technician" | "viewer" | "network_viewer"
     }
     CompositeTypes: {
@@ -1114,6 +1135,17 @@ export const Constants = {
         "cable_organizer_horizontal",
         "cable_organizer_vertical",
         "brush_panel",
+        "switch_poe",
+        "poe_injector",
+        "poe_splitter",
+        "pdu_smart",
+        "ip_camera",
+        "media_converter",
+        "media_converter_chassis",
+        "environment_sensor",
+        "rack_monitor",
+        "dslam",
+        "msan",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
       port_type: [
@@ -1140,6 +1172,10 @@ export const Constants = {
         "rs485_rs232",
         "io",
         "other",
+        "rj45_poe",
+        "rj45_poe_plus",
+        "rj45_poe_plus_plus",
+        "sensor_io",
       ],
       user_role: ["admin", "technician", "viewer", "network_viewer"],
     },
