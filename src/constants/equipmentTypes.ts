@@ -114,6 +114,324 @@ export const isNetworkEquipment = (type: string): boolean => {
   return !NON_NETWORK_EQUIPMENT_TYPES.includes(type as any);
 };
 
+// ============= EQUIPMENT FIELD CONFIGURATION =============
+// Define which fields are applicable to each equipment type (inspired by NetBox)
+
+export interface EquipmentFieldConfig {
+  hasNetwork: boolean;      // Shows hostname/IP fields
+  hasPorts: boolean;        // Can have configurable ports
+  hasConsolePorts: boolean; // Has console ports
+  hasPowerPorts: boolean;   // Has power outlets
+  defaultPortTypes: string[];
+  recommendedMountSide: 'front' | 'rear' | 'both';
+  defaultUHeight: number;
+  fields: {
+    hostname: boolean;
+    ipAddress: boolean;
+    macAddress: boolean;
+    assetTag: boolean;
+    powerConsumption: boolean;
+    airflow: boolean;
+    weight: boolean;
+  };
+}
+
+export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
+  // === NETWORK EQUIPMENT - Full network capabilities ===
+  switch: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  router: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  firewall: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  load_balancer: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  waf: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  access_point: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  
+  // === SERVERS - Full capabilities ===
+  server: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  
+  // === STORAGE - Network + Storage ===
+  storage: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'sfp_plus'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  
+  // === PASSIVE DEVICES - NO NETWORK, ONLY PORTS ===
+  patch_panel: {
+    hasNetwork: false,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: false, airflow: false, weight: true }
+  },
+  patch_panel_fiber: {
+    hasNetwork: false,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['fiber_lc', 'fiber_sc'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: false, airflow: false, weight: true }
+  },
+  
+  // === CABLE MANAGEMENT - NO NETWORK, NO PORTS ===
+  cable_organizer_horizontal: {
+    hasNetwork: false,
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: [],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: false, powerConsumption: false, airflow: false, weight: false }
+  },
+  cable_organizer_vertical: {
+    hasNetwork: false,
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: [],
+    recommendedMountSide: 'both',
+    defaultUHeight: 0,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: false, powerConsumption: false, airflow: false, weight: false }
+  },
+  brush_panel: {
+    hasNetwork: false,
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: [],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: false, powerConsumption: false, airflow: false, weight: false }
+  },
+  
+  // === POWER EQUIPMENT - Power outlets, optional network ===
+  pdu: {
+    hasNetwork: false, // Basic PDU (Smart PDU would have network)
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['power_ac'],
+    recommendedMountSide: 'rear',
+    defaultUHeight: 0, // Zero-U (vertical)
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  ups: {
+    hasNetwork: true, // Usually has management interface
+    hasPorts: false,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['power_ac'],
+    recommendedMountSide: 'rear',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  
+  // === SURVEILLANCE - Network + Video ===
+  dvr: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['bnc', 'hdmi'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  nvr: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'hdmi'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  
+  // === TELECOM - Network + Telecom ports ===
+  pabx: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'fxo_fxs'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  voip_gateway: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'fxo_fxs'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  modem: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  olt: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['sfp', 'rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  },
+  onu: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  
+  // === MANAGEMENT - Network + Console ===
+  kvm: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: false,
+    defaultPortTypes: ['hdmi', 'usb'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  console_server: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: true,
+    hasPowerPorts: true,
+    defaultPortTypes: ['console_rj45', 'rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: true }
+  },
+  
+  // === OTHER ===
+  other: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['rj45'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
+  }
+};
+
+// Helper function to get field config for an equipment type
+export const getEquipmentFieldConfig = (type: string): EquipmentFieldConfig => {
+  return EQUIPMENT_FIELD_CONFIG[type] || EQUIPMENT_FIELD_CONFIG.other;
+};
+
+// Equipment status options
+export const EQUIPMENT_STATUS_OPTIONS = [
+  { value: 'active', label: 'Ativo', color: 'bg-green-500' },
+  { value: 'planned', label: 'Planejado', color: 'bg-blue-500' },
+  { value: 'staged', label: 'Preparado', color: 'bg-yellow-500' },
+  { value: 'offline', label: 'Offline', color: 'bg-gray-500' },
+  { value: 'failed', label: 'Com Falha', color: 'bg-red-500' },
+  { value: 'decommissioning', label: 'Em Desativação', color: 'bg-orange-500' },
+];
+
+// Airflow direction options
+export const AIRFLOW_OPTIONS = [
+  { value: 'front-to-rear', label: 'Frontal → Traseira' },
+  { value: 'rear-to-front', label: 'Traseira → Frontal' },
+  { value: 'left-to-right', label: 'Esquerda → Direita' },
+  { value: 'right-to-left', label: 'Direita → Esquerda' },
+  { value: 'passive', label: 'Passivo / N/A' },
+];
+
 export const PORT_TYPES = [
   // Ethernet
   { value: 'rj45', label: 'Ethernet (RJ45)', category: 'ethernet', icon: Cable, speeds: ['10Mbps', '100Mbps', '1Gbps', '2.5Gbps', '5Gbps', '10Gbps'] },

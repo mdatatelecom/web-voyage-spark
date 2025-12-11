@@ -12,7 +12,8 @@ import { useRacks } from '@/hooks/useRacks';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronLeft, X, Plus, Sparkles } from 'lucide-react';
-import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
+import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
+import { Cable, Info } from 'lucide-react';
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
 
 interface EquipmentDialogProps {
@@ -56,8 +57,18 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     hostname: '',
     ipAddress: '',
     notes: '',
-    mountSide: 'front'
+    mountSide: 'front',
+    // New fields inspired by NetBox
+    assetTag: '',
+    macAddress: '',
+    powerConsumption: '',
+    airflow: '',
+    weightKg: '',
+    equipmentStatus: 'active'
   });
+  
+  // Get field configuration based on selected equipment type
+  const fieldConfig = getEquipmentFieldConfig(formData.type);
 
   const { buildings } = useBuildings();
   const { floors } = useFloors(formData.buildingId);
@@ -110,6 +121,9 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
   }, [selectedTemplateId]);
 
   const handleSubmit = () => {
+    // Only include portGroups if this equipment type supports ports
+    const portsToCreate = fieldConfig.hasPorts ? portGroups : [];
+    
     createEquipment({
       equipment: {
         name: formData.name,
@@ -120,12 +134,19 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         manufacturer: formData.manufacturer || undefined,
         model: formData.model || undefined,
         serial_number: formData.serialNumber || undefined,
-        hostname: formData.hostname || undefined,
-        ip_address: formData.ipAddress || undefined,
+        hostname: fieldConfig.fields.hostname ? formData.hostname || undefined : undefined,
+        ip_address: fieldConfig.fields.ipAddress ? formData.ipAddress || undefined : undefined,
         notes: formData.notes || undefined,
-        mount_side: formData.mountSide as any
+        mount_side: formData.mountSide as any,
+        // New fields
+        asset_tag: fieldConfig.fields.assetTag ? formData.assetTag || undefined : undefined,
+        primary_mac_address: fieldConfig.fields.macAddress ? formData.macAddress || undefined : undefined,
+        power_consumption_watts: fieldConfig.fields.powerConsumption && formData.powerConsumption ? parseInt(formData.powerConsumption) : undefined,
+        weight_kg: fieldConfig.fields.weight && formData.weightKg ? parseFloat(formData.weightKg) : undefined,
+        airflow: fieldConfig.fields.airflow ? formData.airflow || undefined : undefined,
+        equipment_status: formData.equipmentStatus || 'active'
       },
-      portGroups
+      portGroups: portsToCreate
     }, {
       onSuccess: () => {
         onOpenChange(false);
@@ -139,7 +160,9 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           buildingId: '', floorId: '', roomId: '', rackId: '',
           positionStart: '', positionEnd: '', name: '', type: '',
           manufacturer: '', model: '', serialNumber: '', hostname: '',
-          ipAddress: '', notes: '', mountSide: 'front'
+          ipAddress: '', notes: '', mountSide: 'front',
+          assetTag: '', macAddress: '', powerConsumption: '', airflow: '',
+          weightKg: '', equipmentStatus: 'active'
         });
       }
     });
@@ -437,30 +460,121 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
 
         {step === 3 && (
           <div className="space-y-4">
-            <div>
-              <Label>Hostname</Label>
-              <Input
-                value={formData.hostname}
-                onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
-                placeholder="Ex: sw-core-01.infratrack.local"
-              />
+            {/* Show message for passive equipment */}
+            {!fieldConfig.hasNetwork && !fieldConfig.fields.assetTag && (
+              <div className="p-4 bg-muted rounded-lg flex items-start gap-3">
+                <Info className="w-5 h-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Equipamento Passivo</p>
+                  <p className="text-xs text-muted-foreground">
+                    Este tipo de equipamento não possui configurações de rede ou identificação avançada.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Network fields - only for network-capable equipment */}
+            {fieldConfig.hasNetwork && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  {fieldConfig.fields.hostname && (
+                    <div>
+                      <Label>Hostname</Label>
+                      <Input
+                        value={formData.hostname}
+                        onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
+                        placeholder="Ex: sw-core-01.infratrack.local"
+                      />
+                    </div>
+                  )}
+
+                  {fieldConfig.fields.ipAddress && (
+                    <div>
+                      <Label>Endereço IP</Label>
+                      <Input
+                        value={formData.ipAddress}
+                        onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                        placeholder="Ex: 192.168.1.1"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {fieldConfig.fields.macAddress && (
+                  <div>
+                    <Label>MAC Address Principal</Label>
+                    <Input
+                      value={formData.macAddress}
+                      onChange={(e) => setFormData({ ...formData, macAddress: e.target.value })}
+                      placeholder="Ex: AA:BB:CC:DD:EE:FF"
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Asset Tag - for equipment that supports it */}
+            {fieldConfig.fields.assetTag && (
+              <div>
+                <Label>Tag de Patrimônio</Label>
+                <Input
+                  value={formData.assetTag}
+                  onChange={(e) => setFormData({ ...formData, assetTag: e.target.value })}
+                  placeholder="Ex: PAT-000001"
+                />
+              </div>
+            )}
+
+            {/* Power and Airflow fields */}
+            <div className="grid grid-cols-2 gap-4">
+              {fieldConfig.fields.powerConsumption && (
+                <div>
+                  <Label>Consumo de Energia (Watts)</Label>
+                  <Input
+                    type="number"
+                    value={formData.powerConsumption}
+                    onChange={(e) => setFormData({ ...formData, powerConsumption: e.target.value })}
+                    placeholder="Ex: 500"
+                  />
+                </div>
+              )}
+
+              {fieldConfig.fields.weight && (
+                <div>
+                  <Label>Peso (kg)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.weightKg}
+                    onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })}
+                    placeholder="Ex: 12.5"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <Label>Endereço IP</Label>
-              <Input
-                value={formData.ipAddress}
-                onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
-                placeholder="Ex: 192.168.1.1"
-              />
-            </div>
+            {fieldConfig.fields.airflow && (
+              <div>
+                <Label>Fluxo de Ar</Label>
+                <Select value={formData.airflow} onValueChange={(v) => setFormData({ ...formData, airflow: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o fluxo de ar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AIRFLOW_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <Label>Observações</Label>
               <Textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={4}
+                rows={3}
               />
             </div>
           </div>
@@ -468,134 +582,152 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
 
         {step === 4 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-base">🔌 Configuração de Portas</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addPortGroup}>
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar Tipo de Porta
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {portGroups.map((group, index) => {
-                const portType = PORT_TYPES.find(pt => pt.value === group.type);
-                return (
-                  <div key={group.id} className="p-4 border rounded-lg space-y-3 bg-card">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Grupo {index + 1}</span>
-                      {portGroups.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removePortGroup(group.id)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs">Tipo de Porta</Label>
-                        <Select value={group.type} onValueChange={(v) => updatePortGroup(group.id, { type: v })}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PORT_TYPE_CATEGORIES.map(cat => (
-                              <div key={cat.id}>
-                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                  {cat.label}
-                                </div>
-                                {PORT_TYPES.filter(pt => pt.category === cat.id).map(pt => (
-                                  <SelectItem key={pt.value} value={pt.value}>
-                                    <div className="flex items-center gap-2">
-                                      <pt.icon className="w-3 h-3" />
-                                      <span className="text-xs">{pt.label}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </div>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label className="text-xs">Quantidade</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={group.quantity}
-                          onChange={(e) => updatePortGroup(group.id, { quantity: parseInt(e.target.value) || 1 })}
-                          className="h-9"
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-xs">Velocidade</Label>
-                        {portType?.speeds && portType.speeds.length > 0 ? (
-                          <Select value={group.speed} onValueChange={(v) => updatePortGroup(group.id, { speed: v })}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {portType.speeds.map(speed => (
-                                <SelectItem key={speed} value={speed}>{speed}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={group.speed}
-                            onChange={(e) => updatePortGroup(group.id, { speed: e.target.value })}
-                            placeholder="Ex: N/A"
-                            className="h-9"
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs">Prefixo do Nome</Label>
-                        <Input
-                          value={group.prefix}
-                          onChange={(e) => updatePortGroup(group.id, { prefix: e.target.value })}
-                          placeholder="Ex: Gi1/0/"
-                          className="h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Número Inicial</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={group.startNumber}
-                          onChange={(e) => updatePortGroup(group.id, { startNumber: parseInt(e.target.value) || 0 })}
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="font-medium text-primary">📊 RESUMO: {totalPorts} portas serão criadas</p>
-              <div className="mt-2 space-y-1">
-                {portGroups.map((group, index) => {
-                  const portType = PORT_TYPES.find(pt => pt.value === group.type);
-                  return (
-                    <p key={group.id} className="text-sm text-muted-foreground">
-                      • {group.quantity}x {portType?.label} ({group.speed})
-                    </p>
-                  );
-                })}
+            {/* Show message for equipment without ports */}
+            {!fieldConfig.hasPorts && (
+              <div className="text-center py-8 bg-muted rounded-lg">
+                <Cable className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="font-semibold">Sem Portas Configuráveis</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Equipamentos do tipo "{EQUIPMENT_CATEGORIES.flatMap(c => c.types).find(t => t.value === formData.type)?.label || formData.type}" não possuem portas configuráveis.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Exemplos: Organizadores de cabos, painéis de escova
+                </p>
               </div>
-            </div>
+            )}
+
+            {fieldConfig.hasPorts && (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label className="text-base">🔌 Configuração de Portas</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addPortGroup}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Tipo de Porta
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {portGroups.map((group, index) => {
+                    const portType = PORT_TYPES.find(pt => pt.value === group.type);
+                    return (
+                      <div key={group.id} className="p-4 border rounded-lg space-y-3 bg-card">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Grupo {index + 1}</span>
+                          {portGroups.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removePortGroup(group.id)}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-xs">Tipo de Porta</Label>
+                            <Select value={group.type} onValueChange={(v) => updatePortGroup(group.id, { type: v })}>
+                              <SelectTrigger className="h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PORT_TYPE_CATEGORIES.map(cat => (
+                                  <div key={cat.id}>
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                      {cat.label}
+                                    </div>
+                                    {PORT_TYPES.filter(pt => pt.category === cat.id).map(pt => (
+                                      <SelectItem key={pt.value} value={pt.value}>
+                                        <div className="flex items-center gap-2">
+                                          <pt.icon className="w-3 h-3" />
+                                          <span className="text-xs">{pt.label}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">Quantidade</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={group.quantity}
+                              onChange={(e) => updatePortGroup(group.id, { quantity: parseInt(e.target.value) || 1 })}
+                              className="h-9"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">Velocidade</Label>
+                            {portType?.speeds && portType.speeds.length > 0 ? (
+                              <Select value={group.speed} onValueChange={(v) => updatePortGroup(group.id, { speed: v })}>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {portType.speeds.map(speed => (
+                                    <SelectItem key={speed} value={speed}>{speed}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                value={group.speed}
+                                onChange={(e) => updatePortGroup(group.id, { speed: e.target.value })}
+                                placeholder="Ex: N/A"
+                                className="h-9"
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Prefixo do Nome</Label>
+                            <Input
+                              value={group.prefix}
+                              onChange={(e) => updatePortGroup(group.id, { prefix: e.target.value })}
+                              placeholder="Ex: Gi1/0/"
+                              className="h-9"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Número Inicial</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={group.startNumber}
+                              onChange={(e) => updatePortGroup(group.id, { startNumber: parseInt(e.target.value) || 0 })}
+                              className="h-9"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="font-medium text-primary">📊 RESUMO: {totalPorts} portas serão criadas</p>
+                  <div className="mt-2 space-y-1">
+                    {portGroups.map((group, index) => {
+                      const portType = PORT_TYPES.find(pt => pt.value === group.type);
+                      return (
+                        <p key={group.id} className="text-sm text-muted-foreground">
+                          • {group.quantity}x {portType?.label} ({group.speed})
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 

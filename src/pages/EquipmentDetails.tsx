@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useEquipment } from '@/hooks/useEquipment';
-import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
+import { PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, EQUIPMENT_STATUS_OPTIONS, AIRFLOW_OPTIONS } from '@/constants/equipmentTypes';
 
 export default function EquipmentDetails() {
   const { id } = useParams();
@@ -232,6 +232,21 @@ export default function EquipmentDetails() {
 
         <div className="grid md:grid-cols-4 gap-6">
           <Card className="p-6 space-y-4">
+            {/* Equipment Status */}
+            {equipment?.equipment_status && (
+              <div>
+                <h3 className="font-semibold mb-2">Status</h3>
+                {(() => {
+                  const statusOpt = EQUIPMENT_STATUS_OPTIONS.find(s => s.value === equipment.equipment_status);
+                  return (
+                    <Badge className={statusOpt?.color || 'bg-gray-500'}>
+                      {statusOpt?.label || equipment.equipment_status}
+                    </Badge>
+                  );
+                })()}
+              </div>
+            )}
+
             <div>
               <h3 className="font-semibold mb-3">📍 Localização</h3>
               <div className="space-y-1 text-sm text-muted-foreground">
@@ -246,47 +261,90 @@ export default function EquipmentDetails() {
               </div>
             </div>
 
-            {equipment?.ip_address && (
+            {/* Network Info - Only show if equipment has network capabilities */}
+            {(() => {
+              const fieldConfig = getEquipmentFieldConfig(equipment?.type || '');
+              if (!fieldConfig.hasNetwork) return null;
+              if (!equipment?.ip_address && !equipment?.hostname && !equipment?.primary_mac_address) return null;
+              
+              return (
+                <div>
+                  <h3 className="font-semibold mb-3">🌐 Rede</h3>
+                  <div className="space-y-1 text-sm">
+                    {equipment?.ip_address && (
+                      <p className="text-muted-foreground">IP: <span className="font-mono">{equipment.ip_address}</span></p>
+                    )}
+                    {equipment?.hostname && (
+                      <p className="text-muted-foreground">Host: <span className="font-mono">{equipment.hostname}</span></p>
+                    )}
+                    {equipment?.primary_mac_address && (
+                      <p className="text-muted-foreground">MAC: <span className="font-mono">{equipment.primary_mac_address}</span></p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Asset Tag */}
+            {equipment?.asset_tag && (
               <div>
-                <h3 className="font-semibold mb-3">🌐 Rede</h3>
+                <h3 className="font-semibold mb-2">🏷️ Patrimônio</h3>
+                <p className="text-sm font-mono">{equipment.asset_tag}</p>
+              </div>
+            )}
+
+            {/* Physical Specs */}
+            {(equipment?.power_consumption_watts || equipment?.weight_kg || equipment?.airflow) && (
+              <div>
+                <h3 className="font-semibold mb-3">⚡ Especificações</h3>
                 <div className="space-y-1 text-sm">
-                  <p className="text-muted-foreground">IP: {equipment.ip_address}</p>
-                  {equipment.hostname && (
-                    <p className="text-muted-foreground">Host: {equipment.hostname}</p>
+                  {equipment?.power_consumption_watts && (
+                    <p className="text-muted-foreground">Consumo: {equipment.power_consumption_watts}W</p>
+                  )}
+                  {equipment?.weight_kg && (
+                    <p className="text-muted-foreground">Peso: {equipment.weight_kg}kg</p>
+                  )}
+                  {equipment?.airflow && (
+                    <p className="text-muted-foreground">
+                      Airflow: {AIRFLOW_OPTIONS.find(a => a.value === equipment.airflow)?.label || equipment.airflow}
+                    </p>
                   )}
                 </div>
               </div>
             )}
 
-            <div>
-              <h3 className="font-semibold mb-3">📊 Estatísticas de Portas</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total:</span>
-                  <span className="font-medium">{stats.total}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">🟢 Disponíveis:</span>
-                  <span className="font-medium">{stats.available} ({stats.total > 0 ? Math.round(stats.available / stats.total * 100) : 0}%)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">🔴 Em Uso:</span>
-                  <span className="font-medium">{stats.inUse} ({stats.total > 0 ? Math.round(stats.inUse / stats.total * 100) : 0}%)</span>
-                </div>
-                {stats.reserved > 0 && (
+            {/* Port Statistics - Only show if equipment has ports */}
+            {stats.total > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3">📊 Estatísticas de Portas</h3>
+                <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">🟡 Reservadas:</span>
-                    <span className="font-medium">{stats.reserved}</span>
+                    <span className="text-muted-foreground">Total:</span>
+                    <span className="font-medium">{stats.total}</span>
                   </div>
-                )}
-                {stats.faulty > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">⚫ Defeituosas:</span>
-                    <span className="font-medium">{stats.faulty}</span>
+                    <span className="text-muted-foreground">🟢 Disponíveis:</span>
+                    <span className="font-medium">{stats.available} ({stats.total > 0 ? Math.round(stats.available / stats.total * 100) : 0}%)</span>
                   </div>
-                )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">🔴 Em Uso:</span>
+                    <span className="font-medium">{stats.inUse} ({stats.total > 0 ? Math.round(stats.inUse / stats.total * 100) : 0}%)</span>
+                  </div>
+                  {stats.reserved > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">🟡 Reservadas:</span>
+                      <span className="font-medium">{stats.reserved}</span>
+                    </div>
+                  )}
+                  {stats.faulty > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">⚫ Defeituosas:</span>
+                      <span className="font-medium">{stats.faulty}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </Card>
 
           <div className="md:col-span-3 space-y-4">
