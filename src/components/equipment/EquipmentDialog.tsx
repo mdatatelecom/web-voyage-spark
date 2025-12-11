@@ -13,7 +13,7 @@ import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronLeft, X, Plus, Sparkles } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
-import { Cable, Info } from 'lucide-react';
+import { Cable, Info, Zap } from 'lucide-react';
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
 
 interface EquipmentDialogProps {
@@ -64,7 +64,9 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     powerConsumption: '',
     airflow: '',
     weightKg: '',
-    equipmentStatus: 'active'
+    equipmentStatus: 'active',
+    // PoE fields
+    poeBudget: ''
   });
   
   // Get field configuration based on selected equipment type
@@ -104,7 +106,8 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         manufacturer: template.manufacturer,
         model: template.model,
         type: template.type,
-        name: template.model
+        name: template.model,
+        poeBudget: template.poeBudgetWatts?.toString() || ''
       }));
       setSelectedCategory(template.category);
       setPortGroups(template.portGroups.map((pg, idx) => ({
@@ -144,7 +147,9 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         power_consumption_watts: fieldConfig.fields.powerConsumption && formData.powerConsumption ? parseInt(formData.powerConsumption) : undefined,
         weight_kg: fieldConfig.fields.weight && formData.weightKg ? parseFloat(formData.weightKg) : undefined,
         airflow: fieldConfig.fields.airflow ? formData.airflow || undefined : undefined,
-        equipment_status: formData.equipmentStatus || 'active'
+        equipment_status: formData.equipmentStatus || 'active',
+        // PoE Budget
+        poe_budget_watts: (formData.type === 'switch_poe' || formData.type === 'pdu_smart') && formData.poeBudget ? parseFloat(formData.poeBudget) : undefined
       },
       portGroups: portsToCreate
     }, {
@@ -162,7 +167,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           manufacturer: '', model: '', serialNumber: '', hostname: '',
           ipAddress: '', notes: '', mountSide: 'front',
           assetTag: '', macAddress: '', powerConsumption: '', airflow: '',
-          weightKg: '', equipmentStatus: 'active'
+          weightKg: '', equipmentStatus: 'active', poeBudget: ''
         });
       }
     });
@@ -566,6 +571,26 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {/* PoE Budget field - only for PoE switches and smart PDUs */}
+            {(formData.type === 'switch_poe' || formData.type === 'pdu_smart') && (
+              <div className="p-4 border rounded-lg bg-primary/5 border-primary/20">
+                <Label className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-primary" />
+                  PoE Budget Total (Watts)
+                </Label>
+                <Input
+                  type="number"
+                  value={formData.poeBudget}
+                  onChange={(e) => setFormData({ ...formData, poeBudget: e.target.value })}
+                  placeholder="Ex: 370"
+                  className="mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  💡 Potência total disponível para alimentar dispositivos PoE conectados (câmeras IP, access points, etc.)
+                </p>
               </div>
             )}
 

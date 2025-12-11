@@ -121,6 +121,74 @@ export const EQUIPMENT_CATEGORIES = [
   }
 ];
 
+// ============= POE POWER CONSUMPTION ESTIMATES =============
+// Estimated power consumption in Watts for PoE-powered devices
+export const POE_POWER_CONSUMPTION: Record<string, number> = {
+  // IP Cameras - typically 8-15W
+  ip_camera: 12,
+  
+  // DVR/NVR - Not PoE powered (external power)
+  dvr: 0,
+  nvr: 0,
+  
+  // Access Points - typically 10-25W
+  access_point: 15,
+  
+  // VoIP equipment - 5-10W
+  voip_gateway: 7,
+  pabx: 0, // Usually external power
+  
+  // Sensors and monitors - 3-8W
+  environment_sensor: 5,
+  rack_monitor: 6,
+  
+  // PoE devices
+  poe_splitter: 0, // Receives PoE, outputs DC
+  
+  // Network equipment (these PROVIDE PoE, don't consume)
+  switch: 0,
+  switch_poe: 0,
+  router: 0,
+  firewall: 0,
+  load_balancer: 0,
+  waf: 0,
+  
+  // Servers and storage (external power)
+  server: 0,
+  storage: 0,
+  
+  // Passive devices (no power)
+  patch_panel: 0,
+  patch_panel_fiber: 0,
+  cable_organizer_horizontal: 0,
+  cable_organizer_vertical: 0,
+  brush_panel: 0,
+  
+  // Power devices
+  pdu: 0,
+  pdu_smart: 0,
+  ups: 0,
+  poe_injector: 0,
+  
+  // Media converters - typically 2-5W when PoE powered
+  media_converter: 3,
+  media_converter_chassis: 0, // External power
+  
+  // Telecom
+  modem: 0,
+  olt: 0,
+  onu: 5, // Some ONUs support PoE
+  dslam: 0,
+  msan: 0,
+  
+  // Management
+  kvm: 0,
+  console_server: 0,
+  
+  // Other
+  other: 0,
+};
+
 // Equipment types that don't appear on network map (no network ports or passive devices)
 export const NON_NETWORK_EQUIPMENT_TYPES = [
   'cable_organizer_horizontal',
