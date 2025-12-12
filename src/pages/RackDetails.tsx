@@ -48,6 +48,7 @@ export default function RackDetails() {
             ip_address,
             hostname,
             serial_number,
+            mount_side,
             ports(count)
           )
         `)
@@ -56,9 +57,9 @@ export default function RackDetails() {
       
       if (error) throw error;
       
-      // Calculate occupancy
+      // Calculate occupancy (use Math.abs to handle inverted positions)
       const occupiedUs = data.equipment?.reduce((total: number, eq: any) => {
-        return total + (eq.position_u_end - eq.position_u_start + 1);
+        return total + Math.abs(eq.position_u_end - eq.position_u_start) + 1;
       }, 0) || 0;
       
       const totalPorts = data.equipment?.reduce((total: number, eq: any) => {
