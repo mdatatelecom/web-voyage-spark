@@ -6,6 +6,8 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
 import { Network, Cable, Server, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TypewriterText } from '@/components/animations/TypewriterText';
+import { NetworkParticles } from '@/components/animations/NetworkParticles';
 
 const features = [
   {
@@ -49,8 +51,9 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <div className="container mx-auto px-4 py-16">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+      <NetworkParticles />
+      <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col items-center justify-center mb-6">
             {branding.logoUrl ? (
@@ -69,9 +72,12 @@ const Index = () => {
               </div>
             )}
           </div>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Gêmeo digital da sua infraestrutura de rede física. 
-            Rastreie cada cabo, porta e conexão com tecnologia segura de QR code.
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto min-h-[60px]">
+            <TypewriterText 
+              text="Gêmeo digital da sua infraestrutura de rede física. Rastreie cada cabo, porta e conexão com tecnologia segura de QR code."
+              speed={25}
+              delay={800}
+            />
           </p>
           <div className="mt-8 flex gap-4 justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 fill-mode-both">
             <Button size="lg" onClick={() => navigate('/auth')}>
