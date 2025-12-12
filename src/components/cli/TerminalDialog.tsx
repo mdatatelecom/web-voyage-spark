@@ -49,8 +49,11 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
+  const [wsConnected, setWsConnected] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const promptRef = useRef<string>('');
 
   // Combine command history with system commands for autocomplete
   const suggestions = useMemo(() => {
@@ -115,6 +118,82 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
   };
 
+  // WebSocket connection cleanup
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  const connectWebSocket = useCallback(() => {
+    return new Promise<void>((resolve, reject) => {
+      const wsUrl = `wss://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/terminal-proxy`;
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setWsConnected(true);
+        resolve();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WS message:', data);
+
+          switch (data.type) {
+            case 'connected':
+              addLine('system', data.message);
+              break;
+            case 'session_started':
+              promptRef.current = data.prompt;
+              addLine('system', data.message);
+              setIsConnected(true);
+              setIsConnecting(false);
+              break;
+            case 'output':
+              addLine('output', data.content);
+              if (data.prompt) promptRef.current = data.prompt;
+              break;
+            case 'error':
+              addLine('error', data.message);
+              break;
+            case 'clear':
+              setHistory([]);
+              break;
+            case 'disconnected':
+              addLine('system', data.message);
+              setIsConnected(false);
+              break;
+            case 'pong':
+              console.log('Pong received, latency:', Date.now() - data.timestamp, 'ms');
+              break;
+          }
+        } catch (err) {
+          console.error('Error parsing WS message:', err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setWsConnected(false);
+        reject(error);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        setWsConnected(false);
+        setIsConnected(false);
+      };
+    });
+  }, [addLine]);
+
   const handleConnect = async () => {
     if (!vpnSettings.vpnHost) {
       addLine('error', 'Erro: Configure o endereço VPN em Sistema > VPN antes de conectar.');
@@ -122,30 +201,46 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
 
     setIsConnecting(true);
-    addLine('system', `Testando conectividade com ${vpnSettings.vpnHost}:${vpnSettings.sshPort}...`);
+    addLine('system', `Conectando via WebSocket proxy...`);
     
-    // Test real connection first
-    const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
-    
-    if (connectionResult.reachable) {
-      addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
-    } else {
-      addLine('system', `⚠ ${connectionResult.message}`);
-      addLine('system', 'Iniciando sessão em modo simulado...');
+    try {
+      // First test connectivity
+      const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
+      
+      if (connectionResult.reachable) {
+        addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
+      } else {
+        addLine('system', `⚠ ${connectionResult.message}`);
+      }
+
+      // Connect WebSocket
+      await connectWebSocket();
+      
+      // Send connect command
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'connect',
+          host: vpnSettings.vpnHost,
+          port: vpnSettings.sshPort,
+          user: vpnSettings.vpnUser
+        }));
+      }
+    } catch (err) {
+      console.error('Connection error:', err);
+      addLine('error', 'Falha ao conectar via WebSocket');
+      setIsConnecting(false);
     }
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    addLine('system', `Conectado como ${vpnSettings.vpnUser}@${vpnSettings.vpnHost}`);
-    addLine('system', 'Terminal pronto. Digite "help" para comandos disponíveis.');
-    addLine('output', '');
-    setIsConnected(true);
-    setIsConnecting(false);
   };
 
   const handleDisconnect = () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'disconnect' }));
+      wsRef.current.close();
+    }
+    wsRef.current = null;
     addLine('system', 'Conexão encerrada.');
     setIsConnected(false);
+    setWsConnected(false);
     setHistory([]);
   };
 
@@ -202,15 +297,24 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     if (!currentInput.trim()) return;
 
     const cmd = currentInput.trim();
-    addLine('input', `${vpnSettings.vpnUser}@${vpnSettings.vpnHost}:~$ ${cmd}`);
+    addLine('input', `${promptRef.current || `${vpnSettings.vpnUser}@${vpnSettings.vpnHost}:~$ `}${cmd}`);
     
     setCommandHistory(prev => [...prev.filter(c => c !== cmd), cmd]);
     setHistoryIndex(-1);
     setShowSuggestions(false);
 
-    const output = processCommand(cmd);
-    if (output) {
-      addLine('output', output);
+    // Send command via WebSocket if connected
+    if (wsRef.current?.readyState === WebSocket.OPEN && wsConnected) {
+      wsRef.current.send(JSON.stringify({
+        type: 'command',
+        command: cmd
+      }));
+    } else {
+      // Fallback to local processing
+      const output = processCommand(cmd);
+      if (output) {
+        addLine('output', output);
+      }
     }
 
     setCurrentInput('');
