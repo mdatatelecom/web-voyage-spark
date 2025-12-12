@@ -38,6 +38,9 @@ import {
   Upload,
   Image as ImageIcon,
   RefreshCw,
+  Globe,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
@@ -50,6 +53,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
+import { useVpnSettings } from '@/hooks/useVpnSettings';
 
 export default function System() {
   const { toast } = useToast();
@@ -104,6 +108,15 @@ export default function System() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [applyingPreset, setApplyingPreset] = useState(false);
 
+  // VPN Settings
+  const { vpnSettings, isLoading: vpnLoading, saveSettings: saveVpnSettings } = useVpnSettings();
+  const [localVpnSettings, setLocalVpnSettings] = useState(vpnSettings);
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    setLocalVpnSettings(vpnSettings);
+  }, [vpnSettings]);
+
   const applyPreset = async (preset: ColorPreset) => {
     setApplyingPreset(true);
     setLocalColors(preset.colors);
@@ -155,6 +168,10 @@ export default function System() {
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="scans">Analytics de Scans</TabsTrigger>
             <TabsTrigger value="tests">Testes Manuais</TabsTrigger>
+            <TabsTrigger value="vpn">
+              <Globe className="w-4 h-4 mr-2" />
+              VPN
+            </TabsTrigger>
             <TabsTrigger value="customization">
               <Palette className="w-4 h-4 mr-2" />
               Personalização
@@ -431,6 +448,108 @@ export default function System() {
                 </div>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Tab: VPN */}
+          <TabsContent value="vpn" className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Globe className="w-5 h-5" />
+                Configurações de VPN / SSH
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure as credenciais para acesso remoto via terminal CLI.
+              </p>
+              
+              {vpnLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="vpnHost">Endereço do Servidor (IP ou Hostname)</Label>
+                      <Input
+                        id="vpnHost"
+                        value={localVpnSettings.vpnHost}
+                        onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, vpnHost: e.target.value })}
+                        placeholder="192.168.1.100 ou servidor.exemplo.com"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="sshPort">Porta SSH</Label>
+                      <Input
+                        id="sshPort"
+                        type="number"
+                        value={localVpnSettings.sshPort}
+                        onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, sshPort: parseInt(e.target.value) || 22 })}
+                        placeholder="22"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="vpnUser">Usuário</Label>
+                      <Input
+                        id="vpnUser"
+                        value={localVpnSettings.vpnUser}
+                        onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, vpnUser: e.target.value })}
+                        placeholder="admin"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="vpnPassword">Senha</Label>
+                      <div className="relative">
+                        <Input
+                          id="vpnPassword"
+                          type={showPassword ? 'text' : 'password'}
+                          value={localVpnSettings.vpnPassword}
+                          onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, vpnPassword: e.target.value })}
+                          placeholder="••••••••"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => saveVpnSettings(localVpnSettings)}
+                      className="flex-1"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Salvar Configurações
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setLocalVpnSettings(vpnSettings)}
+                    >
+                      Restaurar
+                    </Button>
+                  </div>
+                  
+                  <div className="bg-muted p-4 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Nota:</strong> Após configurar, você pode acessar o terminal via o menu lateral "CLI".
+                      O terminal simula comandos básicos de diagnóstico. Para uma integração SSH real,
+                      seria necessário um servidor proxy WebSocket.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </Card>
           </TabsContent>
 
           {/* Tab: Personalização */}

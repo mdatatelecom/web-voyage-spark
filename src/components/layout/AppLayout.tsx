@@ -1,6 +1,6 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -12,6 +12,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
+import { TerminalDialog } from '@/components/cli/TerminalDialog';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,6 +24,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { labels } = useLabels();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
+  const [terminalOpen, setTerminalOpen] = useState(false);
 
   // Use mobile layout for viewers and network_viewers
   const isMobileViewer = isViewer || isNetworkViewer;
@@ -45,6 +47,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Mapa da Rede', icon: Waypoints, path: '/network-map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
     { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: labels?.length },
+    { label: 'CLI', icon: Terminal, path: '#cli', visible: isAdmin && !isNetworkViewer, badge: undefined, action: () => setTerminalOpen(true) },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
@@ -116,7 +119,13 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                   key={item.path}
                   variant="ghost"
                   className="justify-start gap-2 relative"
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    if (item.action) {
+                      item.action();
+                    } else {
+                      navigate(item.path);
+                    }
+                  }}
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
@@ -139,6 +148,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           <div className="p-6">{children}</div>
         </main>
       </div>
+
+      {/* Terminal Dialog */}
+      <TerminalDialog open={terminalOpen} onOpenChange={setTerminalOpen} />
     </div>
   );
 };
