@@ -28,8 +28,11 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const isMobileViewer = isViewer || isNetworkViewer;
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
+    try {
+      await signOut();
+    } finally {
+      navigate('/auth');
+    }
   };
 
   const menuItems = [
