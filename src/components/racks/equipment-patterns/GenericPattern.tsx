@@ -1,4 +1,5 @@
 import { getEquipmentColor } from '@/constants/equipmentColors';
+import { getStatusLEDColors } from '@/constants/manufacturerLogos';
 
 interface GenericPatternProps {
   x: number;
@@ -9,10 +10,12 @@ interface GenericPatternProps {
   type: string;
   manufacturer?: string;
   isHovered: boolean;
+  status?: string;
 }
 
-export const GenericPattern = ({ x, y, width, height, name, type, manufacturer, isHovered }: GenericPatternProps) => {
+export const GenericPattern = ({ x, y, width, height, name, type, manufacturer, isHovered, status }: GenericPatternProps) => {
   const baseColor = getEquipmentColor(type);
+  const ledColors = getStatusLEDColors(status);
   
   // Adjust color for hover
   const fillColor = isHovered ? adjustBrightness(baseColor, 20) : baseColor;

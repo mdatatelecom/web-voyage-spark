@@ -1,3 +1,5 @@
+import { getStatusLEDColors } from '@/constants/manufacturerLogos';
+
 interface StoragePatternProps {
   x: number;
   y: number;
@@ -6,12 +8,14 @@ interface StoragePatternProps {
   name: string;
   manufacturer?: string;
   isHovered: boolean;
+  status?: string;
 }
 
-export const StoragePattern = ({ x, y, width, height, name, manufacturer, isHovered }: StoragePatternProps) => {
+export const StoragePattern = ({ x, y, width, height, name, manufacturer, isHovered, status }: StoragePatternProps) => {
   const diskCount = Math.min(12, Math.floor((width - 60) / 22));
   const diskRows = height > 35 ? 2 : 1;
   const disksPerRow = Math.ceil(diskCount / diskRows);
+  const ledColors = getStatusLEDColors(status);
   
   return (
     <g>

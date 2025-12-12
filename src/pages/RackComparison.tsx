@@ -64,14 +64,14 @@ export default function RackComparison() {
       return (data || []).map(rack => ({
         ...rack,
         occupiedUs: rack.equipment?.reduce((total: number, eq: any) => {
-          return total + (eq.position_u_end - eq.position_u_start + 1);
+          return total + Math.abs(eq.position_u_end - eq.position_u_start) + 1;
         }, 0) || 0,
         availableUs: rack.size_u - (rack.equipment?.reduce((total: number, eq: any) => {
-          return total + (eq.position_u_end - eq.position_u_start + 1);
+          return total + Math.abs(eq.position_u_end - eq.position_u_start) + 1;
         }, 0) || 0),
         occupancyPercentage: Math.round(
           ((rack.equipment?.reduce((total: number, eq: any) => {
-            return total + (eq.position_u_end - eq.position_u_start + 1);
+            return total + Math.abs(eq.position_u_end - eq.position_u_start) + 1;
           }, 0) || 0) / rack.size_u) * 100
         )
       }));

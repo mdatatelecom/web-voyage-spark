@@ -1,3 +1,5 @@
+import { getStatusLEDColors } from '@/constants/manufacturerLogos';
+
 interface SwitchPatternProps {
   x: number;
   y: number;
@@ -7,12 +9,14 @@ interface SwitchPatternProps {
   manufacturer?: string;
   isHovered: boolean;
   isPoe?: boolean;
+  status?: string;
 }
 
-export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHovered, isPoe }: SwitchPatternProps) => {
+export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHovered, isPoe, status }: SwitchPatternProps) => {
   const portCount = Math.min(24, Math.floor((width - 80) / 10));
   const portRows = height > 25 ? 2 : 1;
   const portsPerRow = Math.ceil(portCount / portRows);
+  const ledColors = getStatusLEDColors(status);
   
   return (
     <g>

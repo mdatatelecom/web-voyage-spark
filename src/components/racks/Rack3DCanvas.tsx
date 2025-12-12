@@ -257,11 +257,14 @@ function EquipmentBlock({
   const [hovered, setHovered] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const heightUs = equipment.position_u_end - equipment.position_u_start + 1;
+  // Normalize position (handle inverted start/end)
+  const posStart = Math.min(equipment.position_u_start, equipment.position_u_end);
+  const posEnd = Math.max(equipment.position_u_start, equipment.position_u_end);
+  const heightUs = posEnd - posStart + 1;
   const height = heightUs * 0.044;
   const width = 0.44;
   const depth = 0.75;
-  const yPosition = ((equipment.position_u_start - 1) * 0.044) + (height / 2);
+  const yPosition = ((posStart - 1) * 0.044) + (height / 2);
   const mountSide = equipment.mount_side || 'front';
   const zPosition = mountSide === 'rear' ? -0.3 : 0;
   const color = getEquipmentColor(equipment.type);

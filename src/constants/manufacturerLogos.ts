@@ -40,7 +40,7 @@ export const MANUFACTURER_COLORS: Record<string, { primary: string; text: string
   liebert: { primary: '#ff6900', text: '#ffffff' },
   nhs: { primary: '#003399', text: '#ffffff' },
   sms: { primary: '#e30613', text: '#ffffff' },
-  ts shara: { primary: '#0033a0', text: '#ffffff' },
+  'ts shara': { primary: '#0033a0', text: '#ffffff' },
   
   // Cables/Passive
   furukawa: { primary: '#e4002b', text: '#ffffff' },

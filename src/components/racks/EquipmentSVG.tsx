@@ -4,6 +4,17 @@ import { StoragePattern } from './equipment-patterns/StoragePattern';
 import { PatchPanelPattern } from './equipment-patterns/PatchPanelPattern';
 import { PDUPattern } from './equipment-patterns/PDUPattern';
 import { GenericPattern } from './equipment-patterns/GenericPattern';
+import { FirewallPattern } from './equipment-patterns/FirewallPattern';
+import { UPSPattern } from './equipment-patterns/UPSPattern';
+import { RouterPattern } from './equipment-patterns/RouterPattern';
+import { NVRPattern } from './equipment-patterns/NVRPattern';
+import { AccessPointPattern } from './equipment-patterns/AccessPointPattern';
+import { KVMPattern } from './equipment-patterns/KVMPattern';
+import { TelecomPattern } from './equipment-patterns/TelecomPattern';
+import { EnvironmentalPattern } from './equipment-patterns/EnvironmentalPattern';
+import { MediaConverterPattern } from './equipment-patterns/MediaConverterPattern';
+import { PoEDevicePattern } from './equipment-patterns/PoEDevicePattern';
+import { IPCameraPattern } from './equipment-patterns/IPCameraPattern';
 
 interface EquipmentSVGProps {
   type: string;
@@ -15,6 +26,8 @@ interface EquipmentSVGProps {
   manufacturer?: string;
   model?: string;
   isHovered: boolean;
+  status?: string;
+  activePortIds?: string[];
 }
 
 export const EquipmentSVG = ({
@@ -26,6 +39,7 @@ export const EquipmentSVG = ({
   name,
   manufacturer,
   isHovered,
+  status,
 }: EquipmentSVGProps) => {
   // Route to appropriate pattern based on equipment type
   switch (type) {
@@ -39,11 +53,11 @@ export const EquipmentSVG = ({
           name={name}
           manufacturer={manufacturer}
           isHovered={isHovered}
+          status={status}
         />
       );
     
     case 'switch':
-    case 'router':
       return (
         <SwitchPattern
           x={x}
@@ -54,6 +68,7 @@ export const EquipmentSVG = ({
           manufacturer={manufacturer}
           isHovered={isHovered}
           isPoe={false}
+          status={status}
         />
       );
     
@@ -68,6 +83,66 @@ export const EquipmentSVG = ({
           manufacturer={manufacturer}
           isHovered={isHovered}
           isPoe={true}
+          status={status}
+        />
+      );
+    
+    case 'router':
+      return (
+        <RouterPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+        />
+      );
+    
+    case 'firewall':
+      return (
+        <FirewallPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          subtype="firewall"
+        />
+      );
+    
+    case 'waf':
+      return (
+        <FirewallPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          subtype="waf"
+        />
+      );
+    
+    case 'load_balancer':
+      return (
+        <FirewallPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          subtype="load_balancer"
         />
       );
     
@@ -81,6 +156,7 @@ export const EquipmentSVG = ({
           name={name}
           manufacturer={manufacturer}
           isHovered={isHovered}
+          status={status}
         />
       );
     
@@ -121,6 +197,7 @@ export const EquipmentSVG = ({
           manufacturer={manufacturer}
           isHovered={isHovered}
           isSmart={false}
+          status={status}
         />
       );
     
@@ -135,6 +212,206 @@ export const EquipmentSVG = ({
           manufacturer={manufacturer}
           isHovered={isHovered}
           isSmart={true}
+          status={status}
+        />
+      );
+    
+    case 'ups':
+      return (
+        <UPSPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+        />
+      );
+    
+    case 'dvr':
+      return (
+        <NVRPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isNVR={false}
+        />
+      );
+    
+    case 'nvr':
+      return (
+        <NVRPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isNVR={true}
+        />
+      );
+    
+    case 'access_point':
+      return (
+        <AccessPointPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+        />
+      );
+    
+    case 'kvm':
+      return (
+        <KVMPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isConsoleServer={false}
+        />
+      );
+    
+    case 'console_server':
+      return (
+        <KVMPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isConsoleServer={true}
+        />
+      );
+    
+    case 'pabx':
+    case 'voip_gateway':
+    case 'modem':
+    case 'olt':
+    case 'onu':
+    case 'dslam':
+    case 'msan':
+      return (
+        <TelecomPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          subtype={type as 'pabx' | 'voip_gateway' | 'modem' | 'olt' | 'onu' | 'dslam' | 'msan'}
+        />
+      );
+    
+    case 'environment_sensor':
+    case 'rack_monitor':
+      return (
+        <EnvironmentalPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          subtype={type as 'environment_sensor' | 'rack_monitor'}
+        />
+      );
+    
+    case 'media_converter':
+      return (
+        <MediaConverterPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isChassis={false}
+        />
+      );
+    
+    case 'media_converter_chassis':
+      return (
+        <MediaConverterPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isChassis={true}
+        />
+      );
+    
+    case 'poe_injector':
+      return (
+        <PoEDevicePattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isSplitter={false}
+        />
+      );
+    
+    case 'poe_splitter':
+      return (
+        <PoEDevicePattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isSplitter={true}
+        />
+      );
+    
+    case 'ip_camera':
+      return (
+        <IPCameraPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
         />
       );
     
@@ -231,6 +508,7 @@ export const EquipmentSVG = ({
           type={type}
           manufacturer={manufacturer}
           isHovered={isHovered}
+          status={status}
         />
       );
   }
