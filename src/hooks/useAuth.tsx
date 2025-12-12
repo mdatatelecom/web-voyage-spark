@@ -85,11 +85,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Desconectado",
-      description: "Você foi desconectado com sucesso.",
-    });
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      toast({
+        title: "Desconectado",
+        description: "Você foi desconectado com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao desconectar:', error);
+      setUser(null);
+      setSession(null);
+    }
   };
 
   return (

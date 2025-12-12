@@ -56,12 +56,14 @@ export default function Auth() {
                 <img 
                   src={branding.logoUrl} 
                   alt={branding.systemName} 
-                  className="h-20 w-auto object-contain mb-4"
+                  className="h-20 w-auto object-contain"
                 />
               ) : (
-                <Network className="h-12 w-12 text-primary mb-4" />
+                <>
+                  <Network className="h-12 w-12 text-primary mb-4" />
+                  <h1 className="text-3xl font-bold text-primary">{branding.systemName}</h1>
+                </>
               )}
-              <h1 className="text-3xl font-bold text-primary">{branding.systemName}</h1>
             </>
           )}
         </div>
