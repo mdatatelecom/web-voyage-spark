@@ -221,8 +221,9 @@ export default function CameraMap() {
                                 />
                               </div>
                             ) : (
-                              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center mb-2">
-                                <Camera className="w-8 h-8 text-muted-foreground" />
+                              <div className="w-16 h-16 rounded-lg bg-muted flex flex-col items-center justify-center mb-2">
+                                <Camera className="w-6 h-6 text-muted-foreground" />
+                                <span className="text-[8px] text-muted-foreground mt-1">Sem foto</span>
                               </div>
                             )}
                             
