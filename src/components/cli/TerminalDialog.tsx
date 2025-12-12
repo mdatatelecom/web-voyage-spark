@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
-import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle, Wifi, WifiOff, Radio } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,7 +33,29 @@ const SYSTEM_COMMANDS = [
   'uptime',
   'date',
   'ip',
+  'ip addr',
+  'ifconfig',
   'ping',
+  'ls',
+  'ls -la',
+  'pwd',
+  'uname',
+  'uname -a',
+  'df',
+  'df -h',
+  'free',
+  'free -h',
+  'top',
+  'ps aux',
+  'netstat',
+  'netstat -tulpn',
+  'ss',
+  'ss -tulpn',
+  'w',
+  'who',
+  'id',
+  'env',
+  'history',
   'exit',
 ];
 
@@ -50,6 +72,8 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [wsConnected, setWsConnected] = useState(false);
+  const [connectionMode, setConnectionMode] = useState<'simulated' | 'real_ssh'>('simulated');
+  const [hostReachable, setHostReachable] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -154,6 +178,8 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
             case 'session_started':
               promptRef.current = data.prompt;
               addLine('system', data.message);
+              setConnectionMode(data.mode || 'simulated');
+              setHostReachable(data.hostReachable || false);
               setIsConnected(true);
               setIsConnecting(false);
               break;
@@ -399,9 +425,15 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
               <Terminal className="h-5 w-5 text-green-400" />
               <DialogTitle className="text-white">Terminal CLI</DialogTitle>
               {isConnected ? (
-                <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500">
-                  Conectado
-                </Badge>
+                <>
+                  <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500">
+                    Conectado
+                  </Badge>
+                  <Badge variant="outline" className={hostReachable ? "bg-blue-500/20 text-blue-400 border-blue-500" : "bg-yellow-500/20 text-yellow-400 border-yellow-500"}>
+                    {hostReachable ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+                    {connectionMode === 'real_ssh' ? 'SSH Real' : 'Simulado'}
+                  </Badge>
+                </>
               ) : (
                 <Badge variant="outline" className="bg-gray-500/20 text-gray-400 border-gray-500">
                   Desconectado
