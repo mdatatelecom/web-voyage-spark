@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-import { FlipHorizontal } from 'lucide-react';
+import { SVGDefs } from './SVGDefs';
+import { EquipmentSVG } from './EquipmentSVG';
 
 interface Equipment {
   id: string;
@@ -23,24 +24,25 @@ interface RackVisualizationProps {
   onEquipmentClick?: (equipment: Equipment) => void;
 }
 
-const getColorByType = (type: string) => {
-  const colors: Record<string, string> = {
-    switch: '#3b82f6',
-    router: '#10b981',
-    server: '#f97316',
-    patch_panel: '#6b7280',
-    firewall: '#ef4444',
-  };
-  return colors[type] || '#9ca3af';
-};
-
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     switch: 'Switch',
+    switch_poe: 'Switch PoE',
     router: 'Roteador',
     server: 'Servidor',
     patch_panel: 'Patch Panel',
+    patch_panel_fiber: 'Patch Panel Fibra',
     firewall: 'Firewall',
+    storage: 'Storage',
+    pdu: 'PDU',
+    pdu_smart: 'PDU Smart',
+    ups: 'UPS',
+    dvr: 'DVR',
+    nvr: 'NVR',
+    cable_organizer_horizontal: 'Organizador Horizontal',
+    cable_organizer_vertical: 'Organizador Vertical',
+    brush_panel: 'Brush Panel',
+    fixed_shelf: 'Bandeja Fixa',
   };
   return labels[type] || type;
 };
@@ -99,6 +101,7 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
       </div>
       
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="border-2 border-border rounded-lg">
+        <SVGDefs />
         {/* Background */}
         <rect x="0" y="0" width={width} height={height} fill="hsl(var(--card))" />
         
@@ -144,44 +147,17 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
                         onClick={() => onEquipmentClick?.(eq)}
                         style={{ cursor: 'pointer' }}
                       >
-                        {/* Equipment rectangle */}
-                        <rect
-                          x="60"
+                        <EquipmentSVG
+                          type={eq.type}
+                          x={60}
                           y={y}
-                          width="320"
+                          width={320}
                           height={equipmentHeight}
-                          fill={hoveredId === eq.id ? getColorByType(eq.type) + 'dd' : getColorByType(eq.type)}
-                          stroke="#000"
-                          strokeWidth="1"
-                          rx="4"
+                          name={eq.name}
+                          manufacturer={eq.manufacturer}
+                          model={eq.model}
+                          isHovered={hoveredId === eq.id}
                         />
-                        
-                        {/* Equipment name */}
-                        <text
-                          x="220"
-                          y={y + equipmentHeight / 2}
-                          fill="#fff"
-                          fontSize="14"
-                          fontWeight="bold"
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          {eq.name}
-                        </text>
-                        
-                        {/* Equipment type and size */}
-                        {equipmentHeight > 30 && (
-                          <text
-                            x="220"
-                            y={y + equipmentHeight / 2 + 16}
-                            fill="#ddd"
-                            fontSize="11"
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                          >
-                            {getTypeLabel(eq.type)} | {eq.position_u_end - eq.position_u_start + 1}U
-                          </text>
-                        )}
                       </g>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-xs">
