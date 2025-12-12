@@ -45,7 +45,7 @@ export const useRacks = (roomId?: string) => {
       // Calculate occupancy for each rack
       return data.map(rack => {
         const occupiedUs = rack.equipment?.reduce((total: number, eq: any) => {
-          return total + (eq.position_u_end - eq.position_u_start + 1);
+          return total + Math.abs(eq.position_u_end - eq.position_u_start) + 1;
         }, 0) || 0;
         
         return {

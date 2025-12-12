@@ -1,3 +1,5 @@
+import { getStatusLEDColors } from '@/constants/manufacturerLogos';
+
 interface ServerPatternProps {
   x: number;
   y: number;
@@ -6,11 +8,13 @@ interface ServerPatternProps {
   name: string;
   manufacturer?: string;
   isHovered: boolean;
+  status?: string;
 }
 
-export const ServerPattern = ({ x, y, width, height, name, manufacturer, isHovered }: ServerPatternProps) => {
+export const ServerPattern = ({ x, y, width, height, name, manufacturer, isHovered, status }: ServerPatternProps) => {
   const fanSize = Math.min(height * 0.6, 14);
   const numFans = height > 30 ? 2 : 1;
+  const ledColors = getStatusLEDColors(status);
   
   return (
     <g>

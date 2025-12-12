@@ -1,3 +1,5 @@
+import { getStatusLEDColors } from '@/constants/manufacturerLogos';
+
 interface PDUPatternProps {
   x: number;
   y: number;
@@ -7,10 +9,12 @@ interface PDUPatternProps {
   manufacturer?: string;
   isHovered: boolean;
   isSmart?: boolean;
+  status?: string;
 }
 
-export const PDUPattern = ({ x, y, width, height, name, manufacturer, isHovered, isSmart }: PDUPatternProps) => {
+export const PDUPattern = ({ x, y, width, height, name, manufacturer, isHovered, isSmart, status }: PDUPatternProps) => {
   const outletCount = Math.min(8, Math.floor((width - 80) / 25));
+  const ledColors = getStatusLEDColors(status);
   
   return (
     <g>

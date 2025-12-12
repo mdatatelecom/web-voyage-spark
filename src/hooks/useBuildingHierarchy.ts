@@ -81,7 +81,7 @@ export const useBuildingHierarchy = () => {
         const equipmentCount = rackEquipment.length;
         const occupiedU = rackEquipment.reduce((sum, e) => {
           if (e.position_u_start && e.position_u_end) {
-            return sum + (e.position_u_end - e.position_u_start + 1);
+            return sum + Math.abs(e.position_u_end - e.position_u_start) + 1;
           }
           return sum;
         }, 0);
