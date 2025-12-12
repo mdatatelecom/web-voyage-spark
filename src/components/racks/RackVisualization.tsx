@@ -45,6 +45,13 @@ const getTypeLabel = (type: string) => {
   return labels[type] || type;
 };
 
+// Helper to normalize equipment position range (handles inverted start/end)
+const getEquipmentRange = (eq: Equipment) => {
+  const start = Math.min(eq.position_u_start, eq.position_u_end);
+  const end = Math.max(eq.position_u_start, eq.position_u_end);
+  return { start, end, height: end - start + 1 };
+};
+
 export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVisualizationProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [view, setView] = useState<'front' | 'rear'>('front');
@@ -59,10 +66,11 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
     return mountSide === view || mountSide === 'both';
   });
 
-  // Create a map of which equipment is at each U position
+  // Create a map of which equipment is at each U position (using normalized range)
   const uMap = new Map<number, Equipment>();
   filteredEquipment.forEach((eq) => {
-    for (let u = eq.position_u_start; u <= eq.position_u_end; u++) {
+    const { start, end } = getEquipmentRange(eq);
+    for (let u = start; u <= end; u++) {
       uMap.set(u, eq);
     }
   });
@@ -98,8 +106,9 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
         {uPositions.map((u, index) => {
           const y = index * uHeight;
           const eq = uMap.get(u);
-          const isFirstUOfEquipment = eq && eq.position_u_end === u;
-          const equipmentHeight = eq ? (eq.position_u_end - eq.position_u_start + 1) * uHeight : 0;
+          const range = eq ? getEquipmentRange(eq) : null;
+          const isFirstUOfEquipment = eq && range && range.end === u;
+          const equipmentHeight = range ? range.height * uHeight : 0;
 
           return (
             <g key={u}>
@@ -184,7 +193,7 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
                         {eq.ip_address && <p className="text-sm">IP: {eq.ip_address}</p>}
                         {eq.hostname && <p className="text-sm">Hostname: {eq.hostname}</p>}
                         <p className="text-sm">
-                          Posição: U{eq.position_u_start}-{eq.position_u_end} ({eq.position_u_end - eq.position_u_start + 1}U)
+                          Posição: U{range?.start}-{range?.end} ({range?.height}U)
                         </p>
                       </div>
                     </TooltipContent>
