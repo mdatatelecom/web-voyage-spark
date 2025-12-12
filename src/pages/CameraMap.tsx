@@ -118,8 +118,8 @@ export default function CameraMap() {
                 />
               </div>
               
-              <Select value={selectedBuildingId} onValueChange={(v) => {
-                setSelectedBuildingId(v);
+              <Select value={selectedBuildingId || 'all'} onValueChange={(v) => {
+                setSelectedBuildingId(v === 'all' ? '' : v);
                 setSelectedFloorId('');
               }}>
                 <SelectTrigger>
@@ -127,7 +127,7 @@ export default function CameraMap() {
                   <SelectValue placeholder="Todos os prédios" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os prédios</SelectItem>
+                  <SelectItem value="all">Todos os prédios</SelectItem>
                   {buildings?.map(b => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                   ))}
@@ -135,8 +135,8 @@ export default function CameraMap() {
               </Select>
               
               <Select 
-                value={selectedFloorId} 
-                onValueChange={setSelectedFloorId}
+                value={selectedFloorId || 'all'} 
+                onValueChange={(v) => setSelectedFloorId(v === 'all' ? '' : v)}
                 disabled={!selectedBuildingId}
               >
                 <SelectTrigger>
@@ -144,7 +144,7 @@ export default function CameraMap() {
                   <SelectValue placeholder="Todos os andares" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os andares</SelectItem>
+                  <SelectItem value="all">Todos os andares</SelectItem>
                   {floors?.map(f => (
                     <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                   ))}
