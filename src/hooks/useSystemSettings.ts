@@ -263,6 +263,33 @@ export const useSystemSettings = () => {
     }
   }, [themeColors, isLoading]);
 
+  // Listener para mudanças de storage em outras abas
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'branding_cache' && e.newValue) {
+        try {
+          const newBranding = JSON.parse(e.newValue);
+          setBranding(newBranding);
+          document.title = `${newBranding.systemName} - Gestão de Infraestrutura`;
+        } catch (err) {
+          console.error('Erro ao processar mudança de branding:', err);
+        }
+      }
+      if (e.key === 'theme_colors_cache' && e.newValue) {
+        try {
+          const newColors = JSON.parse(e.newValue);
+          setThemeColors(newColors);
+          applyThemeColors(newColors);
+        } catch (err) {
+          console.error('Erro ao processar mudança de cores:', err);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   return {
     branding,
     themeColors,
