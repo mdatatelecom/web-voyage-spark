@@ -52,12 +52,16 @@ export const AutocompleteDropdown = ({
       {suggestions.map((suggestion, index) => (
         <li
           key={suggestion}
-          onClick={() => onSelect(suggestion)}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect(suggestion);
+          }}
           className={cn(
-            'px-3 py-1.5 cursor-pointer font-mono text-sm transition-colors',
+            'px-3 py-1.5 cursor-pointer font-mono text-sm transition-colors select-none',
             index === selectedIndex
-              ? 'bg-green-600/30 text-green-300'
-              : 'text-gray-300 hover:bg-gray-700'
+              ? 'bg-green-600/30 text-green-300 border-l-2 border-green-400'
+              : 'text-gray-300 hover:bg-gray-700 border-l-2 border-transparent'
           )}
         >
           {highlightMatch(suggestion)}

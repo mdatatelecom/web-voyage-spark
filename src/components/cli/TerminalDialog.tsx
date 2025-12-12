@@ -9,9 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
-import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle } from 'lucide-react';
+import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TerminalDialogProps {
   open: boolean;
@@ -100,6 +101,20 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
   }, [open, isConnected]);
 
+  const testRealConnection = async (host: string, port: number): Promise<{ reachable: boolean; message: string; latency?: number }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('test-connection', {
+        body: { host, port }
+      });
+      
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error('Connection test error:', err);
+      return { reachable: false, message: 'Falha ao testar conexão' };
+    }
+  };
+
   const handleConnect = async () => {
     if (!vpnSettings.vpnHost) {
       addLine('error', 'Erro: Configure o endereço VPN em Sistema > VPN antes de conectar.');
@@ -107,9 +122,19 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
 
     setIsConnecting(true);
-    addLine('system', `Conectando a ${vpnSettings.vpnHost}:${vpnSettings.sshPort}...`);
+    addLine('system', `Testando conectividade com ${vpnSettings.vpnHost}:${vpnSettings.sshPort}...`);
     
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Test real connection first
+    const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
+    
+    if (connectionResult.reachable) {
+      addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
+    } else {
+      addLine('system', `⚠ ${connectionResult.message}`);
+      addLine('system', 'Iniciando sessão em modo simulado...');
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     addLine('system', `Conectado como ${vpnSettings.vpnUser}@${vpnSettings.vpnHost}`);
     addLine('system', 'Terminal pronto. Digite "help" para comandos disponíveis.');
