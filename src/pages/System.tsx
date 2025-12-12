@@ -24,7 +24,9 @@ import { useUserRole } from '@/hooks/useUserRole';
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Database,
   FileText,
@@ -42,7 +44,10 @@ import {
   Globe,
   Eye,
   EyeOff,
+  Wifi,
+  XCircle,
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
@@ -114,10 +119,92 @@ export default function System() {
   const { vpnSettings, isLoading: vpnLoading, saveSettings: saveVpnSettings } = useVpnSettings();
   const [localVpnSettings, setLocalVpnSettings] = useState(vpnSettings);
   const [showPassword, setShowPassword] = useState(false);
+  const [relayTestStatus, setRelayTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [relayTestMessage, setRelayTestMessage] = useState<string>('');
 
   useEffect(() => {
     setLocalVpnSettings(vpnSettings);
   }, [vpnSettings]);
+
+  // Test relay connection via WebSocket (bypasses Mixed Content issues)
+  const testRelayConnection = async () => {
+    if (!localVpnSettings.sshRelayUrl) {
+      setRelayTestStatus('error');
+      setRelayTestMessage('Configure a URL do relay primeiro');
+      return;
+    }
+
+    setRelayTestStatus('testing');
+    setRelayTestMessage('Testando conexão WebSocket...');
+
+    try {
+      const ws = new WebSocket(localVpnSettings.sshRelayUrl);
+      
+      const timeout = setTimeout(() => {
+        ws.close();
+        setRelayTestStatus('error');
+        setRelayTestMessage('Timeout: Servidor não respondeu em 10 segundos');
+      }, 10000);
+
+      ws.onopen = () => {
+        clearTimeout(timeout);
+        // Send a ping to verify the relay responds correctly
+        ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        
+        // Wait for pong or any response
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+            setRelayTestStatus('success');
+            setRelayTestMessage('Relay online e acessível via WebSocket');
+          }
+        }, 1000);
+      };
+
+      ws.onmessage = (event) => {
+        clearTimeout(timeout);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong' || data.type === 'connected' || data.type === 'error') {
+            ws.close();
+            setRelayTestStatus('success');
+            setRelayTestMessage(`Relay respondeu: ${data.type}`);
+          }
+        } catch {
+          // Even if not JSON, receiving data means connection works
+          ws.close();
+          setRelayTestStatus('success');
+          setRelayTestMessage('Relay acessível (resposta recebida)');
+        }
+      };
+
+      ws.onerror = () => {
+        clearTimeout(timeout);
+        setRelayTestStatus('error');
+        if (localVpnSettings.sshRelayUrl.startsWith('ws://')) {
+          setRelayTestMessage('Falha na conexão. Se você está em HTTPS, use wss:// ou configure SSL no relay.');
+        } else {
+          setRelayTestMessage('Falha na conexão. Verifique se o servidor está online.');
+        }
+      };
+
+      ws.onclose = (event) => {
+        clearTimeout(timeout);
+        if (relayTestStatus === 'testing') {
+          if (event.code === 1000 || event.code === 1001) {
+            setRelayTestStatus('success');
+            setRelayTestMessage('Conexão fechada normalmente - relay acessível');
+          } else {
+            setRelayTestStatus('error');
+            setRelayTestMessage(`Conexão fechada: código ${event.code}`);
+          }
+        }
+      };
+    } catch (err) {
+      setRelayTestStatus('error');
+      setRelayTestMessage(err instanceof Error ? err.message : 'Erro desconhecido');
+    }
+  };
 
   const applyPreset = async (preset: ColorPreset) => {
     setApplyingPreset(true);
@@ -546,17 +633,71 @@ export default function System() {
                     </div>
                     
                     {localVpnSettings.useExternalRelay && (
-                      <div className="space-y-2">
-                        <Label htmlFor="sshRelayUrl">URL do SSH Relay WebSocket</Label>
-                        <Input
-                          id="sshRelayUrl"
-                          value={localVpnSettings.sshRelayUrl}
-                          onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, sshRelayUrl: e.target.value })}
-                          placeholder="wss://seu-servidor.com/ssh-relay"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Exemplo: wss://meu-vps.com:8080/ssh ou ws://192.168.1.100:3000/ssh
-                        </p>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="sshRelayUrl">URL do SSH Relay WebSocket</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="sshRelayUrl"
+                              value={localVpnSettings.sshRelayUrl}
+                              onChange={(e) => {
+                                setLocalVpnSettings({ ...localVpnSettings, sshRelayUrl: e.target.value });
+                                setRelayTestStatus('idle');
+                                setRelayTestMessage('');
+                              }}
+                              placeholder="wss://seu-servidor.com/ssh ou ws://192.168.1.100:8080/ssh"
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="outline"
+                              onClick={testRelayConnection}
+                              disabled={!localVpnSettings.sshRelayUrl || relayTestStatus === 'testing'}
+                              className="min-w-[100px]"
+                            >
+                              {relayTestStatus === 'testing' ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : relayTestStatus === 'success' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              ) : relayTestStatus === 'error' ? (
+                                <XCircle className="w-4 h-4 text-red-500" />
+                              ) : (
+                                <Wifi className="w-4 h-4" />
+                              )}
+                              <span className="ml-2">
+                                {relayTestStatus === 'testing' ? 'Testando...' : 'Testar'}
+                              </span>
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Exemplo: wss://meu-vps.com:8080/ssh ou ws://192.168.1.100:3000/ssh
+                          </p>
+                        </div>
+                        
+                        {/* Test result message */}
+                        {relayTestMessage && (
+                          <Alert variant={relayTestStatus === 'error' ? 'destructive' : 'default'}>
+                            {relayTestStatus === 'success' ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : relayTestStatus === 'error' ? (
+                              <XCircle className="h-4 w-4" />
+                            ) : (
+                              <Wifi className="h-4 w-4" />
+                            )}
+                            <AlertDescription>{relayTestMessage}</AlertDescription>
+                          </Alert>
+                        )}
+                        
+                        {/* Mixed Content Warning */}
+                        {localVpnSettings.sshRelayUrl?.startsWith('ws://') && (
+                          <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Conexão não segura</AlertTitle>
+                            <AlertDescription>
+                              Você está usando ws:// (não criptografado). Para maior segurança em produção, 
+                              configure HTTPS/WSS no seu servidor relay com certificado SSL.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     )}
                   </div>
