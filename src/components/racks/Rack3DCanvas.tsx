@@ -10,6 +10,7 @@ import { DataCenterFloor } from './DataCenterFloor';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink } from 'lucide-react';
+import { useActivePortsByRack } from '@/hooks/useActivePortsByRack';
 
 interface Equipment {
   id: string;
@@ -20,6 +21,7 @@ interface Equipment {
   manufacturer?: string;
   model?: string;
   mount_side?: string;
+  equipment_status?: string;
 }
 
 interface Connection {
@@ -246,13 +248,15 @@ function EquipmentBlock({
   sizeU,
   onClick,
   xrayMode,
-  highlighted
+  highlighted,
+  activePortCount
 }: {
   equipment: Equipment;
   sizeU: number;
   onClick?: () => void;
   xrayMode: boolean;
   highlighted: boolean;
+  activePortCount: number;
 }) {
   const [hovered, setHovered] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -315,12 +319,13 @@ function EquipmentBlock({
         </>
       )}
 
-      {/* Ports */}
+      {/* Ports - use real active port data */}
       {portCount > 0 && !xrayMode && (
         <group>
           {Array.from({ length: Math.min(portCount, 12) }).map((_, i) => {
             const xPos = -width / 2 + 0.05 + (i * 0.035);
-            const status = Math.random() > 0.5 ? 'in_use' : 'available';
+            // Use real active port count to determine which ports are active
+            const status = i < activePortCount ? 'in_use' : 'available';
             return <PortVisual key={i} position={[xPos, -height / 2 + 0.01, depth / 2 + 0.001]} status={status} />;
           })}
         </group>
@@ -356,6 +361,9 @@ function EquipmentBlock({
                 )}
                 {equipment.model && (
                   <p><span className="font-medium text-foreground">Modelo:</span> {equipment.model}</p>
+                )}
+                {activePortCount > 0 && (
+                  <p className="text-green-500"><span className="font-medium">🔌 Portas ativas:</span> {activePortCount}</p>
                 )}
               </div>
               <Button size="sm" className="w-full text-xs h-7" onClick={onClick}>
@@ -410,6 +418,9 @@ export default function Rack3DCanvas({
   onEquipmentClick,
   onAnnotationClick,
 }: Rack3DCanvasProps) {
+  // Get active ports for this rack in realtime
+  const { getActivePortIdsForEquipment } = useActivePortsByRack(rackId);
+
   return (
     <Canvas
       camera={{ position: [1.5, sizeU * 0.022, 2], fov: 50 }}
@@ -461,16 +472,20 @@ export default function Rack3DCanvas({
       <ULabels sizeU={sizeU} />
 
       {/* Equipment */}
-      {equipment.map((eq) => (
-        <EquipmentBlock
-          key={eq.id}
-          equipment={eq}
-          sizeU={sizeU}
-          onClick={() => onEquipmentClick?.(eq)}
-          xrayMode={xrayMode}
-          highlighted={tourActive && equipment[tourIndex]?.id === eq.id}
-        />
-      ))}
+      {equipment.map((eq) => {
+        const activePortIds = getActivePortIdsForEquipment(eq.id);
+        return (
+          <EquipmentBlock
+            key={eq.id}
+            equipment={eq}
+            sizeU={sizeU}
+            onClick={() => onEquipmentClick?.(eq)}
+            xrayMode={xrayMode}
+            highlighted={tourActive && equipment[tourIndex]?.id === eq.id}
+            activePortCount={activePortIds.length}
+          />
+        );
+      })}
 
       {/* Cables */}
       {connections.map(conn => {

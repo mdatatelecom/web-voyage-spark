@@ -117,7 +117,8 @@ export const useAvailablePorts = (rackId?: string, equipmentId?: string) => {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data;
-    }
+      return data || [];
+    },
+    enabled: !!(rackId || equipmentId)
   });
 };
