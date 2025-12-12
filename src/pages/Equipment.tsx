@@ -3,9 +3,10 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Server, MoreHorizontal, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Server, MoreHorizontal, Eye, Edit, Trash2, Camera } from 'lucide-react';
 import { EquipmentDialog } from '@/components/equipment/EquipmentDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
+import { CameraWizard } from '@/components/equipment/CameraWizard';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +14,7 @@ import { ExportButton } from '@/components/export/ExportButton';
 
 export default function Equipment() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [cameraWizardOpen, setCameraWizardOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<any>(null);
@@ -72,6 +74,9 @@ export default function Equipment() {
             {equipment && equipment.length > 0 && (
               <ExportButton data={equipment.map(eq => ({ 'Nome': eq.name, 'Tipo': eq.type }))} filename="equipamentos" sheetName="Equipamentos" />
             )}
+            <Button variant="outline" onClick={() => setCameraWizardOpen(true)}>
+              <Camera className="w-4 h-4 mr-2" />Adicionar Câmeras
+            </Button>
             <Button onClick={() => setDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />Novo Equipamento
             </Button>
@@ -113,6 +118,7 @@ export default function Equipment() {
       </div>
 
       <EquipmentDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CameraWizard open={cameraWizardOpen} onOpenChange={setCameraWizardOpen} />
       <EquipmentEditDialog equipment={selectedEquipment} open={editDialogOpen} onOpenChange={setEditDialogOpen} onSave={handleUpdateEquipment} isLoading={isUpdating} />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
