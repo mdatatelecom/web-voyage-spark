@@ -150,33 +150,77 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
   };
 
-  // Test relay connectivity
-  const testRelayConnection = async (): Promise<boolean> => {
-    if (!vpnSettings.sshRelayUrl) return false;
-    
-    try {
-      // Convert ws:// to http:// for health check
-      const healthUrl = vpnSettings.sshRelayUrl
-        .replace('wss://', 'https://')
-        .replace('ws://', 'http://')
-        .replace('/ssh', '/health');
-      
-      const response = await fetch(healthUrl, { 
-        method: 'GET',
-        signal: AbortSignal.timeout(5000)
-      });
-      
-      if (response.ok) {
-        setRelayStatus('online');
-        return true;
+  // Test relay connectivity via WebSocket (bypasses Mixed Content issues)
+  const testRelayConnection = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!vpnSettings.sshRelayUrl) {
+        setRelayStatus('offline');
+        resolve(false);
+        return;
       }
-      setRelayStatus('offline');
-      return false;
-    } catch (err) {
-      console.error('Relay health check error:', err);
-      setRelayStatus('offline');
-      return false;
-    }
+      
+      addLine('system', '⏳ Testando conexão com relay via WebSocket...');
+      
+      try {
+        const testWs = new WebSocket(vpnSettings.sshRelayUrl);
+        
+        const timeout = setTimeout(() => {
+          testWs.close();
+          setRelayStatus('offline');
+          addLine('error', '❌ Timeout: Relay não respondeu em 8 segundos');
+          resolve(false);
+        }, 8000);
+
+        testWs.onopen = () => {
+          clearTimeout(timeout);
+          // Send ping to verify
+          testWs.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          
+          // Give it a moment to respond, then close
+          setTimeout(() => {
+            if (testWs.readyState === WebSocket.OPEN) {
+              testWs.close();
+              setRelayStatus('online');
+              resolve(true);
+            }
+          }, 500);
+        };
+
+        testWs.onmessage = () => {
+          clearTimeout(timeout);
+          testWs.close();
+          setRelayStatus('online');
+          resolve(true);
+        };
+
+        testWs.onerror = (err) => {
+          clearTimeout(timeout);
+          console.error('Relay WebSocket test error:', err);
+          setRelayStatus('offline');
+          
+          // Provide helpful error message for Mixed Content
+          if (vpnSettings.sshRelayUrl.startsWith('ws://') && window.location.protocol === 'https:') {
+            addLine('error', '❌ Mixed Content: Lovable usa HTTPS, mas relay usa ws://');
+            addLine('system', '💡 Solução: Configure SSL no relay para usar wss://');
+          } else {
+            addLine('error', '❌ Não foi possível conectar ao relay');
+          }
+          resolve(false);
+        };
+
+        testWs.onclose = (event) => {
+          clearTimeout(timeout);
+          if (event.code === 1000 || event.code === 1001) {
+            setRelayStatus('online');
+            resolve(true);
+          }
+        };
+      } catch (err) {
+        console.error('Relay test exception:', err);
+        setRelayStatus('offline');
+        resolve(false);
+      }
+    });
   };
 
   // Clear connection timeout
