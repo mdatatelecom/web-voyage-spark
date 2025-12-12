@@ -10,13 +10,15 @@ interface SwitchPatternProps {
   isHovered: boolean;
   isPoe?: boolean;
   status?: string;
+  activePortIds?: string[];
 }
 
-export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHovered, isPoe, status }: SwitchPatternProps) => {
+export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHovered, isPoe, status, activePortIds = [] }: SwitchPatternProps) => {
   const portCount = Math.min(24, Math.floor((width - 80) / 10));
   const portRows = height > 25 ? 2 : 1;
   const portsPerRow = Math.ceil(portCount / portRows);
   const ledColors = getStatusLEDColors(status);
+  const activeCount = activePortIds.length;
   
   return (
     <g>
@@ -44,8 +46,8 @@ export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHover
       
       {/* Status LEDs column */}
       <g>
-        <circle cx={x + 10} cy={y + height * 0.3} r={2.5} fill="#22c55e" filter="url(#ledGlow)" className="animate-pulse" />
-        <circle cx={x + 22} cy={y + height * 0.3} r={2.5} fill="#3b82f6" filter="url(#ledGlow)" />
+        <circle cx={x + 10} cy={y + height * 0.3} r={2.5} fill={ledColors.power} filter="url(#ledGlow)" className="animate-pulse" />
+        <circle cx={x + 22} cy={y + height * 0.3} r={2.5} fill={ledColors.activity} filter="url(#ledGlow)" />
         {height > 22 && (
           <>
             <circle cx={x + 10} cy={y + height * 0.7} r={2.5} fill={isPoe ? "#f59e0b" : "#374151"} filter={isPoe ? "url(#ledGlow)" : undefined} />
@@ -64,13 +66,15 @@ export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHover
         rx="2"
       />
       
-      {/* Ports */}
+      {/* Ports - use real active port data */}
       {Array.from({ length: portRows }).map((_, rowIndex) => (
         <g key={rowIndex}>
           {Array.from({ length: portsPerRow }).map((_, portIndex) => {
             const portX = x + 42 + portIndex * 10;
             const portY = y + 5 + rowIndex * (height / portRows - 2);
-            const isActive = (portIndex + rowIndex) % 3 !== 0;
+            const globalPortIndex = rowIndex * portsPerRow + portIndex;
+            // Port is active if within the active count
+            const isActive = globalPortIndex < activeCount;
             
             return (
               <g key={portIndex}>
@@ -85,13 +89,14 @@ export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHover
                   strokeWidth="0.5"
                   rx="1"
                 />
-                {/* Port LED */}
+                {/* Port LED - green and pulsing if active */}
                 <circle
                   cx={portX + 4}
                   cy={portY + 2}
                   r={1.5}
                   fill={isActive ? "#22c55e" : "#374151"}
                   filter={isActive ? "url(#ledGlow)" : undefined}
+                  className={isActive ? "animate-pulse" : undefined}
                 />
               </g>
             );
@@ -150,7 +155,7 @@ export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHover
         </text>
       )}
       
-      {/* PoE indicator */}
+      {/* PoE indicator with active port count */}
       {isPoe && (
         <text
           x={x + width - 20}
@@ -159,7 +164,20 @@ export const SwitchPattern = ({ x, y, width, height, name, manufacturer, isHover
           fontSize="5"
           fontWeight="bold"
         >
-          PoE+
+          PoE+ {activeCount > 0 ? `(${activeCount})` : ''}
+        </text>
+      )}
+      
+      {/* Active ports indicator */}
+      {!isPoe && activeCount > 0 && (
+        <text
+          x={x + width - 20}
+          y={y + height - 3}
+          fill="#22c55e"
+          fontSize="5"
+          fontWeight="bold"
+        >
+          🔌 {activeCount}
         </text>
       )}
     </g>

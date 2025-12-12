@@ -3,6 +3,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 import { SVGDefs } from './SVGDefs';
 import { EquipmentSVG } from './EquipmentSVG';
+import { useActivePortsByRack } from '@/hooks/useActivePortsByRack';
 
 interface Equipment {
   id: string;
@@ -15,6 +16,7 @@ interface Equipment {
   ip_address?: string;
   hostname?: string;
   mount_side?: string;
+  equipment_status?: string;
 }
 
 interface RackVisualizationProps {
@@ -54,9 +56,12 @@ const getEquipmentRange = (eq: Equipment) => {
   return { start, end, height: end - start + 1 };
 };
 
-export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVisualizationProps) => {
+export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }: RackVisualizationProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [view, setView] = useState<'front' | 'rear'>('front');
+  
+  // Fetch active ports for this rack in realtime
+  const { getActivePortIdsForEquipment } = useActivePortsByRack(rackId);
   
   const width = 400;
   const uHeight = 20;
@@ -112,6 +117,9 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
           const range = eq ? getEquipmentRange(eq) : null;
           const isFirstUOfEquipment = eq && range && range.end === u;
           const equipmentHeight = range ? range.height * uHeight : 0;
+          
+          // Get active port IDs for this equipment
+          const activePortIds = eq ? getActivePortIdsForEquipment(eq.id) : [];
 
           return (
             <g key={u}>
@@ -155,8 +163,9 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
                           height={equipmentHeight}
                           name={eq.name}
                           manufacturer={eq.manufacturer}
-                          model={eq.model}
                           isHovered={hoveredId === eq.id}
+                          status={eq.equipment_status}
+                          activePortIds={activePortIds}
                         />
                       </g>
                     </TooltipTrigger>
@@ -171,6 +180,11 @@ export const RackVisualization = ({ sizeU, equipment, onEquipmentClick }: RackVi
                         <p className="text-sm">
                           Posição: U{range?.start}-{range?.end} ({range?.height}U)
                         </p>
+                        {activePortIds.length > 0 && (
+                          <p className="text-sm text-green-500">
+                            🔌 {activePortIds.length} porta(s) ativa(s)
+                          </p>
+                        )}
                       </div>
                     </TooltipContent>
                   </Tooltip>

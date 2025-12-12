@@ -40,6 +40,7 @@ export const EquipmentSVG = ({
   manufacturer,
   isHovered,
   status,
+  activePortIds = [],
 }: EquipmentSVGProps) => {
   // Route to appropriate pattern based on equipment type
   switch (type) {
@@ -69,6 +70,7 @@ export const EquipmentSVG = ({
           isHovered={isHovered}
           isPoe={false}
           status={status}
+          activePortIds={activePortIds}
         />
       );
     
@@ -84,6 +86,7 @@ export const EquipmentSVG = ({
           isHovered={isHovered}
           isPoe={true}
           status={status}
+          activePortIds={activePortIds}
         />
       );
     
