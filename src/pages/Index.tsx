@@ -5,6 +5,25 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
 import { Network, Cable, Server, Shield } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const features = [
+  {
+    icon: Cable,
+    title: "Rastreamento Inteligente",
+    description: "QR codes em cada cabo para identificação instantânea do Ponto A ao Ponto B"
+  },
+  {
+    icon: Server,
+    title: "Inventário Completo",
+    description: "Gerencie racks, equipamentos e portas com rastreamento de disponibilidade em tempo real"
+  },
+  {
+    icon: Shield,
+    title: "Acesso Seguro",
+    description: "Permissões baseadas em funções e logs de auditoria para segurança completa"
+  }
+];
 const Index = () => {
   const { user, loading } = useAuth();
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
@@ -32,7 +51,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-16">
+        <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col items-center justify-center mb-6">
             {branding.logoUrl ? (
               <>
@@ -54,7 +73,7 @@ const Index = () => {
             Gêmeo digital da sua infraestrutura de rede física. 
             Rastreie cada cabo, porta e conexão com tecnologia segura de QR code.
           </p>
-          <div className="mt-8 flex gap-4 justify-center">
+          <div className="mt-8 flex gap-4 justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 fill-mode-both">
             <Button size="lg" onClick={() => navigate('/auth')}>
               Começar
             </Button>
@@ -65,29 +84,26 @@ const Index = () => {
         </div>
 
         <div className="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto mt-20">
-          <div className="text-center p-6 rounded-lg border border-border bg-card">
-            <Cable className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Rastreamento Inteligente</h3>
-            <p className="text-muted-foreground">
-              QR codes em cada cabo para identificação instantânea do Ponto A ao Ponto B
-            </p>
-          </div>
-
-          <div className="text-center p-6 rounded-lg border border-border bg-card">
-            <Server className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Inventário Completo</h3>
-            <p className="text-muted-foreground">
-              Gerencie racks, equipamentos e portas com rastreamento de disponibilidade em tempo real
-            </p>
-          </div>
-
-          <div className="text-center p-6 rounded-lg border border-border bg-card">
-            <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Acesso Seguro</h3>
-            <p className="text-muted-foreground">
-              Permissões baseadas em funções e logs de auditoria para segurança completa
-            </p>
-          </div>
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <div 
+                key={feature.title}
+                className={cn(
+                  "text-center p-6 rounded-lg border border-border bg-card",
+                  "animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
+                  "hover:shadow-lg hover:scale-105 hover:border-primary/50 transition-all cursor-default",
+                  index === 0 && "delay-300",
+                  index === 1 && "delay-500",
+                  index === 2 && "delay-700"
+                )}
+              >
+                <Icon className="h-12 w-12 text-primary mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
