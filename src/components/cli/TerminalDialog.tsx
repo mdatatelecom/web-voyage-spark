@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
 import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AutocompleteDropdown } from './AutocompleteDropdown';
 
 interface TerminalDialogProps {
   open: boolean;
@@ -23,6 +24,18 @@ interface TerminalLine {
   timestamp: Date;
 }
 
+const SYSTEM_COMMANDS = [
+  'help',
+  'clear',
+  'whoami',
+  'hostname',
+  'uptime',
+  'date',
+  'ip',
+  'ping',
+  'exit',
+];
+
 export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const { toast } = useToast();
   const { vpnSettings, isLoading } = useVpnSettings();
@@ -33,8 +46,39 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const [history, setHistory] = useState<TerminalLine[]>([]);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Combine command history with system commands for autocomplete
+  const suggestions = useMemo(() => {
+    if (!currentInput.trim()) return [];
+    
+    const input = currentInput.toLowerCase();
+    const historyCommands = [...new Set(commandHistory)].reverse();
+    const allCommands = [...historyCommands, ...SYSTEM_COMMANDS.filter(c => !historyCommands.includes(c))];
+    
+    return allCommands.filter(
+      cmd => cmd.toLowerCase().startsWith(input) && cmd.toLowerCase() !== input
+    ).slice(0, 8);
+  }, [currentInput, commandHistory]);
+
+  // Ghost text for autocomplete
+  const ghostText = useMemo(() => {
+    if (!showSuggestions || suggestions.length === 0) return '';
+    return suggestions[selectedSuggestion]?.slice(currentInput.length) || '';
+  }, [showSuggestions, suggestions, selectedSuggestion, currentInput]);
+
+  // Show suggestions when typing
+  useEffect(() => {
+    if (currentInput.trim() && suggestions.length > 0) {
+      setShowSuggestions(true);
+      setSelectedSuggestion(0);
+    } else {
+      setShowSuggestions(false);
+    }
+  }, [currentInput, suggestions.length]);
 
   const addLine = useCallback((type: TerminalLine['type'], content: string) => {
     setHistory(prev => [...prev, { type, content, timestamp: new Date() }]);
@@ -65,7 +109,6 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     setIsConnecting(true);
     addLine('system', `Conectando a ${vpnSettings.vpnHost}:${vpnSettings.sshPort}...`);
     
-    // Simulated connection (in a real app, this would use WebSocket to a backend SSH proxy)
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     addLine('system', `Conectado como ${vpnSettings.vpnUser}@${vpnSettings.vpnHost}`);
@@ -84,7 +127,6 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const processCommand = (cmd: string) => {
     const trimmedCmd = cmd.trim().toLowerCase();
     
-    // Simulated command responses
     const commands: Record<string, () => string> = {
       'help': () => `Comandos disponíveis:
   help      - Mostra esta ajuda
@@ -123,6 +165,13 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     return `bash: ${cmd}: comando não encontrado`;
   };
 
+  const acceptSuggestion = useCallback(() => {
+    if (showSuggestions && suggestions[selectedSuggestion]) {
+      setCurrentInput(suggestions[selectedSuggestion]);
+      setShowSuggestions(false);
+    }
+  }, [showSuggestions, suggestions, selectedSuggestion]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentInput.trim()) return;
@@ -130,8 +179,9 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     const cmd = currentInput.trim();
     addLine('input', `${vpnSettings.vpnUser}@${vpnSettings.vpnHost}:~$ ${cmd}`);
     
-    setCommandHistory(prev => [...prev, cmd]);
+    setCommandHistory(prev => [...prev.filter(c => c !== cmd), cmd]);
     setHistoryIndex(-1);
+    setShowSuggestions(false);
 
     const output = processCommand(cmd);
     if (output) {
@@ -142,22 +192,49 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        setHistoryIndex(newIndex);
-        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        acceptSuggestion();
+        return;
       }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1;
-        setHistoryIndex(newIndex);
-        setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
-      } else {
-        setHistoryIndex(-1);
-        setCurrentInput('');
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestion(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestion(prev => 
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+        return;
+      }
+    } else {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (commandHistory.length > 0) {
+          const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+          setHistoryIndex(newIndex);
+          setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          const newIndex = historyIndex - 1;
+          setHistoryIndex(newIndex);
+          setCurrentInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+        } else {
+          setHistoryIndex(-1);
+          setCurrentInput('');
+        }
       }
     }
   };
@@ -285,28 +362,48 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
                 ))}
               </div>
 
-              {/* Input Line */}
-              <form onSubmit={handleSubmit} className="flex-shrink-0 border-t border-gray-700 p-2">
+              {/* Input Line with Autocomplete */}
+              <form onSubmit={handleSubmit} className="flex-shrink-0 border-t border-gray-700 p-2 relative">
+                <AutocompleteDropdown
+                  suggestions={suggestions}
+                  selectedIndex={selectedSuggestion}
+                  inputValue={currentInput}
+                  onSelect={(value) => {
+                    setCurrentInput(value);
+                    setShowSuggestions(false);
+                    inputRef.current?.focus();
+                  }}
+                  visible={showSuggestions}
+                />
                 <div className="flex items-center gap-2 font-mono text-sm">
                   <span className="text-green-400">
                     {vpnSettings.vpnUser}@{vpnSettings.vpnHost}:~$
                   </span>
-                  <Input
-                    ref={inputRef}
-                    value={currentInput}
-                    onChange={(e) => setCurrentInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="flex-1 bg-transparent border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-auto"
-                    placeholder=""
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
+                  <div className="relative flex-1">
+                    <Input
+                      ref={inputRef}
+                      value={currentInput}
+                      onChange={(e) => setCurrentInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      className="flex-1 bg-transparent border-none text-white focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-auto"
+                      placeholder=""
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    {/* Ghost text */}
+                    {ghostText && (
+                      <span className="absolute left-0 top-0 pointer-events-none text-gray-500 font-mono text-sm">
+                        {currentInput}
+                        <span className="text-gray-600">{ghostText}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </form>
 
               {/* Status Bar */}
               <div className="flex-shrink-0 px-4 py-2 bg-gray-800 border-t border-gray-700 flex items-center justify-between text-xs text-gray-400">
-                <span>SSH • {vpnSettings.vpnHost}:{vpnSettings.sshPort}</span>
+                <span>SSH • {vpnSettings.vpnHost}:{vpnSettings.sshPort} • Tab para completar</span>
                 <Button
                   variant="ghost"
                   size="sm"
