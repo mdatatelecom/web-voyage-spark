@@ -152,9 +152,20 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     };
   }, []);
 
-  const connectWebSocket = useCallback(() => {
+  const connectWebSocket = useCallback((useExternalRelay: boolean, relayUrl?: string) => {
     return new Promise<void>((resolve, reject) => {
-      const wsUrl = `wss://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/terminal-proxy`;
+      // Use external relay if configured, otherwise use internal proxy
+      let wsUrl: string;
+      
+      if (useExternalRelay && relayUrl) {
+        // External SSH WebSocket Relay
+        wsUrl = relayUrl;
+        addLine('system', `Usando SSH Relay externo: ${relayUrl}`);
+      } else {
+        // Internal Supabase proxy (simulated mode)
+        wsUrl = `wss://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/terminal-proxy`;
+      }
+      
       console.log('Connecting to WebSocket:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
@@ -178,8 +189,9 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
             case 'session_started':
               promptRef.current = data.prompt;
               addLine('system', data.message);
-              setConnectionMode(data.mode || 'simulated');
-              setHostReachable(data.hostReachable || false);
+              // If external relay confirms real SSH, set mode accordingly
+              setConnectionMode(data.sshReal ? 'real_ssh' : (data.mode || 'simulated'));
+              setHostReachable(data.hostReachable ?? true);
               setIsConnected(true);
               setIsConnecting(false);
               break;
@@ -188,7 +200,7 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
               if (data.prompt) promptRef.current = data.prompt;
               break;
             case 'error':
-              addLine('error', data.message);
+              addLine('error', data.message || data.error);
               break;
             case 'clear':
               setHistory([]);
@@ -199,6 +211,16 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
               break;
             case 'pong':
               console.log('Pong received, latency:', Date.now() - data.timestamp, 'ms');
+              break;
+            case 'auth_required':
+              // External relay requesting authentication
+              addLine('system', 'Autenticação SSH necessária...');
+              break;
+            case 'ssh_ready':
+              // External relay confirmed real SSH connection
+              setConnectionMode('real_ssh');
+              setHostReachable(true);
+              addLine('system', '✓ Conexão SSH real estabelecida');
               break;
           }
         } catch (err) {
@@ -227,28 +249,38 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
 
     setIsConnecting(true);
-    addLine('system', `Conectando via WebSocket proxy...`);
+    
+    const useRelay = vpnSettings.useExternalRelay && !!vpnSettings.sshRelayUrl;
+    
+    if (useRelay) {
+      addLine('system', `Conectando via SSH Relay externo...`);
+    } else {
+      addLine('system', `Conectando via WebSocket proxy (modo simulado)...`);
+    }
     
     try {
-      // First test connectivity
-      const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
-      
-      if (connectionResult.reachable) {
-        addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
-      } else {
-        addLine('system', `⚠ ${connectionResult.message}`);
+      // Test connectivity first (only for internal proxy)
+      if (!useRelay) {
+        const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
+        
+        if (connectionResult.reachable) {
+          addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
+        } else {
+          addLine('system', `⚠ ${connectionResult.message}`);
+        }
       }
 
       // Connect WebSocket
-      await connectWebSocket();
+      await connectWebSocket(useRelay, vpnSettings.sshRelayUrl);
       
-      // Send connect command
+      // Send connect command with credentials
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           type: 'connect',
           host: vpnSettings.vpnHost,
           port: vpnSettings.sshPort,
-          user: vpnSettings.vpnUser
+          user: vpnSettings.vpnUser,
+          password: vpnSettings.vpnPassword // Send password for real SSH via relay
         }));
       }
     } catch (err) {

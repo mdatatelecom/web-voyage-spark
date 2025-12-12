@@ -31,6 +31,7 @@ import {
   Loader2,
   PlayCircle,
   Send,
+  Terminal,
   TestTube,
   Trash2,
   Users,
@@ -42,6 +43,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { ColorPicker } from '@/components/system/ColorPicker';
 import { ChartPreview } from '@/components/system/ChartPreview';
@@ -524,6 +526,43 @@ export default function System() {
                   
                   <Separator />
                   
+                  {/* SSH Relay Configuration */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Terminal className="w-4 h-4" />
+                      SSH WebSocket Relay (Conexão Real)
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Para conexões SSH reais, configure um servidor relay WebSocket externo.
+                    </p>
+                    
+                    <div className="flex items-center gap-4">
+                      <Switch
+                        id="useExternalRelay"
+                        checked={localVpnSettings.useExternalRelay}
+                        onCheckedChange={(checked) => setLocalVpnSettings({ ...localVpnSettings, useExternalRelay: checked })}
+                      />
+                      <Label htmlFor="useExternalRelay">Usar SSH Relay Externo</Label>
+                    </div>
+                    
+                    {localVpnSettings.useExternalRelay && (
+                      <div className="space-y-2">
+                        <Label htmlFor="sshRelayUrl">URL do SSH Relay WebSocket</Label>
+                        <Input
+                          id="sshRelayUrl"
+                          value={localVpnSettings.sshRelayUrl}
+                          onChange={(e) => setLocalVpnSettings({ ...localVpnSettings, sshRelayUrl: e.target.value })}
+                          placeholder="wss://seu-servidor.com/ssh-relay"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Exemplo: wss://meu-vps.com:8080/ssh ou ws://192.168.1.100:3000/ssh
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Separator />
+                  
                   <div className="flex gap-2">
                     <Button
                       onClick={() => saveVpnSettings(localVpnSettings)}
@@ -540,12 +579,14 @@ export default function System() {
                     </Button>
                   </div>
                   
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>Nota:</strong> Após configurar, você pode acessar o terminal via o menu lateral "CLI".
-                      O terminal simula comandos básicos de diagnóstico. Para uma integração SSH real,
-                      seria necessário um servidor proxy WebSocket.
-                    </p>
+                  <div className="bg-muted p-4 rounded-lg space-y-2">
+                    <p className="text-sm font-medium">Como usar SSH Real:</p>
+                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                      <li>Instale o servidor relay em um VPS: <code className="bg-background px-1 rounded">npm install ssh2 ws</code></li>
+                      <li>Execute o relay que aceita WebSocket e conecta via SSH</li>
+                      <li>Configure a URL do relay acima (ex: wss://seu-vps:8080/ssh)</li>
+                      <li>Ative "Usar SSH Relay Externo" e salve</li>
+                    </ol>
                   </div>
                 </div>
               )}

@@ -8,6 +8,8 @@ export interface VpnSettings {
   vpnUser: string;
   vpnPassword: string;
   sshPort: number;
+  sshRelayUrl: string; // External SSH WebSocket Relay URL
+  useExternalRelay: boolean;
 }
 
 const DEFAULT_VPN_SETTINGS: VpnSettings = {
@@ -15,6 +17,8 @@ const DEFAULT_VPN_SETTINGS: VpnSettings = {
   vpnUser: '',
   vpnPassword: '',
   sshPort: 22,
+  sshRelayUrl: '',
+  useExternalRelay: false,
 };
 
 export const useVpnSettings = () => {
@@ -39,6 +43,8 @@ export const useVpnSettings = () => {
           vpnUser: settings.vpnUser || '',
           vpnPassword: settings.vpnPassword || '',
           sshPort: settings.sshPort || 22,
+          sshRelayUrl: settings.sshRelayUrl || '',
+          useExternalRelay: settings.useExternalRelay || false,
         });
       }
     } catch (error) {
@@ -62,6 +68,8 @@ export const useVpnSettings = () => {
         vpnUser: settings.vpnUser,
         vpnPassword: settings.vpnPassword,
         sshPort: settings.sshPort,
+        sshRelayUrl: settings.sshRelayUrl,
+        useExternalRelay: settings.useExternalRelay,
       };
 
       if (existing) {
