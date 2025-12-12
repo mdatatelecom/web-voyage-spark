@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
-import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle, Wifi, WifiOff, Radio } from 'lucide-react';
+import { Terminal, Maximize2, Minimize2, X, Copy, Loader2, AlertCircle, Wifi, WifiOff, RefreshCw, Zap, CheckCircle2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,10 +20,12 @@ interface TerminalDialogProps {
 }
 
 interface TerminalLine {
-  type: 'input' | 'output' | 'error' | 'system';
+  type: 'input' | 'output' | 'error' | 'system' | 'success';
   content: string;
   timestamp: Date;
 }
+
+type ConnectionPhase = 'idle' | 'testing_relay' | 'connecting_ws' | 'authenticating' | 'connected' | 'error';
 
 const SYSTEM_COMMANDS = [
   'help',
@@ -59,12 +61,16 @@ const SYSTEM_COMMANDS = [
   'exit',
 ];
 
+const CONNECTION_TIMEOUT_MS = 15000;
+
 export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const { toast } = useToast();
   const { vpnSettings, isLoading } = useVpnSettings();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [currentInput, setCurrentInput] = useState('');
   const [history, setHistory] = useState<TerminalLine[]>([]);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
@@ -74,10 +80,12 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
   const [wsConnected, setWsConnected] = useState(false);
   const [connectionMode, setConnectionMode] = useState<'simulated' | 'real_ssh'>('simulated');
   const [hostReachable, setHostReachable] = useState(false);
+  const [relayStatus, setRelayStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const promptRef = useRef<string>('');
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Combine command history with system commands for autocomplete
   const suggestions = useMemo(() => {
@@ -142,9 +150,47 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
     }
   };
 
+  // Test relay connectivity
+  const testRelayConnection = async (): Promise<boolean> => {
+    if (!vpnSettings.sshRelayUrl) return false;
+    
+    try {
+      // Convert ws:// to http:// for health check
+      const healthUrl = vpnSettings.sshRelayUrl
+        .replace('wss://', 'https://')
+        .replace('ws://', 'http://')
+        .replace('/ssh', '/health');
+      
+      const response = await fetch(healthUrl, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (response.ok) {
+        setRelayStatus('online');
+        return true;
+      }
+      setRelayStatus('offline');
+      return false;
+    } catch (err) {
+      console.error('Relay health check error:', err);
+      setRelayStatus('offline');
+      return false;
+    }
+  };
+
+  // Clear connection timeout
+  const clearConnectionTimeout = () => {
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+  };
+
   // WebSocket connection cleanup
   useEffect(() => {
     return () => {
+      clearConnectionTimeout();
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -160,20 +206,36 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
       if (useExternalRelay && relayUrl) {
         // External SSH WebSocket Relay
         wsUrl = relayUrl;
-        addLine('system', `Usando SSH Relay externo: ${relayUrl}`);
+        addLine('system', `🔗 Conectando ao SSH Relay: ${relayUrl}`);
       } else {
         // Internal Supabase proxy (simulated mode)
         wsUrl = `wss://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/terminal-proxy`;
+        addLine('system', '🔗 Conectando ao proxy interno...');
       }
       
       console.log('Connecting to WebSocket:', wsUrl);
+      setConnectionPhase('connecting_ws');
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      // Set connection timeout
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (!wsConnected) {
+          ws.close();
+          setConnectionError('Timeout: Conexão demorou muito para responder');
+          setConnectionPhase('error');
+          setIsConnecting(false);
+          reject(new Error('Connection timeout'));
+        }
+      }, CONNECTION_TIMEOUT_MS);
+
       ws.onopen = () => {
         console.log('WebSocket connected');
+        clearConnectionTimeout();
         setWsConnected(true);
+        setConnectionPhase('authenticating');
+        addLine('success', '✓ WebSocket conectado');
         resolve();
       };
 
@@ -188,19 +250,22 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
               break;
             case 'session_started':
               promptRef.current = data.prompt;
-              addLine('system', data.message);
+              addLine('success', `✓ ${data.message}`);
               // If external relay confirms real SSH, set mode accordingly
               setConnectionMode(data.sshReal ? 'real_ssh' : (data.mode || 'simulated'));
               setHostReachable(data.hostReachable ?? true);
               setIsConnected(true);
               setIsConnecting(false);
+              setConnectionPhase('connected');
+              setConnectionError(null);
               break;
             case 'output':
               addLine('output', data.content);
               if (data.prompt) promptRef.current = data.prompt;
               break;
             case 'error':
-              addLine('error', data.message || data.error);
+              addLine('error', `❌ ${data.message || data.error}`);
+              setConnectionError(data.message || data.error);
               break;
             case 'clear':
               setHistory([]);
@@ -208,19 +273,28 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
             case 'disconnected':
               addLine('system', data.message);
               setIsConnected(false);
+              setConnectionPhase('idle');
               break;
             case 'pong':
               console.log('Pong received, latency:', Date.now() - data.timestamp, 'ms');
               break;
             case 'auth_required':
               // External relay requesting authentication
-              addLine('system', 'Autenticação SSH necessária...');
+              setConnectionPhase('authenticating');
+              addLine('system', '🔐 Autenticação SSH em progresso...');
+              break;
+            case 'auth_failed':
+              setConnectionError('Falha na autenticação SSH');
+              setConnectionPhase('error');
+              addLine('error', '❌ Falha na autenticação SSH - verifique usuário/senha');
+              setIsConnecting(false);
               break;
             case 'ssh_ready':
               // External relay confirmed real SSH connection
               setConnectionMode('real_ssh');
               setHostReachable(true);
-              addLine('system', '✓ Conexão SSH real estabelecida');
+              setConnectionPhase('connected');
+              addLine('success', '✓ Conexão SSH real estabelecida');
               break;
           }
         } catch (err) {
@@ -230,43 +304,72 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        clearConnectionTimeout();
         setWsConnected(false);
+        setConnectionError('Erro de conexão WebSocket');
+        setConnectionPhase('error');
         reject(error);
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket closed');
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        clearConnectionTimeout();
         setWsConnected(false);
-        setIsConnected(false);
+        if (isConnected) {
+          setIsConnected(false);
+          addLine('system', '⚠ Conexão encerrada');
+          setConnectionPhase('idle');
+        }
       };
     });
-  }, [addLine]);
+  }, [addLine, wsConnected, isConnected]);
 
   const handleConnect = async () => {
     if (!vpnSettings.vpnHost) {
-      addLine('error', 'Erro: Configure o endereço VPN em Sistema > VPN antes de conectar.');
+      addLine('error', '❌ Configure o endereço VPN em Sistema > VPN antes de conectar.');
       return;
     }
 
     setIsConnecting(true);
+    setConnectionError(null);
+    setHistory([]);
     
     const useRelay = vpnSettings.useExternalRelay && !!vpnSettings.sshRelayUrl;
     
     if (useRelay) {
-      addLine('system', `Conectando via SSH Relay externo...`);
+      addLine('system', `🚀 Iniciando conexão via SSH Relay externo...`);
+      setConnectionPhase('testing_relay');
+      
+      // Test relay health first
+      addLine('system', '⏳ Verificando disponibilidade do relay...');
+      const relayOnline = await testRelayConnection();
+      
+      if (!relayOnline) {
+        addLine('error', '❌ SSH Relay não está acessível. Verifique se o servidor está online.');
+        setConnectionError('SSH Relay offline ou inacessível');
+        setConnectionPhase('error');
+        setIsConnecting(false);
+        return;
+      }
+      
+      addLine('success', '✓ Relay online e acessível');
     } else {
-      addLine('system', `Conectando via WebSocket proxy (modo simulado)...`);
+      addLine('system', `🔧 Conectando via proxy interno (modo simulado)...`);
     }
     
     try {
-      // Test connectivity first (only for internal proxy)
+      // Test host connectivity (for internal proxy)
       if (!useRelay) {
+        setConnectionPhase('testing_relay');
+        addLine('system', '⏳ Testando conectividade com o host...');
         const connectionResult = await testRealConnection(vpnSettings.vpnHost, vpnSettings.sshPort);
         
         if (connectionResult.reachable) {
-          addLine('system', `✓ Host alcançável (${connectionResult.latency}ms)`);
+          addLine('success', `✓ Host alcançável (${connectionResult.latency}ms)`);
+          setHostReachable(true);
         } else {
           addLine('system', `⚠ ${connectionResult.message}`);
+          setHostReachable(false);
         }
       }
 
@@ -275,19 +378,29 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
       
       // Send connect command with credentials
       if (wsRef.current?.readyState === WebSocket.OPEN) {
+        addLine('system', `🔐 Autenticando como ${vpnSettings.vpnUser}@${vpnSettings.vpnHost}...`);
         wsRef.current.send(JSON.stringify({
           type: 'connect',
           host: vpnSettings.vpnHost,
           port: vpnSettings.sshPort,
           user: vpnSettings.vpnUser,
-          password: vpnSettings.vpnPassword // Send password for real SSH via relay
+          password: vpnSettings.vpnPassword
         }));
       }
     } catch (err) {
       console.error('Connection error:', err);
-      addLine('error', 'Falha ao conectar via WebSocket');
+      const errorMsg = err instanceof Error ? err.message : 'Falha ao conectar';
+      addLine('error', `❌ ${errorMsg}`);
+      setConnectionError(errorMsg);
+      setConnectionPhase('error');
       setIsConnecting(false);
     }
+  };
+
+  const handleReconnect = () => {
+    setConnectionError(null);
+    setConnectionPhase('idle');
+    handleConnect();
   };
 
   const handleDisconnect = () => {
@@ -441,7 +554,19 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
       case 'output': return 'text-gray-300';
       case 'error': return 'text-red-400';
       case 'system': return 'text-yellow-400';
+      case 'success': return 'text-emerald-400';
       default: return 'text-gray-300';
+    }
+  };
+
+  const getConnectionPhaseText = () => {
+    switch (connectionPhase) {
+      case 'testing_relay': return 'Verificando relay...';
+      case 'connecting_ws': return 'Conectando WebSocket...';
+      case 'authenticating': return 'Autenticando SSH...';
+      case 'connected': return 'Conectado';
+      case 'error': return 'Erro de conexão';
+      default: return '';
     }
   };
 
@@ -459,13 +584,39 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
               {isConnected ? (
                 <>
                   <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
                     Conectado
                   </Badge>
-                  <Badge variant="outline" className={hostReachable ? "bg-blue-500/20 text-blue-400 border-blue-500" : "bg-yellow-500/20 text-yellow-400 border-yellow-500"}>
-                    {hostReachable ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
-                    {connectionMode === 'real_ssh' ? 'SSH Real' : 'Simulado'}
+                  <Badge 
+                    variant="outline" 
+                    className={connectionMode === 'real_ssh' 
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500 font-semibold" 
+                      : "bg-yellow-500/20 text-yellow-400 border-yellow-500"
+                    }
+                  >
+                    {connectionMode === 'real_ssh' ? (
+                      <>
+                        <Zap className="h-3 w-3 mr-1" />
+                        SSH Real
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="h-3 w-3 mr-1" />
+                        Simulado
+                      </>
+                    )}
                   </Badge>
                 </>
+              ) : isConnecting ? (
+                <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  {getConnectionPhaseText()}
+                </Badge>
+              ) : connectionPhase === 'error' ? (
+                <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Erro
+                </Badge>
               ) : (
                 <Badge variant="outline" className="bg-gray-500/20 text-gray-400 border-gray-500">
                   Desconectado
@@ -511,14 +662,57 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
                     </p>
                   </div>
                 </>
+              ) : connectionPhase === 'error' && connectionError ? (
+                <>
+                  <XCircle className="h-16 w-16 text-red-400" />
+                  <div className="text-center">
+                    <h3 className="text-xl font-semibold text-white mb-2">Falha na conexão</h3>
+                    <p className="text-red-400 mb-2">{connectionError}</p>
+                    <p className="text-gray-500 text-sm mb-4">
+                      Verifique as configurações VPN e a disponibilidade do servidor.
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      <Button
+                        onClick={handleReconnect}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Tentar Novamente
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setConnectionPhase('idle');
+                          setConnectionError(null);
+                        }}
+                        className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <>
                   <Terminal className="h-16 w-16 text-green-400" />
                   <div className="text-center">
                     <h3 className="text-xl font-semibold text-white mb-2">Terminal SSH</h3>
-                    <p className="text-gray-400 mb-4">
+                    <p className="text-gray-400 mb-1">
                       Conectar a {vpnSettings.vpnHost}:{vpnSettings.sshPort}
                     </p>
+                    {vpnSettings.useExternalRelay && vpnSettings.sshRelayUrl && (
+                      <p className="text-xs text-blue-400 mb-4 flex items-center justify-center gap-1">
+                        <Zap className="h-3 w-3" />
+                        Via SSH Relay externo
+                        {relayStatus === 'online' && <span className="text-emerald-400">(online)</span>}
+                        {relayStatus === 'offline' && <span className="text-red-400">(offline)</span>}
+                      </p>
+                    )}
+                    {!vpnSettings.useExternalRelay && (
+                      <p className="text-xs text-yellow-500 mb-4">
+                        Modo simulado (configure SSH Relay para conexão real)
+                      </p>
+                    )}
                     <Button
                       onClick={handleConnect}
                       disabled={isConnecting}
@@ -527,7 +721,7 @@ export const TerminalDialog = ({ open, onOpenChange }: TerminalDialogProps) => {
                       {isConnecting ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Conectando...
+                          {getConnectionPhaseText()}
                         </>
                       ) : (
                         <>
