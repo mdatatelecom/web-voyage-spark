@@ -30,6 +30,7 @@ import AlertSettings from "./pages/AlertSettings";
 import MyConnections from "./pages/MyConnections";
 import NetworkMap from "./pages/NetworkMap";
 import RackComparison from "./pages/RackComparison";
+import CameraMap from "./pages/CameraMap";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -233,6 +234,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <NetworkMap />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cameras/map"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <CameraMap />
                 </ProtectedRoute>
               } 
             />
