@@ -65,6 +65,9 @@ export const useWhatsAppSettings = () => {
           evolutionInstance: savedSettings.evolutionInstance || '',
           isEnabled: savedSettings.isEnabled || false,
           defaultCountryCode: savedSettings.defaultCountryCode || '55',
+          targetType: savedSettings.targetType || 'individual',
+          selectedGroupId: savedSettings.selectedGroupId || null,
+          selectedGroupName: savedSettings.selectedGroupName || null,
         });
       }
     } catch (error) {
@@ -88,6 +91,9 @@ export const useWhatsAppSettings = () => {
         evolutionInstance: newSettings.evolutionInstance,
         isEnabled: newSettings.isEnabled,
         defaultCountryCode: newSettings.defaultCountryCode,
+        targetType: newSettings.targetType || 'individual',
+        selectedGroupId: newSettings.selectedGroupId || null,
+        selectedGroupName: newSettings.selectedGroupName || null,
       };
 
       if (existing) {
