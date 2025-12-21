@@ -47,16 +47,45 @@ export const useTickets = () => {
         description: 'O chamado foi criado com sucesso.',
       });
 
-      // Send WhatsApp notification if contact_phone is provided
+      const message = `🔔 *Novo Chamado Aberto*\n\n` +
+        `Chamado: *${data.ticket_number}*\n` +
+        `Título: ${data.title}\n` +
+        `Prioridade: ${data.priority}\n\n` +
+        `Seu chamado foi registrado com sucesso. Em breve entraremos em contato.\n\n` +
+        `Para mais detalhes, acesse o sistema.`;
+
+      // Check for WhatsApp settings to send to group
+      try {
+        const { data: settingsData } = await supabase
+          .from('system_settings')
+          .select('setting_value')
+          .eq('setting_key', 'whatsapp_settings')
+          .maybeSingle();
+
+        const whatsAppSettings = settingsData?.setting_value as {
+          isEnabled?: boolean;
+          notificationGroupId?: string;
+        } | null;
+
+        // Send to group if configured
+        if (whatsAppSettings?.isEnabled && whatsAppSettings?.notificationGroupId) {
+          console.log('Sending ticket notification to WhatsApp group:', whatsAppSettings.notificationGroupId);
+          await supabase.functions.invoke('send-whatsapp', {
+            body: {
+              action: 'send-group',
+              groupId: whatsAppSettings.notificationGroupId,
+              message,
+              ticketId: data.id,
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Error sending WhatsApp group notification for new ticket:', err);
+      }
+
+      // Send to individual contact if phone is provided
       if (data.contact_phone) {
         try {
-          const message = `🔔 *Novo Chamado Aberto*\n\n` +
-            `Chamado: *${data.ticket_number}*\n` +
-            `Título: ${data.title}\n` +
-            `Prioridade: ${data.priority}\n\n` +
-            `Seu chamado foi registrado com sucesso. Em breve entraremos em contato.\n\n` +
-            `Para mais detalhes, acesse o sistema.`;
-
           await supabase.functions.invoke('send-whatsapp', {
             body: {
               action: 'send',
@@ -100,35 +129,66 @@ export const useTickets = () => {
         description: 'O chamado foi atualizado com sucesso.',
       });
 
-      // Send WhatsApp notification if status was changed and contact_phone exists
-      if (updatedFields.status && data.contact_phone) {
-        try {
-          const statusMessages: Record<string, string> = {
-            open: 'foi reaberto',
-            in_progress: 'está em andamento',
-            resolved: 'foi resolvido',
-            closed: 'foi fechado',
-          };
-          
-          const statusText = statusMessages[updatedFields.status] || `teve o status alterado para ${updatedFields.status}`;
-          
-          const message = `🔔 *Atualização de Chamado*\n\n` +
-            `Chamado: *${data.ticket_number}*\n` +
-            `Título: ${data.title}\n\n` +
-            `O chamado ${statusText}.\n\n` +
-            `Para mais detalhes, acesse o sistema.`;
+      // Send WhatsApp notification if status was changed
+      if (updatedFields.status) {
+        const statusMessages: Record<string, string> = {
+          open: 'foi reaberto',
+          in_progress: 'está em andamento',
+          resolved: 'foi resolvido',
+          closed: 'foi fechado',
+        };
+        
+        const statusText = statusMessages[updatedFields.status] || `teve o status alterado para ${updatedFields.status}`;
+        
+        const message = `🔔 *Atualização de Chamado*\n\n` +
+          `Chamado: *${data.ticket_number}*\n` +
+          `Título: ${data.title}\n\n` +
+          `O chamado ${statusText}.\n\n` +
+          `Para mais detalhes, acesse o sistema.`;
 
-          await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              action: 'send',
-              phone: data.contact_phone,
-              message,
-              ticketId: data.id,
-            },
-          });
+        // Check for WhatsApp settings to send to group
+        try {
+          const { data: settingsData } = await supabase
+            .from('system_settings')
+            .select('setting_value')
+            .eq('setting_key', 'whatsapp_settings')
+            .maybeSingle();
+
+          const whatsAppSettings = settingsData?.setting_value as {
+            isEnabled?: boolean;
+            notificationGroupId?: string;
+          } | null;
+
+          // Send to group if configured
+          if (whatsAppSettings?.isEnabled && whatsAppSettings?.notificationGroupId) {
+            console.log('Sending ticket update notification to WhatsApp group:', whatsAppSettings.notificationGroupId);
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send-group',
+                groupId: whatsAppSettings.notificationGroupId,
+                message,
+                ticketId: data.id,
+              },
+            });
+          }
         } catch (err) {
-          console.error('Error sending WhatsApp notification for ticket update:', err);
-          // Don't show error toast - WhatsApp notification is optional
+          console.error('Error sending WhatsApp group notification for ticket update:', err);
+        }
+
+        // Send to individual contact if phone exists
+        if (data.contact_phone) {
+          try {
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send',
+                phone: data.contact_phone,
+                message,
+                ticketId: data.id,
+              },
+            });
+          } catch (err) {
+            console.error('Error sending WhatsApp notification for ticket update:', err);
+          }
         }
       }
     },
