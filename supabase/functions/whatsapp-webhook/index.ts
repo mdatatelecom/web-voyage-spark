@@ -195,23 +195,54 @@ const checkTicketPermission = async (
   supabase: any,
   ticket: any,
   senderPhone: string
-): Promise<{ allowed: boolean; isOwner: boolean }> => {
+): Promise<{ allowed: boolean; isOwner: boolean; role: string | null }> => {
   const formattedPhone = formatPhoneForQuery(senderPhone);
   
   // Check if sender is the ticket creator (by phone)
   if (ticket.contact_phone) {
     const ticketPhone = formatPhoneForQuery(ticket.contact_phone);
     if (formattedPhone.includes(ticketPhone) || ticketPhone.includes(formattedPhone)) {
-      return { allowed: true, isOwner: true };
+      return { allowed: true, isOwner: true, role: null };
     }
   }
   
-  // Check if user has admin or technician role
-  // First, try to find user by phone in profiles or some user lookup
-  // For now, we'll allow based on phone match only
-  // You could extend this to check user_roles table if you have phone->user mapping
+  // Check if sender is the assigned technician (by phone)
+  if (ticket.technician_phone) {
+    const techPhone = formatPhoneForQuery(ticket.technician_phone);
+    if (formattedPhone.includes(techPhone) || techPhone.includes(formattedPhone)) {
+      return { allowed: true, isOwner: false, role: 'technician' };
+    }
+  }
   
-  return { allowed: false, isOwner: false };
+  // Try to find user by phone in profiles and check their roles
+  // Use last 9 digits for matching (handles country code variations)
+  const phoneDigits = formattedPhone.slice(-9);
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, phone')
+    .or(`phone.ilike.%${phoneDigits}%`)
+    .maybeSingle();
+  
+  if (profile) {
+    // Check if user has admin or technician role
+    const { data: userRoles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', profile.id);
+    
+    const roles = userRoles?.map((r: any) => r.role) || [];
+    
+    if (roles.includes('admin')) {
+      return { allowed: true, isOwner: false, role: 'admin' };
+    }
+    
+    if (roles.includes('technician')) {
+      return { allowed: true, isOwner: false, role: 'technician' };
+    }
+  }
+  
+  return { allowed: false, isOwner: false, role: null };
 };
 
 // Helper to download and upload media to storage
@@ -647,10 +678,14 @@ serve(async (req) => {
           }
 
           // Check permission
-          const { allowed, isOwner } = await checkTicketPermission(supabase, closeTicket, senderPhone);
+          const { allowed, isOwner, role } = await checkTicketPermission(supabase, closeTicket, senderPhone);
           
           if (!allowed) {
-            await sendResponse(`⛔ Você não tem permissão para encerrar este chamado.\nApenas o criador do chamado pode encerrá-lo.`);
+            await sendResponse(
+              `⛔ *Você não tem permissão para encerrar este chamado.*\n\n` +
+              `👤 Apenas o criador do chamado ou administradores/técnicos cadastrados podem encerrá-lo.\n\n` +
+              `💡 Se você é um técnico, peça ao administrador para cadastrar seu número de telefone no sistema.`
+            );
             break;
           }
 
@@ -730,10 +765,14 @@ serve(async (req) => {
           }
 
           // Check permission
-          const { allowed } = await checkTicketPermission(supabase, reopenTicket, senderPhone);
+          const { allowed, role } = await checkTicketPermission(supabase, reopenTicket, senderPhone);
           
           if (!allowed) {
-            await sendResponse(`⛔ Você não tem permissão para reabrir este chamado.\nApenas o criador do chamado pode reabri-lo.`);
+            await sendResponse(
+              `⛔ *Você não tem permissão para reabrir este chamado.*\n\n` +
+              `👤 Apenas o criador do chamado ou administradores/técnicos cadastrados podem reabri-lo.\n\n` +
+              `💡 Se você é um técnico, peça ao administrador para cadastrar seu número de telefone no sistema.`
+            );
             break;
           }
 
@@ -824,10 +863,14 @@ serve(async (req) => {
           }
 
           // Check permission
-          const { allowed } = await checkTicketPermission(supabase, priorityTicket, senderPhone);
+          const { allowed, role } = await checkTicketPermission(supabase, priorityTicket, senderPhone);
           
           if (!allowed) {
-            await sendResponse(`⛔ Você não tem permissão para alterar este chamado.\nApenas o criador do chamado pode alterar a prioridade.`);
+            await sendResponse(
+              `⛔ *Você não tem permissão para alterar este chamado.*\n\n` +
+              `👤 Apenas o criador do chamado ou administradores/técnicos cadastrados podem alterar a prioridade.\n\n` +
+              `💡 Se você é um técnico, peça ao administrador para cadastrar seu número de telefone no sistema.`
+            );
             break;
           }
 
