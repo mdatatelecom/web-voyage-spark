@@ -11,6 +11,16 @@ import {
   DialogContent,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -42,6 +52,7 @@ import {
   X,
   Loader2,
   ZoomIn,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -61,6 +72,61 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// Image compression function
+const compressImage = async (file: File): Promise<File> => {
+  // Skip non-images and GIFs
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      // Max dimensions
+      const MAX_WIDTH = 1920;
+      const MAX_HEIGHT = 1920;
+      
+      let { width, height } = img;
+      
+      // Calculate new dimensions
+      if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+        const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.size < file.size) {
+            // Use compressed version only if smaller
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          } else {
+            // Keep original
+            resolve(file);
+          }
+        },
+        'image/jpeg',
+        0.8 // 80% quality
+      );
+    };
+
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 export default function TicketDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -78,8 +144,12 @@ export default function TicketDetails() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Delete attachment state
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Handle file upload
+  // Handle file upload with compression
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || !ticket) return;
     setUploading(true);
@@ -88,19 +158,21 @@ export default function TicketDetails() {
       const newAttachments = [...((ticket.attachments as any[]) || [])];
       
       for (const file of Array.from(files)) {
-        const fileName = `tickets/${ticket.id}/${Date.now()}-${file.name}`;
+        // Compress images before upload
+        const processedFile = await compressImage(file);
+        const fileName = `tickets/${ticket.id}/${Date.now()}-${processedFile.name}`;
         
         const { data, error } = await supabase.storage
           .from('public')
-          .upload(fileName, file);
+          .upload(fileName, processedFile);
         
         if (!error && data) {
           const { data: urlData } = supabase.storage.from('public').getPublicUrl(data.path);
           newAttachments.push({
             name: file.name,
             url: urlData.publicUrl,
-            type: file.type,
-            size: file.size,
+            type: processedFile.type,
+            size: processedFile.size,
             uploaded_at: new Date().toISOString()
           });
         } else {
@@ -119,6 +191,42 @@ export default function TicketDetails() {
       toast.error('Erro ao adicionar anexos');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Handle delete attachment
+  const handleDeleteAttachment = async () => {
+    if (deleteIndex === null || !ticket) return;
+    setDeleting(true);
+    
+    try {
+      const attachments = (ticket.attachments as any[]) || [];
+      const attachment = attachments[deleteIndex];
+      
+      // Try to delete from storage (extract path from URL)
+      if (attachment?.url) {
+        const url = new URL(attachment.url);
+        const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/(.+)/);
+        if (pathMatch) {
+          await supabase.storage.from('public').remove([pathMatch[1].replace('public/', '')]);
+        }
+      }
+      
+      // Remove from attachments array
+      const newAttachments = attachments.filter((_, idx) => idx !== deleteIndex);
+      
+      await updateTicket.mutateAsync({
+        id: ticket.id,
+        attachments: newAttachments
+      });
+      
+      refetch();
+      toast.success('Anexo removido com sucesso');
+    } catch (error) {
+      toast.error('Erro ao remover anexo');
+    } finally {
+      setDeleting(false);
+      setDeleteIndex(null);
     }
   };
 
@@ -306,8 +414,6 @@ export default function TicketDetails() {
                     {((ticket.attachments as any[]) || []).map((attachment: any, idx: number) => {
                       const getFileIcon = (type: string) => {
                         if (type?.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
-                        if (type?.startsWith('video/')) return <Video className="h-8 w-8 text-purple-500" />;
-                        if (type?.startsWith('audio/')) return <Music className="h-8 w-8 text-blue-500" />;
                         if (type?.includes('word') || type?.includes('document')) return <FileText className="h-8 w-8 text-blue-600" />;
                         if (type?.includes('excel') || type?.includes('spreadsheet')) return <TableIcon className="h-8 w-8 text-green-600" />;
                         return <FileIcon className="h-8 w-8 text-muted-foreground" />;
@@ -321,9 +427,20 @@ export default function TicketDetails() {
                       };
 
                       const isImage = attachment.type?.startsWith('image/');
+                      const isVideo = attachment.type?.startsWith('video/');
+                      const isAudio = attachment.type?.startsWith('audio/');
 
                       return (
                         <div key={idx} className="relative group">
+                          {/* Delete button */}
+                          <button
+                            onClick={() => setDeleteIndex(idx)}
+                            className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-destructive/90"
+                            title="Remover anexo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+
                           {isImage ? (
                             <button
                               onClick={() => setLightboxImage({ url: attachment.url, name: attachment.name })}
@@ -341,6 +458,36 @@ export default function TicketDetails() {
                                 <ZoomIn className="h-4 w-4 text-white drop-shadow-lg" />
                               </div>
                             </button>
+                          ) : isVideo ? (
+                            <div className="relative rounded-lg border overflow-hidden bg-black">
+                              <video
+                                src={attachment.url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-32 object-contain"
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate pointer-events-none">
+                                {attachment.name}
+                              </div>
+                            </div>
+                          ) : isAudio ? (
+                            <div className="flex flex-col p-4 border rounded-lg bg-muted/30 h-32 justify-center">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Music className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                                <span className="text-xs font-medium truncate">{attachment.name}</span>
+                              </div>
+                              <audio
+                                src={attachment.url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-8"
+                              />
+                              {attachment.size && (
+                                <span className="text-xs text-muted-foreground mt-1 text-center">
+                                  {formatFileSize(attachment.size)}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <a
                               href={attachment.url}
@@ -608,6 +755,18 @@ export default function TicketDetails() {
 
                 <Separator />
 
+                {((ticket.attachments as any[]) || []).length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">Anexos</div>
+                      <div className="text-sm text-muted-foreground">
+                        {((ticket.attachments as any[]) || []).length} arquivo(s) anexado(s)
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="text-sm font-medium mb-1">Categoria</div>
                   <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
@@ -706,6 +865,35 @@ export default function TicketDetails() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteIndex !== null} onOpenChange={() => setDeleteIndex(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover anexo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover este anexo? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAttachment}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Removendo...
+                </>
+              ) : (
+                'Remover'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
