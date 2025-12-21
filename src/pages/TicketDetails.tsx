@@ -24,6 +24,12 @@ import {
   Package,
   Phone,
   MessageCircle,
+  FileIcon,
+  ImageIcon,
+  Download,
+  FileText,
+  Music,
+  Video,
 } from 'lucide-react';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
@@ -171,6 +177,27 @@ export default function TicketDetails() {
                     const isWhatsApp = (comment as any).source === 'whatsapp';
                     const senderName = (comment as any).whatsapp_sender_name;
                     const senderPhone = (comment as any).whatsapp_sender_phone;
+                    const attachments = (comment as any).attachments as Array<{
+                      url: string;
+                      type: string;
+                      name: string;
+                      size?: number;
+                    }> | null;
+
+                    const getAttachmentIcon = (type: string) => {
+                      if (type.startsWith('image/')) return <ImageIcon className="h-4 w-4" />;
+                      if (type.startsWith('video/')) return <Video className="h-4 w-4" />;
+                      if (type.startsWith('audio/')) return <Music className="h-4 w-4" />;
+                      if (type.includes('pdf')) return <FileText className="h-4 w-4" />;
+                      return <FileIcon className="h-4 w-4" />;
+                    };
+
+                    const formatFileSize = (bytes?: number) => {
+                      if (!bytes) return '';
+                      if (bytes < 1024) return `${bytes} B`;
+                      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                    };
                     
                     return (
                       <div
@@ -213,6 +240,48 @@ export default function TicketDetails() {
                           </span>
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                        
+                        {/* Attachments */}
+                        {attachments && attachments.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {attachments.map((attachment, idx) => (
+                              <div key={idx} className="flex flex-col gap-2">
+                                {attachment.type.startsWith('image/') ? (
+                                  <a
+                                    href={attachment.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    <img
+                                      src={attachment.url}
+                                      alt={attachment.name}
+                                      className="max-w-xs max-h-48 rounded-lg border border-border object-cover hover:opacity-90 transition-opacity"
+                                    />
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={attachment.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 p-2 rounded-lg border border-border bg-background hover:bg-muted transition-colors max-w-xs"
+                                  >
+                                    {getAttachmentIcon(attachment.type)}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{attachment.name}</p>
+                                      {attachment.size && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {formatFileSize(attachment.size)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Download className="h-4 w-4 text-muted-foreground" />
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })

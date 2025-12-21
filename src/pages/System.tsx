@@ -158,7 +158,9 @@ export default function System() {
     deleteInstance: deleteWhatsAppInstance,
     logoutInstance: logoutWhatsAppInstance,
     connectInstance: connectWhatsAppInstance,
-    sendTestMessage: sendWhatsAppTestMessage
+    sendTestMessage: sendWhatsAppTestMessage,
+    configureWebhook: configureWhatsAppWebhook,
+    isConfiguringWebhook: whatsAppConfiguringWebhook
   } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -1304,6 +1306,25 @@ export default function System() {
                         <Wifi className="w-4 h-4 mr-2" />
                       )}
                       Testar Conexão
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        await configureWhatsAppWebhook(
+                          localWhatsAppSettings.evolutionInstance,
+                          localWhatsAppSettings.evolutionApiUrl,
+                          localWhatsAppSettings.evolutionApiKey
+                        );
+                      }}
+                      disabled={!localWhatsAppSettings.evolutionApiUrl || !localWhatsAppSettings.evolutionApiKey || !localWhatsAppSettings.evolutionInstance || whatsAppConfiguringWebhook}
+                    >
+                      {whatsAppConfiguringWebhook ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Globe className="w-4 h-4 mr-2" />
+                      )}
+                      Configurar Webhook
                     </Button>
                     
                     <Button
