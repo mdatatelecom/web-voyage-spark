@@ -125,7 +125,16 @@ export default function System() {
   const [relayTestMessage, setRelayTestMessage] = useState<string>('');
 
   // WhatsApp Settings
-  const { settings: whatsAppSettings, isLoading: whatsAppLoading, isTesting: whatsAppTesting, saveSettings: saveWhatsAppSettings, testConnection: testWhatsAppConnection } = useWhatsAppSettings();
+  const { 
+    settings: whatsAppSettings, 
+    isLoading: whatsAppLoading, 
+    isTesting: whatsAppTesting, 
+    instances: whatsAppInstances,
+    isLoadingInstances: whatsAppLoadingInstances,
+    saveSettings: saveWhatsAppSettings, 
+    testConnection: testWhatsAppConnection,
+    listInstances: listWhatsAppInstances
+  } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
   const [whatsAppTestStatus, setWhatsAppTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -801,20 +810,66 @@ export default function System() {
                       </p>
                     </div>
                     
-                    {/* Nome da Instância */}
+                    {/* Nome da Instância - Dropdown */}
                     <div className="space-y-2">
                       <Label htmlFor="evolutionInstance">Nome da Instância</Label>
-                      <Input
-                        id="evolutionInstance"
-                        value={localWhatsAppSettings.evolutionInstance}
-                        onChange={(e) => setLocalWhatsAppSettings({ 
-                          ...localWhatsAppSettings, 
-                          evolutionInstance: e.target.value 
-                        })}
-                        placeholder="chamados"
-                      />
+                      <div className="flex gap-2">
+                        <Select
+                          value={localWhatsAppSettings.evolutionInstance}
+                          onValueChange={(value) => setLocalWhatsAppSettings({ 
+                            ...localWhatsAppSettings, 
+                            evolutionInstance: value 
+                          })}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Selecione uma instância" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {whatsAppInstances.length > 0 ? (
+                              whatsAppInstances.map((instance) => (
+                                <SelectItem key={instance.name} value={instance.name}>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${
+                                      instance.state === 'open' || instance.state === 'connected' 
+                                        ? 'bg-green-500' 
+                                        : 'bg-yellow-500'
+                                    }`} />
+                                    {instance.name}
+                                    {instance.profileName && (
+                                      <span className="text-muted-foreground text-xs">
+                                        ({instance.profileName})
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="_empty" disabled>
+                                Clique em "Buscar" para listar instâncias
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => listWhatsAppInstances(
+                            localWhatsAppSettings.evolutionApiUrl,
+                            localWhatsAppSettings.evolutionApiKey
+                          )}
+                          disabled={!localWhatsAppSettings.evolutionApiUrl || !localWhatsAppSettings.evolutionApiKey || whatsAppLoadingInstances}
+                          title="Buscar instâncias disponíveis"
+                        >
+                          {whatsAppLoadingInstances ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Nome da instância do WhatsApp configurada na Evolution
+                        Configure URL e API Key primeiro, depois clique em buscar para listar as instâncias
                       </p>
                     </div>
                     

@@ -19,11 +19,21 @@ const DEFAULT_WHATSAPP_SETTINGS: WhatsAppSettings = {
   defaultCountryCode: '55',
 };
 
+export interface EvolutionInstance {
+  name: string;
+  displayName: string;
+  state: string;
+  profileName: string | null;
+  profilePictureUrl: string | null;
+}
+
 export const useWhatsAppSettings = () => {
   const { toast } = useToast();
   const [settings, setSettings] = useState<WhatsAppSettings>(DEFAULT_WHATSAPP_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
+  const [instances, setInstances] = useState<EvolutionInstance[]>([]);
+  const [isLoadingInstances, setIsLoadingInstances] = useState(false);
 
   const loadSettings = async () => {
     try {
@@ -137,6 +147,52 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const listInstances = async (apiUrl: string, apiKey: string): Promise<EvolutionInstance[]> => {
+    if (!apiUrl || !apiKey) {
+      return [];
+    }
+
+    setIsLoadingInstances(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'list-instances',
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && Array.isArray(data.instances)) {
+        setInstances(data.instances);
+        return data.instances;
+      } else {
+        toast({
+          title: 'Aviso',
+          description: data?.message || 'Nenhuma instância encontrada',
+          variant: 'destructive',
+        });
+        return [];
+      }
+    } catch (error) {
+      console.error('Erro ao listar instâncias:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível listar as instâncias',
+        variant: 'destructive',
+      });
+      return [];
+    } finally {
+      setIsLoadingInstances(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -145,7 +201,10 @@ export const useWhatsAppSettings = () => {
     settings,
     isLoading,
     isTesting,
+    instances,
+    isLoadingInstances,
     saveSettings,
     testConnection,
+    listInstances,
   };
 };
