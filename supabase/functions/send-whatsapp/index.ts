@@ -16,17 +16,53 @@ interface WhatsAppSettings {
 
 // Helper function to format phone number with country code
 function formatPhoneNumber(phone: string, defaultCountryCode: string = '55'): string {
-  // Clean country code - keep only digits and limit to 3 chars
-  // This handles cases where defaultCountryCode might have garbage data
-  const cleanedCountryCode = defaultCountryCode.replace(/\D/g, '').slice(0, 3) || '55';
+  // Clean country code - keep only digits and limit to 2-3 chars (country codes are 1-3 digits)
+  // This handles cases where defaultCountryCode might have garbage data like "5511 978707217"
+  let cleanedCountryCode = defaultCountryCode.replace(/\D/g, '');
+  
+  // Country codes are max 3 digits (e.g., 55 for Brazil, 1 for USA, 353 for Ireland)
+  // If longer, it likely contains phone number data - extract just first 2-3 digits
+  if (cleanedCountryCode.length > 3) {
+    // For Brazil-like codes starting with 55, take first 2
+    if (cleanedCountryCode.startsWith('55')) {
+      cleanedCountryCode = '55';
+    } else if (cleanedCountryCode.startsWith('1')) {
+      cleanedCountryCode = '1';
+    } else {
+      cleanedCountryCode = cleanedCountryCode.slice(0, 2);
+    }
+    console.warn(`Country code was too long, cleaned to: ${cleanedCountryCode}`);
+  }
+  
+  cleanedCountryCode = cleanedCountryCode || '55';
   
   // Remove all non-numeric characters from phone
   let cleaned = phone.replace(/\D/g, '');
+  
+  // Validate phone length - Brazilian numbers are 12-13 digits with country code
+  // International numbers vary but rarely exceed 15 digits total
+  if (cleaned.length > 15) {
+    console.warn(`Phone number too long (${cleaned.length} digits), truncating: ${cleaned}`);
+    cleaned = cleaned.slice(0, 15);
+  }
+  
+  // If phone is too short, it's likely invalid
+  if (cleaned.length < 8) {
+    console.warn(`Phone number too short (${cleaned.length} digits): ${cleaned}`);
+  }
   
   // If doesn't start with country code, add it
   if (!cleaned.startsWith(cleanedCountryCode)) {
     cleaned = cleanedCountryCode + cleaned;
   }
+  
+  // Final length check after adding country code
+  if (cleaned.length > 15) {
+    console.warn(`Final phone number too long, truncating to 15 digits: ${cleaned}`);
+    cleaned = cleaned.slice(0, 15);
+  }
+  
+  console.log(`formatPhoneNumber: input="${phone}", countryCode="${defaultCountryCode}" -> cleaned="${cleanedCountryCode}", result="${cleaned}"`);
   
   return cleaned;
 }
@@ -877,17 +913,38 @@ serve(async (req) => {
           if (response.status === 401) {
             errorMsg = 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.';
           } else if (response.status === 400 && errorData?.response?.message) {
-            // Check for "number not exists" error
-            const notExistsEntry = Array.isArray(errorData.response.message) 
-              ? errorData.response.message.find((m: any) => m.exists === false)
-              : null;
-            if (notExistsEntry) {
-              errorMsg = `O número ${notExistsEntry.number || formattedPhone} não está registrado no WhatsApp`;
+            // Parse Evolution API error messages properly
+            const messages = errorData.response.message;
+            if (Array.isArray(messages)) {
+              const parsedMessages: string[] = [];
+              for (const m of messages) {
+                if (typeof m === 'string') {
+                  parsedMessages.push(m);
+                } else if (m?.exists === false) {
+                  // Number not registered on WhatsApp
+                  parsedMessages.push(`Número ${m.number || formattedPhone} não está registrado no WhatsApp`);
+                } else if (m?.message) {
+                  parsedMessages.push(m.message);
+                } else if (m?.error) {
+                  parsedMessages.push(m.error);
+                } else {
+                  // Fallback - stringify but handle [object Object]
+                  const str = JSON.stringify(m);
+                  if (str !== '{}') {
+                    parsedMessages.push(str);
+                  }
+                }
+              }
+              errorMsg = parsedMessages.length > 0 
+                ? parsedMessages.join('; ') 
+                : `Erro 400: Verifique o formato do número (${formattedPhone})`;
+            } else if (typeof messages === 'object') {
+              errorMsg = JSON.stringify(messages);
             } else {
-              errorMsg = Array.isArray(errorData.response.message) 
-                ? errorData.response.message.map((m: any) => m.message || JSON.stringify(m)).join(', ')
-                : String(errorData.response.message);
+              errorMsg = String(messages);
             }
+          } else if (response.status === 400) {
+            errorMsg = `Erro 400: Número inválido ou mal formatado (${formattedPhone})`;
           }
           
           // Log failed message - always log regardless of ticketId
@@ -1002,9 +1059,32 @@ serve(async (req) => {
           if (response.status === 401) {
             errorMsg = 'Erro de autenticação (401): Verifique a API Key.';
           } else if (errorData?.response?.message) {
-            errorMsg = Array.isArray(errorData.response.message) 
-              ? errorData.response.message.map((m: any) => m.message || JSON.stringify(m)).join(', ')
-              : String(errorData.response.message);
+            // Parse Evolution API error messages properly (same logic as send action)
+            const messages = errorData.response.message;
+            if (Array.isArray(messages)) {
+              const parsedMessages: string[] = [];
+              for (const m of messages) {
+                if (typeof m === 'string') {
+                  parsedMessages.push(m);
+                } else if (m?.message) {
+                  parsedMessages.push(m.message);
+                } else if (m?.error) {
+                  parsedMessages.push(m.error);
+                } else {
+                  const str = JSON.stringify(m);
+                  if (str !== '{}') {
+                    parsedMessages.push(str);
+                  }
+                }
+              }
+              errorMsg = parsedMessages.length > 0 
+                ? parsedMessages.join('; ') 
+                : `Erro ao enviar para grupo: ${response.status}`;
+            } else if (typeof messages === 'object') {
+              errorMsg = JSON.stringify(messages);
+            } else {
+              errorMsg = String(messages);
+            }
           }
           
           // Log failed message
