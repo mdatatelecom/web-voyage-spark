@@ -1,0 +1,226 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface WhatsAppSettings {
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstance: string;
+  isEnabled: boolean;
+  defaultCountryCode: string;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { action, phone, message, ticketId, settings: providedSettings } = await req.json();
+
+    console.log('WhatsApp function called with action:', action);
+
+    // Get settings from database or use provided ones
+    let settings: WhatsAppSettings;
+
+    if (providedSettings) {
+      settings = providedSettings;
+    } else {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'whatsapp_settings')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching WhatsApp settings:', error);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Erro ao buscar configurações' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      }
+
+      if (!data?.setting_value) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Configurações do WhatsApp não encontradas' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      settings = data.setting_value as WhatsAppSettings;
+    }
+
+    // Validate settings
+    if (!settings.evolutionApiUrl || !settings.evolutionApiKey || !settings.evolutionInstance) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Configurações incompletas' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    // Clean up API URL
+    const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+
+    if (action === 'test') {
+      // Test connection by checking instance status
+      console.log('Testing connection to Evolution API...');
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/connectionState/${settings.evolutionInstance}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Evolution API error:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Erro da API: ${response.status} - ${errorText}` 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Evolution API response:', data);
+
+        const state = data?.instance?.state || data?.state || 'unknown';
+        
+        if (state === 'open' || state === 'connected') {
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: `WhatsApp conectado (${settings.evolutionInstance})` 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `WhatsApp não conectado. Estado: ${state}` 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (fetchError: unknown) {
+        console.error('Fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro de conexão: ${errorMessage}` 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    if (action === 'send') {
+      if (!phone || !message) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Telefone e mensagem são obrigatórios' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Sending WhatsApp message to:', phone);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: phone,
+              text: message,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Evolution API send error:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Erro ao enviar: ${response.status}` 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Message sent successfully:', data);
+
+        // Log to whatsapp_notifications table
+        if (ticketId) {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const supabase = createClient(supabaseUrl, supabaseKey);
+
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId,
+            phone_number: phone,
+            message_content: message,
+            message_type: 'notification',
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+          });
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Mensagem enviada com sucesso', data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Send fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro ao enviar: ${errorMessage}` 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ success: false, message: 'Ação inválida' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    );
+
+  } catch (error: unknown) {
+    console.error('Error in send-whatsapp function:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    return new Response(
+      JSON.stringify({ success: false, message: errorMessage }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+});

@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.terminal-proxy]
 verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = true
