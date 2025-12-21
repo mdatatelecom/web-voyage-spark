@@ -70,6 +70,72 @@ serve(async (req) => {
     // Clean up API URL
     const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
 
+    if (action === 'list-instances') {
+      // List all available instances
+      console.log('Listing Evolution API instances...');
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/fetchInstances`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API list instances response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Evolution API list instances error:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Erro ao listar instâncias: ${response.status}`,
+              instances: []
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const instances = await response.json();
+        console.log('Instances found:', instances);
+
+        // Extract instance names from the response
+        const instanceList = Array.isArray(instances) 
+          ? instances.map((inst: any) => ({
+              name: inst.instance?.instanceName || inst.instanceName || inst.name,
+              displayName: inst.instance?.instanceName || inst.instanceName || inst.name,
+              state: inst.instance?.state || inst.state || 'unknown',
+              profileName: inst.instance?.profileName || inst.profileName || null,
+              profilePictureUrl: inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
+            }))
+          : [];
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            instances: instanceList 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('List instances fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro de conexão: ${errorMessage}`,
+            instances: []
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'test') {
       // Test connection by checking instance status
       console.log('Testing connection to Evolution API...');
