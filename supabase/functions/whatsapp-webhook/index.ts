@@ -999,13 +999,12 @@ serve(async (req) => {
           }
 
           // Check permission
-          const { allowed, isOwner, role } = await checkTicketPermission(supabase, closeTicket, senderPhone);
+          const { allowed } = await checkTicketPermission(supabase, closeTicket, senderPhone);
           
           if (!allowed) {
             await sendResponse(
               `⛔ *Você não tem permissão para encerrar este chamado.*\n\n` +
-              `👤 Apenas o criador do chamado ou administradores/técnicos cadastrados podem encerrá-lo.\n\n` +
-              `💡 Se você é um técnico, peça ao administrador para cadastrar seu número de telefone no sistema.`
+              `👤 Apenas o criador do chamado ou administradores/técnicos cadastrados podem encerrá-lo.`
             );
             break;
           }
@@ -1015,53 +1014,25 @@ serve(async (req) => {
             break;
           }
 
-          // Close the ticket
-          const { error: updateError } = await supabase
-            .from('support_tickets')
-            .update({ 
-              status: 'closed',
-              closed_at: new Date().toISOString()
-            })
-            .eq('id', closeTicket.id);
-
-          if (updateError) {
-            console.error('❌ Error closing ticket:', updateError);
-            await sendResponse(`❌ Erro ao encerrar chamado. Tente novamente.`);
-            break;
-          }
-
-          // Add system comment
-          await supabase
-            .from('ticket_comments')
-            .insert({
-              ticket_id: closeTicket.id,
-              user_id: '00000000-0000-0000-0000-000000000000',
-              comment: `Chamado encerrado via WhatsApp por ${pushName}`,
-              is_internal: false,
-              source: 'whatsapp',
-              whatsapp_sender_name: pushName,
-              whatsapp_sender_phone: senderPhone
-            });
-
-          // Calculate duration
-          const createdAt = new Date(closeTicket.created_at!);
-          const closedAt = new Date();
-          const durationMs = closedAt.getTime() - createdAt.getTime();
-          const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
-          const durationHours = Math.floor((durationMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          
-          let durationText = '';
-          if (durationDays > 0) {
-            durationText = `${durationDays} dia(s) e ${durationHours} hora(s)`;
-          } else {
-            durationText = `${durationHours} hora(s)`;
-          }
+          // Create confirmation session instead of executing directly
+          await supabase.from('whatsapp_sessions').upsert({
+            phone: senderPhone,
+            state: 'confirm_close',
+            data: { 
+              ticket_id: closeTicket.id, 
+              ticket_number: closeTicket.ticket_number,
+              ticket_title: closeTicket.title 
+            },
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'phone' });
 
           await sendResponse(
-            `✅ *Chamado ${ticketNum} Encerrado*\n\n` +
-            `📋 ${closeTicket.title}\n` +
-            `⏱️ Tempo total: ${durationText}\n\n` +
-            `Obrigado por usar nosso sistema de suporte!`
+            `⚠️ *Confirmar Encerramento*\n\n` +
+            `📋 *${closeTicket.ticket_number}*\n` +
+            `📝 ${closeTicket.title}\n\n` +
+            `Tem certeza que deseja *encerrar definitivamente*?\n\n` +
+            `✅ Responda *sim* para confirmar\n` +
+            `❌ Responda *nao* para cancelar`
           );
           break;
         }
@@ -1255,75 +1226,25 @@ serve(async (req) => {
             break;
           }
 
-          // Update to resolved
-          const { error: updateError } = await supabase
-            .from('support_tickets')
-            .update({ 
-              status: 'resolved',
-              resolved_at: new Date().toISOString()
-            })
-            .eq('id', resolveTicket.id);
-
-          if (updateError) {
-            console.error('❌ Error resolving ticket:', updateError);
-            await sendResponse(`❌ Erro ao resolver chamado. Tente novamente.`);
-            break;
-          }
-
-          // Add comment
-          await supabase
-            .from('ticket_comments')
-            .insert({
-              ticket_id: resolveTicket.id,
-              user_id: '00000000-0000-0000-0000-000000000000',
-              comment: `Chamado marcado como resolvido via WhatsApp por ${pushName}`,
-              is_internal: false,
-              source: 'whatsapp',
-              whatsapp_sender_name: pushName,
-              whatsapp_sender_phone: senderPhone
-            });
-
-          // Notify client if has contact_phone
-          if (resolveTicket.contact_phone && settings) {
-            const clientPhone = formatPhoneForQuery(resolveTicket.contact_phone);
-            const senderPhoneClean = formatPhoneForQuery(senderPhone);
-            
-            // Don't notify if sender is the client
-            if (!clientPhone.includes(senderPhoneClean.slice(-9)) && !senderPhoneClean.includes(clientPhone.slice(-9))) {
-              const clientMsg = `✅ *Chamado Resolvido*\n\n` +
-                `📋 ${resolveTicket.ticket_number}\n` +
-                `${resolveTicket.title}\n\n` +
-                `Seu chamado foi marcado como resolvido.\n\n` +
-                `💡 Se precisar reabrir, use: *reabrir ${resolveTicket.ticket_number.split('-')[2]}*`;
-              
-              const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
-              try {
-                await fetch(
-                  `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'apikey': settings.evolutionApiKey,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      number: resolveTicket.contact_phone,
-                      text: clientMsg,
-                    }),
-                  }
-                );
-                console.log('✅ Client notified about resolution');
-              } catch (notifyErr) {
-                console.error('⚠️ Error notifying client:', notifyErr);
-              }
-            }
-          }
+          // Create confirmation session instead of executing directly
+          await supabase.from('whatsapp_sessions').upsert({
+            phone: senderPhone,
+            state: 'confirm_resolve',
+            data: { 
+              ticket_id: resolveTicket.id, 
+              ticket_number: resolveTicket.ticket_number,
+              ticket_title: resolveTicket.title 
+            },
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'phone' });
 
           await sendResponse(
-            `✅ *Chamado ${ticketNum} Resolvido*\n\n` +
-            `📋 ${resolveTicket.title}\n` +
-            `${getStatusEmoji('resolved')} Status: Resolvido\n\n` +
-            `💡 Use *encerrar ${ticketNum.split('-')[2]}* para fechar definitivamente.`
+            `⚠️ *Confirmar Resolução*\n\n` +
+            `📋 *${resolveTicket.ticket_number}*\n` +
+            `📝 ${resolveTicket.title}\n\n` +
+            `Tem certeza que deseja marcar como *resolvido*?\n\n` +
+            `✅ Responda *sim* para confirmar\n` +
+            `❌ Responda *nao* para cancelar`
           );
           break;
         }
