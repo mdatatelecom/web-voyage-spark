@@ -14,6 +14,19 @@ interface WhatsAppSettings {
   defaultCountryCode: string;
 }
 
+// Helper function to format phone number with country code
+function formatPhoneNumber(phone: string, defaultCountryCode: string = '55'): string {
+  // Remove all non-numeric characters
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If doesn't start with country code, add it
+  if (!cleaned.startsWith(defaultCountryCode)) {
+    cleaned = defaultCountryCode + cleaned;
+  }
+  
+  return cleaned;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -691,8 +704,10 @@ serve(async (req) => {
         );
       }
 
+      // Format phone number with country code
+      const formattedPhone = formatPhoneNumber(phone, settings.defaultCountryCode || '55');
       const testMessage = message || '✅ Teste de integração WhatsApp realizado com sucesso! - Sistema de Racks';
-      console.log('Sending test WhatsApp message to:', phone);
+      console.log('Sending test WhatsApp message - Original:', phone, '-> Formatted:', formattedPhone);
 
       // Initialize supabase client for logging
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -709,7 +724,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              number: phone,
+              number: formattedPhone,
               text: testMessage,
             }),
           }
@@ -719,15 +734,27 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Evolution API send-test error:', errorData);
+          console.error('Evolution API send-test error:', {
+            status: response.status,
+            error: errorData?.error,
+            response: errorData?.response
+          });
           
           let errorMsg = `Erro ${response.status}`;
           if (response.status === 401) {
             errorMsg = 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.';
-          } else if (errorData?.response?.message) {
-            errorMsg = Array.isArray(errorData.response.message) 
-              ? errorData.response.message.join(', ') 
-              : String(errorData.response.message);
+          } else if (response.status === 400 && errorData?.response?.message) {
+            // Check for "number not exists" error
+            const notExistsEntry = Array.isArray(errorData.response.message) 
+              ? errorData.response.message.find((m: any) => m.exists === false)
+              : null;
+            if (notExistsEntry) {
+              errorMsg = `O número ${notExistsEntry.number || formattedPhone} não está registrado no WhatsApp`;
+            } else {
+              errorMsg = Array.isArray(errorData.response.message) 
+                ? errorData.response.message.map((m: any) => m.message || JSON.stringify(m)).join(', ')
+                : String(errorData.response.message);
+            }
           } else if (errorData?.message) {
             errorMsg = String(errorData.message);
           }
@@ -735,7 +762,7 @@ serve(async (req) => {
           // Log failed test message
           await supabase.from('whatsapp_notifications').insert({
             ticket_id: null,
-            phone_number: phone,
+            phone_number: formattedPhone,
             message_content: testMessage,
             message_type: 'test',
             status: 'error',
@@ -751,12 +778,12 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        console.log('Test message sent successfully:', data);
+        console.log('Test message sent successfully to:', formattedPhone, 'Data:', data);
 
         // Log successful test message
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: null,
-          phone_number: phone,
+          phone_number: formattedPhone,
           message_content: testMessage,
           message_type: 'test',
           status: 'sent',
@@ -768,7 +795,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: `Mensagem de teste enviada para ${phone}!`,
+            message: `Mensagem de teste enviada para ${formattedPhone}!`,
             data 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -780,7 +807,7 @@ serve(async (req) => {
         // Log failed test message
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: null,
-          phone_number: phone,
+          phone_number: formattedPhone,
           message_content: testMessage,
           message_type: 'test',
           status: 'error',
@@ -804,7 +831,9 @@ serve(async (req) => {
         );
       }
 
-      console.log('Sending WhatsApp message to:', phone);
+      // Format phone number with country code
+      const formattedPhone = formatPhoneNumber(phone, settings.defaultCountryCode || '55');
+      console.log('Sending WhatsApp message - Original:', phone, '-> Formatted:', formattedPhone);
 
       // Initialize supabase client for logging
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -824,7 +853,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              number: phone,
+              number: formattedPhone,
               text: message,
             }),
           }
@@ -834,17 +863,33 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Evolution API send error:', errorData);
+          console.error('Evolution API send error:', {
+            status: response.status,
+            error: errorData?.error,
+            response: errorData?.response
+          });
           
           let errorMsg = `Erro ao enviar: ${response.status}`;
           if (response.status === 401) {
             errorMsg = 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.';
+          } else if (response.status === 400 && errorData?.response?.message) {
+            // Check for "number not exists" error
+            const notExistsEntry = Array.isArray(errorData.response.message) 
+              ? errorData.response.message.find((m: any) => m.exists === false)
+              : null;
+            if (notExistsEntry) {
+              errorMsg = `O número ${notExistsEntry.number || formattedPhone} não está registrado no WhatsApp`;
+            } else {
+              errorMsg = Array.isArray(errorData.response.message) 
+                ? errorData.response.message.map((m: any) => m.message || JSON.stringify(m)).join(', ')
+                : String(errorData.response.message);
+            }
           }
           
           // Log failed message - always log regardless of ticketId
           await supabase.from('whatsapp_notifications').insert({
             ticket_id: ticketId || null,
-            phone_number: phone,
+            phone_number: formattedPhone,
             message_content: message,
             message_type: messageType,
             status: 'error',
@@ -863,12 +908,12 @@ serve(async (req) => {
         }
 
         const data = await response.json();
-        console.log('Message sent successfully:', data);
+        console.log('Message sent successfully to:', formattedPhone, 'Data:', data);
 
         // Log successful message - always log regardless of ticketId
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
-          phone_number: phone,
+          phone_number: formattedPhone,
           message_content: message,
           message_type: messageType,
           status: 'sent',
@@ -888,7 +933,7 @@ serve(async (req) => {
         // Log failed message
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
-          phone_number: phone,
+          phone_number: formattedPhone,
           message_content: message,
           message_type: messageType,
           status: 'error',
