@@ -131,13 +131,14 @@ serve(async (req) => {
         console.log('Instances found:', instances);
 
         // Extract instance names from the response
+        // Note: Evolution API returns 'connectionStatus' not 'state'
         const instanceList = Array.isArray(instances) 
           ? instances.map((inst: any) => ({
               name: inst.instance?.instanceName || inst.instanceName || inst.name,
               displayName: inst.instance?.instanceName || inst.instanceName || inst.name,
-              state: inst.instance?.state || inst.state || 'unknown',
+              state: inst.connectionStatus || inst.instance?.state || inst.state || 'unknown',
               profileName: inst.instance?.profileName || inst.profileName || null,
-              profilePictureUrl: inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
+              profilePictureUrl: inst.profilePicUrl || inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
             }))
           : [];
 
