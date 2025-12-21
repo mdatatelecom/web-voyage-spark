@@ -62,12 +62,22 @@ serve(async (req) => {
     // Clean up API URL
     const apiUrl = settings.evolutionApiUrl ? settings.evolutionApiUrl.replace(/\/$/, '') : '';
 
+    // Debug log for API Key (masked for security)
+    const apiKeyClean = settings.evolutionApiKey?.trim() || '';
+    console.log('Evolution API config:', {
+      url: apiUrl,
+      keyLength: apiKeyClean.length,
+      keyPreview: apiKeyClean.length > 8 
+        ? `${apiKeyClean.substring(0, 4)}...${apiKeyClean.slice(-4)}` 
+        : apiKeyClean.length > 0 ? '****' : 'N/A'
+    });
+
     // Actions that don't require evolutionInstance
     const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance', 'connect-instance'];
     
     // Validate settings based on action
     if (!actionsWithoutInstance.includes(action)) {
-      if (!settings.evolutionApiUrl || !settings.evolutionApiKey || !settings.evolutionInstance) {
+      if (!settings.evolutionApiUrl || !apiKeyClean || !settings.evolutionInstance) {
         return new Response(
           JSON.stringify({ success: false, message: 'Configurações incompletas' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -75,13 +85,16 @@ serve(async (req) => {
       }
     } else {
       // For actions without instance, just validate URL and key
-      if (!settings.evolutionApiUrl || !settings.evolutionApiKey) {
+      if (!settings.evolutionApiUrl || !apiKeyClean) {
         return new Response(
           JSON.stringify({ success: false, message: 'URL e API Key são obrigatórios' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
       }
     }
+    
+    // Use cleaned API Key for all requests
+    settings.evolutionApiKey = apiKeyClean;
 
     if (action === 'list-instances') {
       // List all available instances

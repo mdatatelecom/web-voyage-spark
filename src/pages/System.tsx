@@ -978,18 +978,34 @@ export default function System() {
                             {whatsAppInstances.length > 0 ? (
                               whatsAppInstances.map((instance) => (
                                 <SelectItem key={instance.name} value={instance.name}>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${
-                                      instance.state === 'open' || instance.state === 'connected' 
-                                        ? 'bg-green-500' 
-                                        : 'bg-yellow-500'
-                                    }`} />
-                                    {instance.name}
+                                  <div className="flex items-center gap-2 w-full">
+                                    {instance.state === 'open' || instance.state === 'connected' ? (
+                                      <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                                    ) : instance.state === 'close' ? (
+                                      <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                                    ) : (
+                                      <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
+                                    )}
+                                    <span className="truncate">{instance.name}</span>
                                     {instance.profileName && (
-                                      <span className="text-muted-foreground text-xs">
+                                      <span className="text-muted-foreground text-xs truncate">
                                         ({instance.profileName})
                                       </span>
                                     )}
+                                    <Badge 
+                                      variant={
+                                        instance.state === 'open' || instance.state === 'connected' 
+                                          ? 'default' 
+                                          : 'secondary'
+                                      } 
+                                      className="ml-auto text-xs shrink-0"
+                                    >
+                                      {instance.state === 'open' || instance.state === 'connected' 
+                                        ? 'Conectado' 
+                                        : instance.state === 'close' 
+                                          ? 'Desconectado' 
+                                          : instance.state || 'Pendente'}
+                                    </Badge>
                                   </div>
                                 </SelectItem>
                               ))
@@ -1053,6 +1069,25 @@ export default function System() {
                       <p className="text-xs text-muted-foreground">
                         Buscar (↻), Criar (+), Reconectar (📶) ou Excluir (🗑️) instâncias
                       </p>
+                      {localWhatsAppSettings.evolutionInstance && whatsAppInstances.length > 0 && (
+                        <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/50">
+                          {(() => {
+                            const selectedInstance = whatsAppInstances.find(i => i.name === localWhatsAppSettings.evolutionInstance);
+                            const isConnected = selectedInstance?.state === 'open' || selectedInstance?.state === 'connected';
+                            return isConnected ? (
+                              <>
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                <span className="text-sm text-green-600 dark:text-green-400">WhatsApp conectado</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 text-destructive" />
+                                <span className="text-sm text-destructive">WhatsApp desconectado - clique em reconectar</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                     
                     {/* API Key */}
