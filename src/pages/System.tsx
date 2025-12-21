@@ -31,6 +31,8 @@ import {
   Database,
   FileText,
   Loader2,
+  Pause,
+  Play,
   PlayCircle,
   Send,
   Terminal,
@@ -57,7 +59,8 @@ import { ContrastValidator } from '@/components/system/ContrastValidator';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
@@ -144,9 +147,11 @@ export default function System() {
     isLoadingInstances: whatsAppLoadingInstances,
     isCreatingInstance: whatsAppCreatingInstance,
     isDeletingInstance: whatsAppDeletingInstance,
+    lastInstanceRefresh: whatsAppLastRefresh,
     saveSettings: saveWhatsAppSettings, 
     testConnection: testWhatsAppConnection,
     listInstances: listWhatsAppInstances,
+    refreshInstances: refreshWhatsAppInstances,
     createInstance: createWhatsAppInstance,
     deleteInstance: deleteWhatsAppInstance,
     logoutInstance: logoutWhatsAppInstance,
@@ -157,6 +162,7 @@ export default function System() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [whatsAppTestStatus, setWhatsAppTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [whatsAppTestMessage, setWhatsAppTestMessage] = useState<string>('');
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   
   // Create Instance Dialog
   const [showCreateInstanceDialog, setShowCreateInstanceDialog] = useState(false);
@@ -306,6 +312,29 @@ export default function System() {
   useEffect(() => {
     setLocalWhatsAppSettings(whatsAppSettings);
   }, [whatsAppSettings]);
+
+  // Auto-refresh WhatsApp instances every 30 seconds
+  useEffect(() => {
+    if (!localWhatsAppSettings.evolutionApiUrl || 
+        !localWhatsAppSettings.evolutionApiKey ||
+        !autoRefreshEnabled) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      refreshWhatsAppInstances(
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [
+    localWhatsAppSettings.evolutionApiUrl, 
+    localWhatsAppSettings.evolutionApiKey, 
+    autoRefreshEnabled,
+    refreshWhatsAppInstances
+  ]);
 
   // Test relay connection via WebSocket (bypasses Mixed Content issues)
   const testRelayConnection = async () => {
@@ -1078,6 +1107,38 @@ export default function System() {
                       <p className="text-xs text-muted-foreground">
                         Buscar (↻), Criar (+), Reconectar (📶) ou Excluir (🗑️) instâncias
                       </p>
+                      
+                      {/* Auto-refresh indicator */}
+                      {localWhatsAppSettings.evolutionApiUrl && localWhatsAppSettings.evolutionApiKey && (
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-2 p-2 rounded-md border border-border/50 bg-muted/30">
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className={`h-3 w-3 ${autoRefreshEnabled ? 'animate-spin text-green-500' : 'text-muted-foreground'}`} />
+                            <span>
+                              {whatsAppLastRefresh 
+                                ? `Última atualização: ${format(whatsAppLastRefresh, 'HH:mm:ss')}`
+                                : 'Aguardando primeira atualização...'
+                              }
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2"
+                            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                          >
+                            {autoRefreshEnabled ? (
+                              <>
+                                <Pause className="h-3 w-3 mr-1" /> Pausar
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-3 w-3 mr-1" /> Retomar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+
                       {localWhatsAppSettings.evolutionInstance && whatsAppInstances.length > 0 && (
                         <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/50">
                           {(() => {

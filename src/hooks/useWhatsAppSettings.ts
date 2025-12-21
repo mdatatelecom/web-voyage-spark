@@ -37,6 +37,7 @@ export const useWhatsAppSettings = () => {
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
   const [isDeletingInstance, setIsDeletingInstance] = useState(false);
+  const [lastInstanceRefresh, setLastInstanceRefresh] = useState<Date | null>(null);
 
   const loadSettings = async () => {
     try {
@@ -174,6 +175,7 @@ export const useWhatsAppSettings = () => {
 
       if (data?.success && Array.isArray(data.instances)) {
         setInstances(data.instances);
+        setLastInstanceRefresh(new Date());
         return data.instances;
       } else {
         toast({
@@ -193,6 +195,40 @@ export const useWhatsAppSettings = () => {
       return [];
     } finally {
       setIsLoadingInstances(false);
+    }
+  };
+
+  // Silent refresh for auto-refresh (no toasts, no loading state changes)
+  const refreshInstances = async (apiUrl: string, apiKey: string): Promise<EvolutionInstance[]> => {
+    if (!apiUrl || !apiKey) {
+      return instances;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'list-instances',
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && Array.isArray(data.instances)) {
+        setInstances(data.instances);
+        setLastInstanceRefresh(new Date());
+        return data.instances;
+      }
+      return instances;
+    } catch (error) {
+      console.error('Auto-refresh silencioso falhou:', error);
+      return instances;
     }
   };
 
@@ -493,9 +529,11 @@ export const useWhatsAppSettings = () => {
     isLoadingInstances,
     isCreatingInstance,
     isDeletingInstance,
+    lastInstanceRefresh,
     saveSettings,
     testConnection,
     listInstances,
+    refreshInstances,
     createInstance,
     deleteInstance,
     logoutInstance,
