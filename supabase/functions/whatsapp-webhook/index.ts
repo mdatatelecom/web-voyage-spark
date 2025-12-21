@@ -1244,13 +1244,65 @@ serve(async (req) => {
           if (detailTicket.due_date) {
             detailsMessage += `⏰ *Prazo:* ${new Date(detailTicket.due_date).toLocaleDateString('pt-BR')}\n`;
           }
+
+          // Show ticket attachments with proper icons
+          const ticketAttachments = detailTicket.attachments as Array<{
+            url: string;
+            type: string;
+            name: string;
+            size?: number;
+          }> | null;
+
+          if (ticketAttachments && ticketAttachments.length > 0) {
+            detailsMessage += `\n📎 *Anexos do Chamado (${ticketAttachments.length}):*\n`;
+            
+            ticketAttachments.forEach((attachment, i) => {
+              // Determine emoji based on file type
+              let typeEmoji = '📁';
+              const type = attachment.type?.toLowerCase() || '';
+              const name = attachment.name?.toLowerCase() || '';
+              
+              if (type.startsWith('image/') || name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) {
+                typeEmoji = '🖼️';
+              } else if (type.startsWith('video/') || name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+                typeEmoji = '🎬';
+              } else if (type.startsWith('audio/') || name.match(/\.(mp3|wav|ogg|m4a|aac)$/i)) {
+                typeEmoji = '🎵';
+              } else if (type.includes('pdf') || name.endsWith('.pdf')) {
+                typeEmoji = '📄';
+              } else if (type.includes('word') || name.match(/\.(doc|docx)$/i)) {
+                typeEmoji = '📝';
+              } else if (type.includes('excel') || type.includes('spreadsheet') || name.match(/\.(xls|xlsx|csv)$/i)) {
+                typeEmoji = '📊';
+              }
+              
+              // Format file size if available
+              let sizeInfo = '';
+              if (attachment.size) {
+                const sizeKB = Math.round(attachment.size / 1024);
+                sizeInfo = sizeKB > 1024 
+                  ? ` (${(sizeKB / 1024).toFixed(1)} MB)` 
+                  : ` (${sizeKB} KB)`;
+              }
+              
+              detailsMessage += `${i + 1}. ${typeEmoji} ${attachment.name}${sizeInfo}\n`;
+            });
+            
+            detailsMessage += `\n💡 _Para visualizar os anexos, acesse o sistema._\n`;
+          }
           
           if (comments && comments.length > 0) {
             detailsMessage += `\n💬 *Últimos Comentários:*\n`;
             comments.reverse().forEach((c, i) => {
               const author = c.whatsapp_sender_name || 'Sistema';
               const date = new Date(c.created_at!).toLocaleString('pt-BR');
-              const text = c.comment.length > 50 ? c.comment.substring(0, 50) + '...' : c.comment;
+              // Don't show "Anexo adicionado via WhatsApp" messages as they're now in attachments section
+              let text = c.comment;
+              if (text.startsWith('📎 Anexo adicionado via WhatsApp:')) {
+                text = '📎 Anexo enviado';
+              } else if (text.length > 50) {
+                text = text.substring(0, 50) + '...';
+              }
               detailsMessage += `\n${i + 1}. _${author}_ (${date}):\n   ${text}\n`;
             });
           } else {
