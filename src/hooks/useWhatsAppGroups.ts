@@ -11,6 +11,12 @@ export interface WhatsAppGroup {
   desc: string;
 }
 
+export interface ListGroupsResult {
+  groups: WhatsAppGroup[];
+  needsReconnect?: boolean;
+  message?: string;
+}
+
 export const useWhatsAppGroups = () => {
   const { toast } = useToast();
   const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
@@ -20,9 +26,9 @@ export const useWhatsAppGroups = () => {
     apiUrl: string,
     apiKey: string,
     instanceName: string
-  ): Promise<WhatsAppGroup[]> => {
+  ): Promise<ListGroupsResult> => {
     if (!apiUrl || !apiKey || !instanceName) {
-      return [];
+      return { groups: [], needsReconnect: false };
     }
 
     setIsLoading(true);
@@ -44,14 +50,25 @@ export const useWhatsAppGroups = () => {
 
       if (data?.success && Array.isArray(data.groups)) {
         setGroups(data.groups);
-        return data.groups;
+        return { groups: data.groups, needsReconnect: false };
       } else {
-        toast({
-          title: 'Aviso',
-          description: data?.message || 'Nenhum grupo encontrado',
-          variant: 'destructive',
-        });
-        return [];
+        // Check if reconnection is needed
+        const needsReconnect = data?.needsReconnect === true;
+        
+        if (!needsReconnect) {
+          toast({
+            title: 'Aviso',
+            description: data?.message || 'Nenhum grupo encontrado',
+            variant: 'destructive',
+          });
+        }
+        
+        setGroups([]);
+        return { 
+          groups: [], 
+          needsReconnect,
+          message: data?.message 
+        };
       }
     } catch (error) {
       console.error('Erro ao listar grupos:', error);
@@ -60,7 +77,7 @@ export const useWhatsAppGroups = () => {
         description: 'Não foi possível listar os grupos',
         variant: 'destructive',
       });
-      return [];
+      return { groups: [], needsReconnect: false };
     } finally {
       setIsLoading(false);
     }

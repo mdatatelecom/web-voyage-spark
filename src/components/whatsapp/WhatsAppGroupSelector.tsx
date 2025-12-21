@@ -10,32 +10,49 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, RefreshCw, Users, User } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, RefreshCw, Users, User, AlertTriangle, Wifi } from 'lucide-react';
 import { useWhatsAppGroups, type WhatsAppGroup } from '@/hooks/useWhatsAppGroups';
 import type { WhatsAppSettings } from '@/hooks/useWhatsAppSettings';
+import { useToast } from '@/hooks/use-toast';
 
 interface WhatsAppGroupSelectorProps {
   settings: WhatsAppSettings;
   onSettingsChange: (settings: WhatsAppSettings) => void;
   disabled?: boolean;
+  onReconnectRequest?: () => void;
 }
 
 export const WhatsAppGroupSelector = ({
   settings,
   onSettingsChange,
   disabled = false,
+  onReconnectRequest,
 }: WhatsAppGroupSelectorProps) => {
+  const { toast } = useToast();
   const { groups, isLoading, listGroups } = useWhatsAppGroups();
   const [hasLoadedGroups, setHasLoadedGroups] = useState(false);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   const handleLoadGroups = async () => {
     if (settings.evolutionApiUrl && settings.evolutionApiKey && settings.evolutionInstance) {
-      await listGroups(
+      setNeedsReconnect(false);
+      const result = await listGroups(
         settings.evolutionApiUrl,
         settings.evolutionApiKey,
         settings.evolutionInstance
       );
       setHasLoadedGroups(true);
+      
+      // Check if the response indicates reconnection is needed
+      if (result && typeof result === 'object' && 'needsReconnect' in result && result.needsReconnect) {
+        setNeedsReconnect(true);
+        toast({
+          title: 'Reconexão necessária',
+          description: 'A instância do WhatsApp precisa ser reconectada para listar grupos.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -94,11 +111,32 @@ export const WhatsAppGroupSelector = ({
       {settings.targetType === 'group' && (
         <div className="space-y-2">
           <Label>Grupo para Notificações</Label>
+          
+          {needsReconnect && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Instância desconectada. Reconecte para listar grupos.</span>
+                {onReconnectRequest && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onReconnectRequest}
+                    className="ml-2 h-7 text-xs"
+                  >
+                    <Wifi className="h-3 w-3 mr-1" />
+                    Reconectar
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="flex gap-2">
             <Select
               value={settings.selectedGroupId || ''}
               onValueChange={handleGroupSelect}
-              disabled={disabled || !isInstanceConnected}
+              disabled={disabled || !isInstanceConnected || needsReconnect}
             >
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Selecione um grupo" />
@@ -118,9 +156,11 @@ export const WhatsAppGroupSelector = ({
                   ))
                 ) : (
                   <SelectItem value="_empty" disabled>
-                    {hasLoadedGroups 
-                      ? 'Nenhum grupo encontrado' 
-                      : 'Clique em "Buscar" para listar grupos'}
+                    {needsReconnect
+                      ? 'Reconecte a instância para listar grupos'
+                      : hasLoadedGroups 
+                        ? 'Nenhum grupo encontrado' 
+                        : 'Clique em "Buscar" para listar grupos'}
                   </SelectItem>
                 )}
               </SelectContent>

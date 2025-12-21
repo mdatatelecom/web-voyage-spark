@@ -100,6 +100,49 @@ serve(async (req) => {
     if (action === 'list-groups') {
       console.log('Listing WhatsApp groups for instance:', settings.evolutionInstance);
       
+      // First check if instance is really connected
+      try {
+        const stateResponse = await fetch(
+          `${apiUrl}/instance/connectionState/${settings.evolutionInstance}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (stateResponse.ok) {
+          const stateData = await stateResponse.json();
+          console.log('Instance state before listing groups:', stateData);
+          
+          const state = stateData?.instance?.state || stateData?.state || 'unknown';
+          const disconnectionReasonCode = stateData?.instance?.disconnectionReasonCode ?? stateData?.disconnectionReasonCode ?? 0;
+          
+          // Check if really connected (state is open AND no disconnection reason)
+          const isReallyConnected = (state === 'open' || state === 'connected') && disconnectionReasonCode === 0;
+          
+          if (!isReallyConnected) {
+            const reason = disconnectionReasonCode === 401 ? 'dispositivo removido' : 
+                          disconnectionReasonCode !== 0 ? `código ${disconnectionReasonCode}` : state;
+            console.log('Instance not connected, cannot list groups:', reason);
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                message: `Instância desconectada (${reason}). Clique em reconectar.`,
+                groups: [],
+                needsReconnect: true
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      } catch (stateError) {
+        console.log('Could not check state before listing groups:', stateError);
+        // Continue anyway - maybe the groups request will work
+      }
+      
       // Evolution API v2 requires getParticipants parameter
       const groupsUrl = `${apiUrl}/group/fetchAllGroups/${settings.evolutionInstance}?getParticipants=false`;
       console.log('Fetching groups from URL:', groupsUrl);
@@ -206,14 +249,28 @@ serve(async (req) => {
 
         // Extract instance names from the response
         // Note: Evolution API returns 'connectionStatus' not 'state'
+        // Also extract disconnectionReasonCode to detect false "connected" states
         const instanceList = Array.isArray(instances) 
-          ? instances.map((inst: any) => ({
-              name: inst.instance?.instanceName || inst.instanceName || inst.name,
-              displayName: inst.instance?.instanceName || inst.instanceName || inst.name,
-              state: inst.connectionStatus || inst.instance?.state || inst.state || 'unknown',
-              profileName: inst.instance?.profileName || inst.profileName || null,
-              profilePictureUrl: inst.profilePicUrl || inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
-            }))
+          ? instances.map((inst: any) => {
+              const rawState = inst.connectionStatus || inst.instance?.state || inst.state || 'unknown';
+              const disconnectionReasonCode = inst.instance?.disconnectionReasonCode ?? inst.disconnectionReasonCode ?? 0;
+              
+              // If state shows open/connected but has a disconnection reason, mark as needs_reconnect
+              let effectiveState = rawState;
+              if ((rawState === 'open' || rawState === 'connected') && disconnectionReasonCode !== 0) {
+                effectiveState = 'needs_reconnect';
+              }
+              
+              return {
+                name: inst.instance?.instanceName || inst.instanceName || inst.name,
+                displayName: inst.instance?.instanceName || inst.instanceName || inst.name,
+                state: effectiveState,
+                rawState,
+                disconnectionReasonCode,
+                profileName: inst.instance?.profileName || inst.profileName || null,
+                profilePictureUrl: inst.profilePicUrl || inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
+              };
+            })
           : [];
 
         return new Response(
@@ -498,7 +555,7 @@ serve(async (req) => {
     }
 
     if (action === 'test') {
-      // Test connection by checking instance status
+      // Test connection by checking instance status with detailed disconnection info
       console.log('Testing connection to Evolution API...');
       try {
         const response = await fetch(
@@ -520,7 +577,8 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({ 
               success: false, 
-              message: `Erro da API: ${response.status} - ${errorText}` 
+              message: `Erro da API: ${response.status} - ${errorText}`,
+              needsReconnect: false
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -530,20 +588,55 @@ serve(async (req) => {
         console.log('Evolution API response:', data);
 
         const state = data?.instance?.state || data?.state || 'unknown';
+        const disconnectionReasonCode = data?.instance?.disconnectionReasonCode ?? data?.disconnectionReasonCode ?? 0;
+        const disconnectionObject = data?.instance?.disconnectionObject || data?.disconnectionObject || null;
         
-        if (state === 'open' || state === 'connected') {
+        console.log('Connection details:', { state, disconnectionReasonCode, disconnectionObject });
+        
+        // Check if really connected - state is open AND no disconnection reason code
+        const isReallyConnected = (state === 'open' || state === 'connected') && disconnectionReasonCode === 0;
+        
+        if (isReallyConnected) {
           return new Response(
             JSON.stringify({ 
               success: true, 
-              message: `WhatsApp conectado (${settings.evolutionInstance})` 
+              message: `WhatsApp conectado (${settings.evolutionInstance})`,
+              needsReconnect: false,
+              state,
+              disconnectionReasonCode
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } else {
+          // Determine the specific disconnection reason
+          let reasonMessage = `Estado: ${state}`;
+          let needsReconnect = true;
+          
+          if (disconnectionReasonCode === 401) {
+            reasonMessage = 'Dispositivo removido do WhatsApp. Reconexão necessária.';
+          } else if (disconnectionReasonCode === 408) {
+            reasonMessage = 'Conexão expirou. Reconexão necessária.';
+          } else if (disconnectionReasonCode === 411) {
+            reasonMessage = 'Sessão encerrada pelo usuário. Reconexão necessária.';
+          } else if (disconnectionReasonCode === 428) {
+            reasonMessage = 'Conexão fechada. Reconexão necessária.';
+          } else if (disconnectionReasonCode === 440) {
+            reasonMessage = 'Conta deslogada em outro dispositivo. Reconexão necessária.';
+          } else if (disconnectionReasonCode === 515) {
+            reasonMessage = 'Reinicialização necessária. Reconexão necessária.';
+          } else if (disconnectionReasonCode !== 0) {
+            reasonMessage = `Desconectado (código ${disconnectionReasonCode}). Reconexão necessária.`;
+          } else if (state === 'close') {
+            reasonMessage = 'WhatsApp desconectado. Reconexão necessária.';
+          }
+          
           return new Response(
             JSON.stringify({ 
               success: false, 
-              message: `WhatsApp não conectado. Estado: ${state}` 
+              message: reasonMessage,
+              needsReconnect,
+              state,
+              disconnectionReasonCode
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -554,7 +647,8 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            message: `Erro de conexão: ${errorMessage}` 
+            message: `Erro de conexão: ${errorMessage}`,
+            needsReconnect: false
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

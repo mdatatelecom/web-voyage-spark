@@ -1016,39 +1016,52 @@ export default function System() {
                           </SelectTrigger>
                           <SelectContent>
                             {whatsAppInstances.length > 0 ? (
-                              whatsAppInstances.map((instance) => (
-                                <SelectItem key={instance.name} value={instance.name}>
-                                  <div className="flex items-center gap-2 w-full">
-                                    {instance.state === 'open' || instance.state === 'connected' ? (
-                                      <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                                    ) : instance.state === 'close' ? (
-                                      <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                                    ) : (
-                                      <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
-                                    )}
-                                    <span className="truncate">{instance.name}</span>
-                                    {instance.profileName && (
-                                      <span className="text-muted-foreground text-xs truncate">
-                                        ({instance.profileName})
-                                      </span>
-                                    )}
-                                    <Badge 
-                                      variant={
-                                        instance.state === 'open' || instance.state === 'connected' 
-                                          ? 'default' 
-                                          : 'secondary'
-                                      } 
-                                      className="ml-auto text-xs shrink-0"
-                                    >
-                                      {instance.state === 'open' || instance.state === 'connected' 
-                                        ? 'Conectado' 
-                                        : instance.state === 'close' 
-                                          ? 'Desconectado' 
-                                          : instance.state || 'Pendente'}
-                                    </Badge>
-                                  </div>
-                                </SelectItem>
-                              ))
+                              whatsAppInstances.map((instance) => {
+                                const isConnected = instance.state === 'open' || instance.state === 'connected';
+                                const needsReconnect = instance.state === 'needs_reconnect' || 
+                                  (instance.disconnectionReasonCode && instance.disconnectionReasonCode !== 0);
+                                const isDisconnected = instance.state === 'close' || !isConnected;
+                                
+                                return (
+                                  <SelectItem key={instance.name} value={instance.name}>
+                                    <div className="flex items-center gap-2 w-full">
+                                      {isConnected && !needsReconnect ? (
+                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                                      ) : needsReconnect ? (
+                                        <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+                                      ) : isDisconnected ? (
+                                        <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                                      ) : (
+                                        <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
+                                      )}
+                                      <span className="truncate">{instance.name}</span>
+                                      {instance.profileName && (
+                                        <span className="text-muted-foreground text-xs truncate">
+                                          ({instance.profileName})
+                                        </span>
+                                      )}
+                                      <Badge 
+                                        variant={
+                                          isConnected && !needsReconnect
+                                            ? 'default' 
+                                            : needsReconnect
+                                              ? 'outline'
+                                              : 'secondary'
+                                        } 
+                                        className={`ml-auto text-xs shrink-0 ${needsReconnect ? 'border-yellow-500 text-yellow-600' : ''}`}
+                                      >
+                                        {isConnected && !needsReconnect
+                                          ? 'Conectado' 
+                                          : needsReconnect
+                                            ? 'Reconexão necessária'
+                                            : isDisconnected 
+                                              ? 'Desconectado' 
+                                              : instance.state || 'Pendente'}
+                                      </Badge>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })
                             ) : (
                               <SelectItem value="_empty" disabled>
                                 Clique em "Buscar" para listar instâncias
@@ -1146,17 +1159,51 @@ export default function System() {
                           {(() => {
                             const selectedInstance = whatsAppInstances.find(i => i.name === localWhatsAppSettings.evolutionInstance);
                             const isConnected = selectedInstance?.state === 'open' || selectedInstance?.state === 'connected';
-                            return isConnected ? (
-                              <>
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                <span className="text-sm text-green-600 dark:text-green-400">WhatsApp conectado</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-4 w-4 text-destructive" />
-                                <span className="text-sm text-destructive">WhatsApp desconectado - clique em reconectar</span>
-                              </>
-                            );
+                            const needsReconnect = selectedInstance?.state === 'needs_reconnect' || 
+                              (selectedInstance?.disconnectionReasonCode && selectedInstance?.disconnectionReasonCode !== 0);
+                            
+                            if (isConnected && !needsReconnect) {
+                              return (
+                                <>
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                                  <span className="text-sm text-green-600 dark:text-green-400">WhatsApp conectado</span>
+                                </>
+                              );
+                            } else if (needsReconnect) {
+                              return (
+                                <>
+                                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                                  <span className="text-sm text-yellow-600 dark:text-yellow-400">
+                                    Reconexão necessária (código {selectedInstance?.disconnectionReasonCode || 'desconhecido'})
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleOpenReconnectDialog}
+                                    className="ml-auto h-7 text-xs"
+                                  >
+                                    <Wifi className="h-3 w-3 mr-1" />
+                                    Reconectar
+                                  </Button>
+                                </>
+                              );
+                            } else {
+                              return (
+                                <>
+                                  <XCircle className="h-4 w-4 text-destructive" />
+                                  <span className="text-sm text-destructive">WhatsApp desconectado</span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleOpenReconnectDialog}
+                                    className="ml-auto h-7 text-xs"
+                                  >
+                                    <Wifi className="h-3 w-3 mr-1" />
+                                    Reconectar
+                                  </Button>
+                                </>
+                              );
+                            }
                           })()}
                         </div>
                       )}
