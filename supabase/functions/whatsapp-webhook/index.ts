@@ -620,6 +620,68 @@ serve(async (req) => {
       }
     };
 
+    // Helper function to send media message (images, videos, audios, documents)
+    const sendMediaMessage = async (
+      mediaUrl: string,
+      mimeType: string,
+      fileName: string,
+      caption?: string
+    ): Promise<boolean> => {
+      if (!settings?.evolutionApiUrl || !settings?.evolutionApiKey || !settings?.evolutionInstance) {
+        console.log('⚠️ Cannot send media - missing settings');
+        return false;
+      }
+
+      const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+      
+      // Determine mediatype for Evolution API based on MIME type
+      let evolutionMediaType = 'document';
+      if (mimeType.startsWith('image/')) {
+        evolutionMediaType = 'image';
+      } else if (mimeType.startsWith('video/')) {
+        evolutionMediaType = 'video';
+      } else if (mimeType.startsWith('audio/')) {
+        evolutionMediaType = 'audio';
+      }
+      
+      const targetNumber = isGroup && groupId ? groupId : senderPhone;
+      
+      try {
+        console.log(`📤 Sending media: ${fileName} (${evolutionMediaType}) to ${targetNumber}`);
+        
+        const response = await fetch(
+          `${apiUrl}/message/sendMedia/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: targetNumber,
+              mediatype: evolutionMediaType,
+              mimetype: mimeType,
+              caption: caption || fileName,
+              media: mediaUrl,
+              fileName: fileName
+            }),
+          }
+        );
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Error sending media:', response.status, errorText);
+          return false;
+        }
+        
+        console.log('✅ Media sent successfully:', fileName);
+        return true;
+      } catch (err) {
+        console.error('❌ Error sending media:', err);
+        return false;
+      }
+    };
+
     // Check for quoted message that might reference a ticket
     const contextInfo = data.message?.extendedTextMessage?.contextInfo || data.contextInfo;
     const quotedMessage = contextInfo?.quotedMessage?.conversation || 
@@ -1245,7 +1307,7 @@ serve(async (req) => {
             detailsMessage += `⏰ *Prazo:* ${new Date(detailTicket.due_date).toLocaleDateString('pt-BR')}\n`;
           }
 
-          // Show ticket attachments with proper icons
+          // Show ticket attachments info
           const ticketAttachments = detailTicket.attachments as Array<{
             url: string;
             type: string;
@@ -1255,40 +1317,7 @@ serve(async (req) => {
 
           if (ticketAttachments && ticketAttachments.length > 0) {
             detailsMessage += `\n📎 *Anexos do Chamado (${ticketAttachments.length}):*\n`;
-            
-            ticketAttachments.forEach((attachment, i) => {
-              // Determine emoji based on file type
-              let typeEmoji = '📁';
-              const type = attachment.type?.toLowerCase() || '';
-              const name = attachment.name?.toLowerCase() || '';
-              
-              if (type.startsWith('image/') || name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) {
-                typeEmoji = '🖼️';
-              } else if (type.startsWith('video/') || name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-                typeEmoji = '🎬';
-              } else if (type.startsWith('audio/') || name.match(/\.(mp3|wav|ogg|m4a|aac)$/i)) {
-                typeEmoji = '🎵';
-              } else if (type.includes('pdf') || name.endsWith('.pdf')) {
-                typeEmoji = '📄';
-              } else if (type.includes('word') || name.match(/\.(doc|docx)$/i)) {
-                typeEmoji = '📝';
-              } else if (type.includes('excel') || type.includes('spreadsheet') || name.match(/\.(xls|xlsx|csv)$/i)) {
-                typeEmoji = '📊';
-              }
-              
-              // Format file size if available
-              let sizeInfo = '';
-              if (attachment.size) {
-                const sizeKB = Math.round(attachment.size / 1024);
-                sizeInfo = sizeKB > 1024 
-                  ? ` (${(sizeKB / 1024).toFixed(1)} MB)` 
-                  : ` (${sizeKB} KB)`;
-              }
-              
-              detailsMessage += `${i + 1}. ${typeEmoji} ${attachment.name}${sizeInfo}\n`;
-            });
-            
-            detailsMessage += `\n💡 _Para visualizar os anexos, acesse o sistema._\n`;
+            detailsMessage += `_Enviando anexos abaixo..._\n`;
           }
           
           if (comments && comments.length > 0) {
@@ -1309,7 +1338,35 @@ serve(async (req) => {
             detailsMessage += `\n💬 _Nenhum comentário ainda._`;
           }
           
+          // Send text message first
           await sendResponse(detailsMessage);
+          
+          // Then send each attachment as media
+          if (ticketAttachments && ticketAttachments.length > 0) {
+            console.log(`📎 Sending ${ticketAttachments.length} attachments as media...`);
+            
+            for (const attachment of ticketAttachments) {
+              const mimeType = attachment.type || 'application/octet-stream';
+              const caption = `📎 ${attachment.name}`;
+              
+              const success = await sendMediaMessage(
+                attachment.url,
+                mimeType,
+                attachment.name,
+                caption
+              );
+              
+              if (!success) {
+                console.log(`⚠️ Failed to send attachment: ${attachment.name}`);
+              }
+              
+              // Small delay between sends to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            console.log('✅ All attachments sent');
+          }
+          
           break;
         }
 
