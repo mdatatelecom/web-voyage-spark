@@ -100,9 +100,13 @@ serve(async (req) => {
     if (action === 'list-groups') {
       console.log('Listing WhatsApp groups for instance:', settings.evolutionInstance);
       
+      // Evolution API v2 requires getParticipants parameter
+      const groupsUrl = `${apiUrl}/group/fetchAllGroups/${settings.evolutionInstance}?getParticipants=false`;
+      console.log('Fetching groups from URL:', groupsUrl);
+      
       try {
         const response = await fetch(
-          `${apiUrl}/group/fetchAllGroups/${settings.evolutionInstance}`,
+          groupsUrl,
           {
             method: 'GET',
             headers: {
@@ -127,8 +131,11 @@ serve(async (req) => {
           );
         }
 
-        const groupsData = await response.json();
-        console.log('Groups found:', groupsData?.length || 0);
+        const rawText = await response.text();
+        console.log('Raw groups response length:', rawText.length);
+        
+        const groupsData = JSON.parse(rawText);
+        console.log('Groups found:', Array.isArray(groupsData) ? groupsData.length : 'not an array', 'Type:', typeof groupsData);
 
         // Extract group info from the response
         const groupList = Array.isArray(groupsData) 
