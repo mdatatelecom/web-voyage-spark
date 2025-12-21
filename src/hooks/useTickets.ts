@@ -64,16 +64,19 @@ export const useTickets = () => {
 
         const whatsAppSettings = settingsData?.setting_value as {
           isEnabled?: boolean;
-          notificationGroupId?: string;
+          targetType?: 'individual' | 'group';
+          selectedGroupId?: string | null;
         } | null;
 
         // Send to group if configured
-        if (whatsAppSettings?.isEnabled && whatsAppSettings?.notificationGroupId) {
-          console.log('Sending ticket notification to WhatsApp group:', whatsAppSettings.notificationGroupId);
+        if (whatsAppSettings?.isEnabled && 
+            whatsAppSettings?.targetType === 'group' && 
+            whatsAppSettings?.selectedGroupId) {
+          console.log('Sending ticket notification to WhatsApp group:', whatsAppSettings.selectedGroupId);
           await supabase.functions.invoke('send-whatsapp', {
             body: {
               action: 'send-group',
-              groupId: whatsAppSettings.notificationGroupId,
+              groupId: whatsAppSettings.selectedGroupId,
               message,
               ticketId: data.id,
             },
@@ -156,16 +159,19 @@ export const useTickets = () => {
 
           const whatsAppSettings = settingsData?.setting_value as {
             isEnabled?: boolean;
-            notificationGroupId?: string;
+            targetType?: 'individual' | 'group';
+            selectedGroupId?: string | null;
           } | null;
 
           // Send to group if configured
-          if (whatsAppSettings?.isEnabled && whatsAppSettings?.notificationGroupId) {
-            console.log('Sending ticket update notification to WhatsApp group:', whatsAppSettings.notificationGroupId);
+          if (whatsAppSettings?.isEnabled && 
+              whatsAppSettings?.targetType === 'group' && 
+              whatsAppSettings?.selectedGroupId) {
+            console.log('Sending ticket update notification to WhatsApp group:', whatsAppSettings.selectedGroupId);
             await supabase.functions.invoke('send-whatsapp', {
               body: {
                 action: 'send-group',
-                groupId: whatsAppSettings.notificationGroupId,
+                groupId: whatsAppSettings.selectedGroupId,
                 message,
                 ticketId: data.id,
               },

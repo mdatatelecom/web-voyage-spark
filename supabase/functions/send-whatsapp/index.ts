@@ -16,12 +16,16 @@ interface WhatsAppSettings {
 
 // Helper function to format phone number with country code
 function formatPhoneNumber(phone: string, defaultCountryCode: string = '55'): string {
-  // Remove all non-numeric characters
+  // Clean country code - keep only digits and limit to 3 chars
+  // This handles cases where defaultCountryCode might have garbage data
+  const cleanedCountryCode = defaultCountryCode.replace(/\D/g, '').slice(0, 3) || '55';
+  
+  // Remove all non-numeric characters from phone
   let cleaned = phone.replace(/\D/g, '');
   
   // If doesn't start with country code, add it
-  if (!cleaned.startsWith(defaultCountryCode)) {
-    cleaned = defaultCountryCode + cleaned;
+  if (!cleaned.startsWith(cleanedCountryCode)) {
+    cleaned = cleanedCountryCode + cleaned;
   }
   
   return cleaned;
