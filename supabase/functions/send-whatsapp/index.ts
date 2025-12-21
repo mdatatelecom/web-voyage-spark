@@ -96,6 +96,73 @@ serve(async (req) => {
     // Use cleaned API Key for all requests
     settings.evolutionApiKey = apiKeyClean;
 
+    // List WhatsApp groups
+    if (action === 'list-groups') {
+      console.log('Listing WhatsApp groups for instance:', settings.evolutionInstance);
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/group/fetchAllGroups/${settings.evolutionInstance}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API list groups response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Evolution API list groups error:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Erro ao listar grupos: ${response.status}`,
+              groups: []
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const groupsData = await response.json();
+        console.log('Groups found:', groupsData?.length || 0);
+
+        // Extract group info from the response
+        const groupList = Array.isArray(groupsData) 
+          ? groupsData.map((group: any) => ({
+              id: group.id || group.jid,
+              subject: group.subject || group.name || 'Grupo sem nome',
+              size: group.size || group.participants?.length || 0,
+              creation: group.creation || 0,
+              owner: group.owner || '',
+              desc: group.desc || group.description || '',
+            }))
+          : [];
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            groups: groupList 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('List groups fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro de conexão: ${errorMessage}`,
+            groups: []
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'list-instances') {
       // List all available instances
       console.log('Listing Evolution API instances...');
