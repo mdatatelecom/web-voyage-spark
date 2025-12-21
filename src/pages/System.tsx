@@ -1017,10 +1017,11 @@ export default function System() {
                           <SelectContent>
                             {whatsAppInstances.length > 0 ? (
                               whatsAppInstances.map((instance) => {
+                                // connectionStatus/state is the source of truth
+                                // disconnectionReasonCode is historical and should be ignored when connected
                                 const isConnected = instance.state === 'open' || instance.state === 'connected';
-                                const needsReconnect = instance.state === 'needs_reconnect' || 
-                                  (instance.disconnectionReasonCode && instance.disconnectionReasonCode !== 0);
-                                const isDisconnected = instance.state === 'close' || !isConnected;
+                                const needsReconnect = !isConnected && instance.state === 'needs_reconnect';
+                                const isDisconnected = !isConnected;
                                 
                                 return (
                                   <SelectItem key={instance.name} value={instance.name}>
@@ -1158,11 +1159,12 @@ export default function System() {
                         <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/50">
                           {(() => {
                             const selectedInstance = whatsAppInstances.find(i => i.name === localWhatsAppSettings.evolutionInstance);
+                            // connectionStatus/state is the source of truth
+                            // disconnectionReasonCode is historical and should be ignored when connected
                             const isConnected = selectedInstance?.state === 'open' || selectedInstance?.state === 'connected';
-                            const needsReconnect = selectedInstance?.state === 'needs_reconnect' || 
-                              (selectedInstance?.disconnectionReasonCode && selectedInstance?.disconnectionReasonCode !== 0);
+                            const needsReconnect = !isConnected && selectedInstance?.state === 'needs_reconnect';
                             
-                            if (isConnected && !needsReconnect) {
+                            if (isConnected) {
                               return (
                                 <>
                                   <CheckCircle className="h-4 w-4 text-green-500" />
