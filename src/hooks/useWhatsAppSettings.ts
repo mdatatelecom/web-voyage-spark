@@ -9,6 +9,9 @@ export interface WhatsAppSettings {
   evolutionInstance: string;
   isEnabled: boolean;
   defaultCountryCode: string;
+  targetType?: 'individual' | 'group';
+  selectedGroupId?: string | null;
+  selectedGroupName?: string | null;
 }
 
 const DEFAULT_WHATSAPP_SETTINGS: WhatsAppSettings = {
@@ -17,6 +20,9 @@ const DEFAULT_WHATSAPP_SETTINGS: WhatsAppSettings = {
   evolutionInstance: '',
   isEnabled: false,
   defaultCountryCode: '55',
+  targetType: 'individual',
+  selectedGroupId: null,
+  selectedGroupName: null,
 };
 
 export interface EvolutionInstance {

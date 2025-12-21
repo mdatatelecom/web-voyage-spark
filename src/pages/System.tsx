@@ -66,6 +66,8 @@ import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
 import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
+import { WhatsAppTemplateEditor } from '@/components/whatsapp/WhatsAppTemplateEditor';
+import { WhatsAppGroupSelector } from '@/components/whatsapp/WhatsAppGroupSelector';
 import {
   Dialog,
   DialogContent,
@@ -1210,6 +1212,15 @@ export default function System() {
                   
                   <Separator />
                   
+                  {/* Seletor de Grupo */}
+                  <WhatsAppGroupSelector
+                    settings={localWhatsAppSettings}
+                    onSettingsChange={setLocalWhatsAppSettings}
+                    disabled={!localWhatsAppSettings.evolutionApiUrl || !localWhatsAppSettings.evolutionApiKey || !localWhatsAppSettings.evolutionInstance}
+                  />
+                  
+                  <Separator />
+                  
                   {/* Botões de ação */}
                   <div className="flex gap-2">
                     <Button
@@ -1559,6 +1570,9 @@ export default function System() {
                 </div>
               )}
             </Card>
+            
+            {/* Editor de Templates */}
+            <WhatsAppTemplateEditor />
           </TabsContent>
 
           {/* Tab: Personalização */}
