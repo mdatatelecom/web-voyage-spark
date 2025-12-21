@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -60,6 +60,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
     { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: labels?.length },
     { label: 'Chamados', icon: Ticket, path: '/tickets', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
+    { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'CLI', icon: Terminal, path: '#cli', visible: isAdmin && !isNetworkViewer, badge: undefined, action: () => setTerminalOpen(true) },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
