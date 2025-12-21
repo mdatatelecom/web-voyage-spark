@@ -63,6 +63,15 @@ import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
 import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Plus } from 'lucide-react';
 
 export default function System() {
   const { toast } = useToast();
@@ -131,14 +140,58 @@ export default function System() {
     isTesting: whatsAppTesting, 
     instances: whatsAppInstances,
     isLoadingInstances: whatsAppLoadingInstances,
+    isCreatingInstance: whatsAppCreatingInstance,
     saveSettings: saveWhatsAppSettings, 
     testConnection: testWhatsAppConnection,
-    listInstances: listWhatsAppInstances
+    listInstances: listWhatsAppInstances,
+    createInstance: createWhatsAppInstance
   } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
   const [whatsAppTestStatus, setWhatsAppTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [whatsAppTestMessage, setWhatsAppTestMessage] = useState<string>('');
+  
+  // Create Instance Dialog
+  const [showCreateInstanceDialog, setShowCreateInstanceDialog] = useState(false);
+  const [newInstanceName, setNewInstanceName] = useState('');
+  const [createdQrCode, setCreatedQrCode] = useState<string | null>(null);
+
+  const handleCreateInstance = async () => {
+    if (!newInstanceName.trim()) return;
+    
+    const result = await createWhatsAppInstance(
+      newInstanceName.trim().replace(/\s+/g, '_'),
+      localWhatsAppSettings.evolutionApiUrl,
+      localWhatsAppSettings.evolutionApiKey
+    );
+    
+    if (result.success) {
+      if (result.qrcode) {
+        setCreatedQrCode(result.qrcode);
+      } else {
+        // No QR code, close dialog and refresh instances
+        setShowCreateInstanceDialog(false);
+        setNewInstanceName('');
+        listWhatsAppInstances(
+          localWhatsAppSettings.evolutionApiUrl,
+          localWhatsAppSettings.evolutionApiKey
+        );
+      }
+    }
+  };
+
+  const handleCloseCreateDialog = () => {
+    setShowCreateInstanceDialog(false);
+    setNewInstanceName('');
+    setCreatedQrCode(null);
+    // Refresh instances after closing
+    if (localWhatsAppSettings.evolutionApiUrl && localWhatsAppSettings.evolutionApiKey) {
+      listWhatsAppInstances(
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
+    }
+  };
 
   useEffect(() => {
     setLocalVpnSettings(vpnSettings);
@@ -867,9 +920,19 @@ export default function System() {
                             <RefreshCw className="h-4 w-4" />
                           )}
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowCreateInstanceDialog(true)}
+                          disabled={!localWhatsAppSettings.evolutionApiUrl || !localWhatsAppSettings.evolutionApiKey}
+                          title="Criar nova instância"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Configure URL e API Key primeiro, depois clique em buscar para listar as instâncias
+                        Configure URL e API Key primeiro, depois clique em buscar para listar ou + para criar nova
                       </p>
                     </div>
                     
@@ -980,11 +1043,75 @@ export default function System() {
                     <p className="text-sm font-medium">Como configurar a Evolution API:</p>
                     <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
                       <li>Instale a Evolution API em um servidor (Docker ou manual)</li>
-                      <li>Crie uma instância e conecte escaneando o QR Code</li>
-                      <li>Copie a API Key e nome da instância para os campos acima</li>
+                      <li>Clique em + para criar uma nova instância e escaneie o QR Code</li>
+                      <li>Ou selecione uma instância existente da lista</li>
                       <li>Teste a conexão antes de salvar</li>
                     </ol>
                   </div>
+                  
+                  {/* Dialog para criar nova instância */}
+                  <Dialog open={showCreateInstanceDialog} onOpenChange={handleCloseCreateDialog}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Criar Nova Instância</DialogTitle>
+                        <DialogDescription>
+                          Crie uma nova instância do WhatsApp na Evolution API.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        {!createdQrCode ? (
+                          <div className="space-y-2">
+                            <Label htmlFor="newInstanceName">Nome da Instância</Label>
+                            <Input
+                              id="newInstanceName"
+                              value={newInstanceName}
+                              onChange={(e) => setNewInstanceName(e.target.value.replace(/\s+/g, '_'))}
+                              placeholder="minha_empresa"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Use apenas letras, números e underscores (sem espaços)
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-center space-y-4">
+                            <Alert>
+                              <CheckCircle2 className="h-4 w-4" />
+                              <AlertTitle>Instância criada!</AlertTitle>
+                              <AlertDescription>
+                                Escaneie o QR Code abaixo com o WhatsApp para conectar.
+                              </AlertDescription>
+                            </Alert>
+                            <div className="bg-white p-4 rounded-lg inline-block">
+                              <img 
+                                src={createdQrCode.startsWith('data:') ? createdQrCode : `data:image/png;base64,${createdQrCode}`} 
+                                alt="QR Code" 
+                                className="w-64 h-64 mx-auto"
+                              />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Após escanear, feche este dialog e atualize a lista de instâncias.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={handleCloseCreateDialog}>
+                          {createdQrCode ? 'Fechar' : 'Cancelar'}
+                        </Button>
+                        {!createdQrCode && (
+                          <Button 
+                            onClick={handleCreateInstance}
+                            disabled={!newInstanceName.trim() || whatsAppCreatingInstance}
+                          >
+                            {whatsAppCreatingInstance && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Criar Instância
+                          </Button>
+                        )}
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </Card>
