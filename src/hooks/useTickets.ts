@@ -484,14 +484,93 @@ export const useTicket = (ticketId: string) => {
         .single();
 
       if (error) throw error;
-      return data;
+      return { data, isInternal, userId: user.id };
     },
-    onSuccess: () => {
+    onSuccess: async ({ data, isInternal, userId }) => {
       queryClient.invalidateQueries({ queryKey: ['ticket-comments', ticketId] });
       toast({
         title: 'Comentário adicionado',
         description: 'O comentário foi adicionado com sucesso.',
       });
+
+      // Send WhatsApp notification if not internal comment
+      if (!isInternal) {
+        try {
+          // Get ticket info
+          const { data: ticketData } = await supabase
+            .from('support_tickets')
+            .select('ticket_number, title, contact_phone')
+            .eq('id', ticketId)
+            .single();
+
+          if (!ticketData) return;
+
+          // Get user profile for name
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userId)
+            .maybeSingle();
+
+          const techName = userProfile?.full_name || 'Técnico';
+          const commentPreview = data.comment.substring(0, 100) + (data.comment.length > 100 ? '...' : '');
+          
+          const message = 
+            `💬 *Novo Comentário no Chamado*\n\n` +
+            `📋 Chamado: *${ticketData.ticket_number}*\n` +
+            `📝 Título: ${ticketData.title}\n\n` +
+            `👨‍🔧 Comentário de: *${techName}*\n` +
+            `💬 "${commentPreview}"\n\n` +
+            `🔗 Para mais detalhes, acesse o sistema.`;
+
+          // Check WhatsApp settings for group notification
+          const { data: settingsData } = await supabase
+            .from('system_settings')
+            .select('setting_value')
+            .eq('setting_key', 'whatsapp_settings')
+            .maybeSingle();
+
+          const whatsAppSettings = settingsData?.setting_value as {
+            isEnabled?: boolean | string;
+            targetType?: 'individual' | 'group';
+            selectedGroupId?: string | null;
+          } | null;
+
+          const isEnabled = whatsAppSettings?.isEnabled === true || 
+                            whatsAppSettings?.isEnabled === 'true';
+
+          // Send to group if configured
+          if (isEnabled && 
+              whatsAppSettings?.targetType === 'group' && 
+              whatsAppSettings?.selectedGroupId) {
+            console.log('📨 [COMMENT] Sending notification to WhatsApp group');
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send-group',
+                groupId: whatsAppSettings.selectedGroupId,
+                message,
+                ticketId,
+              },
+            });
+          }
+
+          // Send to individual contact if phone exists
+          if (ticketData.contact_phone) {
+            console.log('📨 [COMMENT] Sending notification to contact:', ticketData.contact_phone);
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send',
+                phone: ticketData.contact_phone,
+                message,
+                ticketId,
+              },
+            });
+          }
+        } catch (err) {
+          console.error('❌ [COMMENT] Error sending WhatsApp notification:', err);
+          // Don't show error - notification is optional
+        }
+      }
     },
     onError: (error) => {
       console.error('Error adding comment:', error);

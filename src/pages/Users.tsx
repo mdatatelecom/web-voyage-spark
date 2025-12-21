@@ -15,14 +15,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUsers, UserRole } from '@/hooks/useUsers';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
 import { UserCreateDialog } from '@/components/users/UserCreateDialog';
-import { Plus, X, UserPlus } from 'lucide-react';
+import { UserEditDialog } from '@/components/users/UserEditDialog';
+import { Plus, X, UserPlus, Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function Users() {
   const queryClient = useQueryClient();
-  const { users, isLoading, accessLogs, logsLoading, removeRole } = useUsers();
+  const { users, isLoading, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{
+    id: string;
+    email: string;
+    full_name?: string;
+    phone?: string;
+  } | null>(null);
 
   const getRoleBadgeColor = (role: UserRole) => {
     const colors = {
@@ -57,6 +65,15 @@ export default function Users() {
       port_updated: 'Porta atualizada',
     };
     return labels[action] || action;
+  };
+
+  const handleEditUser = (user: typeof selectedUser) => {
+    setSelectedUser(user);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveProfile = async (userId: string, data: { full_name: string; phone: string }) => {
+    await updateProfile({ userId, data });
   };
 
   if (isLoading) {
@@ -100,7 +117,9 @@ export default function Users() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Nome</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Telefone</TableHead>
                     <TableHead>Roles</TableHead>
                     <TableHead>Criado em</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -110,7 +129,13 @@ export default function Users() {
                   {users && users.length > 0 ? (
                     users.map((user) => (
                       <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.email}</TableCell>
+                        <TableCell className="font-medium">
+                          {user.full_name || '-'}
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.phone || '-'}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {user.roles.length > 0 ? (
@@ -139,19 +164,28 @@ export default function Users() {
                           {new Date(user.created_at).toLocaleDateString('pt-BR')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRoleDialogOpen(true)}
-                          >
-                            Adicionar Role
-                          </Button>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditUser(user)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRoleDialogOpen(true)}
+                            >
+                              Adicionar Role
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -216,6 +250,12 @@ export default function Users() {
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}
         />
         <UserRoleDialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen} />
+        <UserEditDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          user={selectedUser}
+          onSave={handleSaveProfile}
+        />
       </div>
     </AppLayout>
   );

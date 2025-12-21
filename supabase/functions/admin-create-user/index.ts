@@ -45,13 +45,13 @@ Deno.serve(async (req) => {
       throw new Error('Only admins can create users');
     }
 
-    const { email, password, fullName, role } = await req.json();
+    const { email, password, fullName, phone, role } = await req.json();
 
     if (!email || !password || !fullName || !role) {
       throw new Error('Missing required fields');
     }
 
-    console.log('Creating user:', { email, fullName, role });
+    console.log('Creating user:', { email, fullName, phone, role });
 
     // Create the user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -69,6 +69,21 @@ Deno.serve(async (req) => {
     }
 
     console.log('User created successfully:', newUser.user.id);
+
+    // Update profile with phone number if provided
+    if (phone) {
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update({ phone, full_name: fullName })
+        .eq('id', newUser.user.id);
+
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
+        // Don't throw - profile update is not critical
+      } else {
+        console.log('Profile updated with phone:', phone);
+      }
+    }
 
     // Assign role to the new user
     const { error: roleError } = await supabaseAdmin

@@ -9,6 +9,8 @@ interface User {
   email: string;
   created_at: string;
   roles: UserRole[];
+  full_name?: string;
+  phone?: string;
 }
 
 export const useUsers = () => {
@@ -29,15 +31,27 @@ export const useUsers = () => {
 
       if (rolesError) throw rolesError;
 
-      // Combine users with their roles
-      const usersWithRoles: User[] = usersData.users.map((user: any) => ({
-        id: user.id,
-        email: user.email,
-        created_at: user.created_at,
-        roles: rolesData
-          .filter((r) => r.user_id === user.id)
-          .map((r) => r.role as UserRole),
-      }));
+      // Get profiles for all users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone');
+
+      if (profilesError) throw profilesError;
+
+      // Combine users with their roles and profiles
+      const usersWithRoles: User[] = usersData.users.map((user: any) => {
+        const profile = profilesData.find((p) => p.id === user.id);
+        return {
+          id: user.id,
+          email: user.email,
+          created_at: user.created_at,
+          roles: rolesData
+            .filter((r) => r.user_id === user.id)
+            .map((r) => r.role as UserRole),
+          full_name: profile?.full_name || '',
+          phone: profile?.phone || '',
+        };
+      });
 
       return usersWithRoles;
     },
@@ -132,6 +146,27 @@ export const useUsers = () => {
     },
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: { full_name: string; phone: string } }) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: data.full_name,
+          phone: data.phone,
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('Perfil atualizado com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao atualizar perfil: ${error.message}`);
+    },
+  });
+
   return {
     users,
     isLoading,
@@ -140,6 +175,7 @@ export const useUsers = () => {
     assignRole: assignRoleMutation.mutate,
     removeRole: removeRoleMutation.mutate,
     findUserByEmail: findUserByEmailMutation.mutateAsync,
+    updateProfile: updateProfileMutation.mutateAsync,
     isAssigning: assignRoleMutation.isPending,
   };
 };

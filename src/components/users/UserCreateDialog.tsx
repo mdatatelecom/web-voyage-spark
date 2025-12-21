@@ -31,6 +31,7 @@ export const UserCreateDialog = ({ open, onOpenChange, onSuccess }: UserCreateDi
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('viewer');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -53,6 +54,7 @@ export const UserCreateDialog = ({ open, onOpenChange, onSuccess }: UserCreateDi
           email,
           password,
           fullName,
+          phone,
           role,
         },
       });
@@ -67,6 +69,7 @@ export const UserCreateDialog = ({ open, onOpenChange, onSuccess }: UserCreateDi
       setEmail('');
       setPassword('');
       setFullName('');
+      setPhone('');
       setRole('viewer');
       onOpenChange(false);
       onSuccess();
@@ -119,6 +122,20 @@ export const UserCreateDialog = ({ open, onOpenChange, onSuccess }: UserCreateDi
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mínimo 6 caracteres"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Telefone</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="5511999999999"
+            />
+            <p className="text-xs text-muted-foreground">
+              Formato: código do país + DDD + número (ex: 5511999999999)
+            </p>
           </div>
 
           <div className="space-y-2">
