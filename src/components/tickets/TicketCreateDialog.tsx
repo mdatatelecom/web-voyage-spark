@@ -180,14 +180,14 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
               <div className="space-y-2">
                 <Label htmlFor="building">Local Relacionado</Label>
                 <Select
-                  value={formData.related_building_id}
-                  onValueChange={(value) => setFormData({ ...formData, related_building_id: value })}
+                  value={formData.related_building_id || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, related_building_id: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {buildings?.map((building) => (
                       <SelectItem key={building.id} value={building.id}>
                         {building.name}
@@ -200,14 +200,14 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
               <div className="space-y-2">
                 <Label htmlFor="equipment">Equipamento Relacionado</Label>
                 <Select
-                  value={formData.related_equipment_id}
-                  onValueChange={(value) => setFormData({ ...formData, related_equipment_id: value })}
+                  value={formData.related_equipment_id || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, related_equipment_id: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {equipment?.map((eq) => (
                       <SelectItem key={eq.id} value={eq.id}>
                         {eq.name}
