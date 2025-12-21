@@ -126,7 +126,7 @@ serve(async (req) => {
     });
 
     // Actions that don't require evolutionInstance
-    const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance', 'connect-instance'];
+    const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance', 'connect-instance', 'configure-webhook'];
     
     // Validate settings based on action
     if (!actionsWithoutInstance.includes(action)) {
@@ -628,6 +628,82 @@ serve(async (req) => {
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
         return new Response(
           JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}`, qrcode: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Configure webhook for Evolution API
+    if (action === 'configure-webhook') {
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Configuring webhook for instance:', instanceName);
+      
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook`;
+      
+      console.log('Webhook URL:', webhookUrl);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/webhook/set/${instanceName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: webhookUrl,
+              enabled: true,
+              webhook_by_events: false,
+              events: [
+                "MESSAGES_UPSERT",
+                "MESSAGES_UPDATE"
+              ]
+            }),
+          }
+        );
+
+        console.log('Evolution API configure webhook response status:', response.status);
+
+        const data = await response.json();
+        console.log('Evolution API configure webhook response:', data);
+
+        if (!response.ok) {
+          let errorMsg = `Erro ${response.status}`;
+          if (data?.response?.message) {
+            errorMsg = Array.isArray(data.response.message) 
+              ? data.response.message.join(', ') 
+              : String(data.response.message);
+          } else if (data?.message) {
+            errorMsg = String(data.message);
+          }
+          console.error('Evolution API configure webhook error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Webhook configurado com sucesso!',
+            webhookUrl
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Configure webhook fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

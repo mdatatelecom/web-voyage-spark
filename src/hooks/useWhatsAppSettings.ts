@@ -549,6 +549,67 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const [isConfiguringWebhook, setIsConfiguringWebhook] = useState(false);
+
+  const configureWebhook = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string; webhookUrl?: string }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    setIsConfiguringWebhook(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'configure-webhook',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Webhook configurado',
+          description: `O webhook foi configurado para a instância "${instanceName}".`,
+        });
+        return { 
+          success: true, 
+          message: data.message,
+          webhookUrl: data.webhookUrl
+        };
+      } else {
+        toast({
+          title: 'Erro ao configurar webhook',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao configurar webhook' };
+      }
+    } catch (error) {
+      console.error('Erro ao configurar webhook:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsConfiguringWebhook(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -562,6 +623,7 @@ export const useWhatsAppSettings = () => {
     isLoadingInstances,
     isCreatingInstance,
     isDeletingInstance,
+    isConfiguringWebhook,
     lastInstanceRefresh,
     saveSettings,
     testConnection,
@@ -572,5 +634,6 @@ export const useWhatsAppSettings = () => {
     logoutInstance,
     connectInstance,
     sendTestMessage,
+    configureWebhook,
   };
 };

@@ -111,6 +111,108 @@ const getCategoryLabel = (category: string): string => {
   return labels[category] || category;
 };
 
+// Helper to get media type label
+const getMediaTypeLabel = (mediaType: string): string => {
+  const labels: Record<string, string> = {
+    image: 'Imagem',
+    document: 'Documento',
+    audio: 'Áudio',
+    video: 'Vídeo',
+    sticker: 'Figurinha'
+  };
+  return labels[mediaType] || 'Arquivo';
+};
+
+// Helper to download and upload media to storage
+const downloadAndUploadMedia = async (
+  supabase: any,
+  settings: WhatsAppSettings,
+  messageKey: any,
+  mediaType: string,
+  mimeType: string,
+  fileName: string,
+  ticketId: string
+): Promise<{ url: string; type: string; name: string; size?: number } | null> => {
+  try {
+    const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+    
+    console.log('📥 Downloading media from Evolution API...');
+    
+    // Get base64 from media message
+    const mediaResponse = await fetch(
+      `${apiUrl}/chat/getBase64FromMediaMessage/${settings.evolutionInstance}`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': settings.evolutionApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: { key: messageKey },
+          convertToMp4: false
+        }),
+      }
+    );
+
+    if (!mediaResponse.ok) {
+      console.error('❌ Failed to get media from Evolution API:', mediaResponse.status);
+      return null;
+    }
+
+    const mediaData = await mediaResponse.json();
+    const base64Data = mediaData.base64;
+    
+    if (!base64Data) {
+      console.error('❌ No base64 data in response');
+      return null;
+    }
+
+    console.log('✅ Media downloaded, uploading to storage...');
+
+    // Convert base64 to Uint8Array
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Generate unique file path
+    const timestamp = Date.now();
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `ticket-attachments/${ticketId}/${timestamp}_${sanitizedFileName}`;
+
+    // Upload to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('public')
+      .upload(filePath, bytes, {
+        contentType: mimeType,
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('❌ Error uploading to storage:', uploadError);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('public')
+      .getPublicUrl(filePath);
+
+    console.log('✅ Media uploaded successfully:', urlData.publicUrl);
+
+    return {
+      url: urlData.publicUrl,
+      type: mimeType,
+      name: fileName,
+      size: bytes.length
+    };
+  } catch (error) {
+    console.error('❌ Error processing media:', error);
+    return null;
+  }
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -146,6 +248,9 @@ serve(async (req) => {
     const pushName = data.pushName || 'Desconhecido';
     const messageContent = data.message?.conversation || 
                           data.message?.extendedTextMessage?.text || 
+                          data.message?.imageMessage?.caption ||
+                          data.message?.documentMessage?.caption ||
+                          data.message?.videoMessage?.caption ||
                           data.text || 
                           '';
     
@@ -154,6 +259,41 @@ serve(async (req) => {
     const isGroup = remoteJid.includes('@g.us');
     const groupId = isGroup ? remoteJid : null;
 
+    // Detect media messages
+    const imageMessage = data.message?.imageMessage;
+    const documentMessage = data.message?.documentMessage;
+    const audioMessage = data.message?.audioMessage;
+    const videoMessage = data.message?.videoMessage;
+    const stickerMessage = data.message?.stickerMessage;
+    
+    const hasMedia = !!(imageMessage || documentMessage || audioMessage || videoMessage || stickerMessage);
+    
+    let mediaType = '';
+    let mimeType = '';
+    let fileName = '';
+    
+    if (imageMessage) {
+      mediaType = 'image';
+      mimeType = imageMessage.mimetype || 'image/jpeg';
+      fileName = `image_${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`;
+    } else if (documentMessage) {
+      mediaType = 'document';
+      mimeType = documentMessage.mimetype || 'application/octet-stream';
+      fileName = documentMessage.fileName || `document_${Date.now()}`;
+    } else if (audioMessage) {
+      mediaType = 'audio';
+      mimeType = audioMessage.mimetype || 'audio/ogg';
+      fileName = `audio_${Date.now()}.${mimeType.split('/')[1] || 'ogg'}`;
+    } else if (videoMessage) {
+      mediaType = 'video';
+      mimeType = videoMessage.mimetype || 'video/mp4';
+      fileName = `video_${Date.now()}.${mimeType.split('/')[1] || 'mp4'}`;
+    } else if (stickerMessage) {
+      mediaType = 'sticker';
+      mimeType = stickerMessage.mimetype || 'image/webp';
+      fileName = `sticker_${Date.now()}.webp`;
+    }
+
     console.log('📨 Message details:', {
       messageId,
       fromMe,
@@ -161,6 +301,8 @@ serve(async (req) => {
       senderPhone,
       isGroup,
       groupId,
+      hasMedia,
+      mediaType,
       messageContent: messageContent.substring(0, 100)
     });
 
@@ -265,7 +407,8 @@ serve(async (req) => {
             `➕ *novo: [título]* - Criar novo chamado\n` +
             `📝 *meus chamados* - Listar seus chamados abertos\n` +
             `❓ *ajuda* - Mostrar esta mensagem\n\n` +
-            `💡 *Dica:* Responda a uma notificação de chamado para adicionar um comentário!`;
+            `💡 *Dica:* Responda a uma notificação de chamado para adicionar um comentário!\n` +
+            `📎 Você também pode enviar imagens e documentos como anexos.`;
           
           await sendResponse(helpMessage);
           break;
@@ -380,19 +523,47 @@ serve(async (req) => {
     }
 
     // If we found a ticket (from quote or mention), add the message as a comment
-    if (ticket && messageContent && !command) {
+    if (ticket && (messageContent || hasMedia) && !command) {
       console.log('💬 Adding comment to ticket:', ticket.ticket_number);
+
+      let attachments: any[] = [];
+      let commentText = messageContent || '';
+
+      // Process media if present
+      if (hasMedia && settings) {
+        console.log('📎 Processing media attachment...');
+        
+        const mediaAttachment = await downloadAndUploadMedia(
+          supabase,
+          settings,
+          key,
+          mediaType,
+          mimeType,
+          fileName,
+          ticket.id
+        );
+
+        if (mediaAttachment) {
+          attachments.push(mediaAttachment);
+          
+          // If no text, add a placeholder
+          if (!commentText) {
+            commentText = `[${getMediaTypeLabel(mediaType)} anexado]`;
+          }
+        }
+      }
 
       const { error: commentError } = await supabase
         .from('ticket_comments')
         .insert({
           ticket_id: ticket.id,
           user_id: '00000000-0000-0000-0000-000000000000', // System user
-          comment: messageContent,
+          comment: commentText,
           is_internal: false,
           source: 'whatsapp',
           whatsapp_sender_name: pushName,
-          whatsapp_sender_phone: senderPhone
+          whatsapp_sender_phone: senderPhone,
+          attachments: attachments.length > 0 ? attachments : null
         });
 
       if (commentError) {
@@ -412,7 +583,11 @@ serve(async (req) => {
           });
 
         // Send confirmation
-        await sendResponse(`✅ Resposta registrada no chamado *${ticket.ticket_number}*.`);
+        if (hasMedia) {
+          await sendResponse(`✅ ${getMediaTypeLabel(mediaType)} registrado no chamado *${ticket.ticket_number}*.`);
+        } else {
+          await sendResponse(`✅ Resposta registrada no chamado *${ticket.ticket_number}*.`);
+        }
       }
     }
 
