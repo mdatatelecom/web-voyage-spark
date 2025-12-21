@@ -53,6 +53,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'priority', args };
   }
   
+// Check for comment command
+  if (lowerText.startsWith('comentar ')) {
+    const argsText = lowerText.replace('comentar ', '').trim();
+    return { command: 'comment', args: text.substring(text.toLowerCase().indexOf('comentar ') + 9).trim() };
+  }
+  
   // Check for new ticket command
   if (lowerText.startsWith('novo:') || lowerText.startsWith('novo ')) {
     return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
@@ -488,19 +494,17 @@ serve(async (req) => {
         case 'help': {
           const helpMessage = `🤖 *Comandos Disponíveis*\n\n` +
             `📊 *Consultas*\n` +
-            `• *#TKT-XXXX-XXXXX* - Ver status rápido\n` +
-            `• *status 00001* - Ver status por número\n` +
+            `• *status 00001* - Ver status\n` +
             `• *detalhes 00001* - Ver detalhes completos\n` +
             `• *meus chamados* - Listar seus chamados\n\n` +
             `➕ *Criar/Gerenciar*\n` +
-            `• *novo: [título]* - Criar novo chamado\n` +
+            `• *novo: [título]* - Criar chamado\n` +
+            `• *comentar 00001 [texto]* - Adicionar comentário\n` +
             `• *encerrar 00001* - Fechar chamado\n` +
             `• *reabrir 00001* - Reabrir chamado\n` +
             `• *prioridade 00001 alta* - Alterar prioridade\n\n` +
-            `💬 *Comentários*\n` +
-            `• Responda a uma notificação para comentar\n` +
-            `• Envie imagens/documentos como anexos\n\n` +
             `📋 *Prioridades:* baixa, média, alta, crítica\n\n` +
+            `💡 _Responda a uma notificação ou mencione #TKT-XXXX-XXXXX para comentar_\n\n` +
             `❓ *ajuda* - Mostrar este menu`;
           
           await sendResponse(helpMessage);
@@ -938,6 +942,103 @@ serve(async (req) => {
             listMessage += `\n💡 Use *detalhes ${userTickets[0].ticket_number.split('-')[2]}* para ver mais.`;
             
             await sendResponse(listMessage);
+          }
+          break;
+        }
+
+        case 'comment': {
+          // Parse: "00001 texto do comentário" or "#TKT-2025-00001 texto"
+          const firstSpace = command.args.indexOf(' ');
+          
+          if (firstSpace === -1) {
+            await sendResponse(
+              '⚠️ Informe o número do chamado e o comentário.\n' +
+              'Exemplo: *comentar 00001 Texto do comentário*'
+            );
+            break;
+          }
+          
+          const ticketPart = command.args.substring(0, firstSpace);
+          const commentText = command.args.substring(firstSpace + 1).trim();
+          
+          const ticketNum = parseTicketNumberFromArgs(ticketPart);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Número do chamado inválido.\nExemplo: *comentar 00001 Seu comentário*');
+            break;
+          }
+          
+          if (!commentText) {
+            await sendResponse('⚠️ Informe o texto do comentário.\nExemplo: *comentar 00001 Seu comentário*');
+            break;
+          }
+          
+          // Fetch ticket
+          const { data: commentTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+          
+          if (!commentTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+          
+          // Process media if present
+          let attachments: any[] = [];
+          if (hasMedia && settings) {
+            console.log('📎 Processing media for comment command...');
+            const mediaAttachment = await downloadAndUploadMedia(
+              supabase,
+              settings,
+              key,
+              mediaType,
+              mimeType,
+              fileName,
+              commentTicket.id
+            );
+            if (mediaAttachment) {
+              attachments.push(mediaAttachment);
+            }
+          }
+          
+          // Insert comment
+          const { error: insertError } = await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: commentTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: commentText,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone,
+              attachments: attachments.length > 0 ? attachments : null
+            });
+          
+          if (insertError) {
+            console.error('❌ Error adding comment via command:', insertError);
+            await sendResponse('❌ Erro ao adicionar comentário. Tente novamente.');
+          } else {
+            // Save message mapping
+            await supabase
+              .from('whatsapp_message_mapping')
+              .insert({
+                ticket_id: commentTicket.id,
+                message_id: messageId,
+                group_id: groupId,
+                phone_number: senderPhone,
+                direction: 'inbound'
+              });
+            
+            let successMsg = `✅ Comentário adicionado ao chamado *${ticketNum}*\n\n`;
+            successMsg += `💬 "${commentText.length > 60 ? commentText.substring(0, 60) + '...' : commentText}"`;
+            if (attachments.length > 0) {
+              successMsg += `\n📎 ${attachments.length} anexo(s) incluído(s)`;
+            }
+            
+            await sendResponse(successMsg);
           }
           break;
         }
