@@ -82,7 +82,9 @@ const buildTicketMessage = (
   }
 };
 
-export type Ticket = Tables<'support_tickets'>;
+export type Ticket = Tables<'support_tickets'> & {
+  assignee_name?: string | null;
+};
 export type TicketInsert = TablesInsert<'support_tickets'>;
 export type TicketUpdate = TablesUpdate<'support_tickets'>;
 export type TicketComment = Tables<'ticket_comments'>;
@@ -104,7 +106,23 @@ export const useTickets = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Ticket[];
+      
+      // Fetch assignee names for tickets that have assigned_to
+      const ticketsWithAssignees = await Promise.all(
+        (data || []).map(async (ticket) => {
+          if (ticket.assigned_to) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', ticket.assigned_to)
+              .maybeSingle();
+            return { ...ticket, assignee_name: profile?.full_name || null };
+          }
+          return { ...ticket, assignee_name: null };
+        })
+      );
+      
+      return ticketsWithAssignees as Ticket[];
     },
   });
 
