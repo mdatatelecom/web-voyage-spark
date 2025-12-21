@@ -65,10 +65,16 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'assign', args };
   }
   
-  // Check for transfer command (técnico transfere para outro)
+// Check for transfer command (técnico transfere para outro)
   if (lowerText.startsWith('transferir ')) {
     const args = text.substring(text.toLowerCase().indexOf('transferir ') + 11).trim();
     return { command: 'transfer', args };
+  }
+  
+  // Check for unassign command (cancelar atribuição)
+  if (lowerText.startsWith('cancelar ') || lowerText.startsWith('desatribuir ')) {
+    const args = lowerText.replace(/^(cancelar|desatribuir)\s+/, '').trim();
+    return { command: 'unassign', args };
   }
   
   // Check for new ticket command
@@ -388,10 +394,45 @@ serve(async (req) => {
                           data.text || 
                           '';
     
-    // Extract phone number from jid
-    const senderPhone = fromMe ? '' : remoteJid.split('@')[0];
+    // Detect if it's a group message
     const isGroup = remoteJid.includes('@g.us');
     const groupId = isGroup ? remoteJid : null;
+
+    // Extract sender phone correctly - in groups it comes from participant, not remoteJid
+    let senderPhone = '';
+    if (!fromMe) {
+      if (isGroup) {
+        // In groups, the real phone comes from participantAlt or participant
+        // participantAlt format: "5511976104665@s.whatsapp.net"
+        // participant format can be LID format: "219258650927247@lid" (newer) or phone format (older)
+        const participantAlt = key.participantAlt || '';
+        const participant = key.participant || '';
+        
+        // Prefer participantAlt as it always contains the real phone number
+        if (participantAlt && participantAlt.includes('@s.whatsapp.net')) {
+          senderPhone = participantAlt.split('@')[0];
+        } else if (participant && participant.includes('@s.whatsapp.net')) {
+          senderPhone = participant.split('@')[0];
+        } else if (participant && !participant.includes('@lid')) {
+          // Fallback for older format without @lid
+          senderPhone = participant.split('@')[0];
+        }
+        // If we still don't have a phone (LID format without participantAlt), log warning
+        if (!senderPhone) {
+          console.warn('⚠️ Could not extract phone from group message:', { participant, participantAlt });
+        }
+      } else {
+        // Individual chat - phone is in remoteJid
+        senderPhone = remoteJid.split('@')[0];
+      }
+    }
+
+    console.log('📱 Sender phone extracted:', { 
+      isGroup, 
+      participant: key.participant, 
+      participantAlt: key.participantAlt, 
+      senderPhone 
+    });
 
     // Detect media messages
     const imageMessage = data.message?.imageMessage;
@@ -545,6 +586,7 @@ serve(async (req) => {
             `• *comentar 00001 [texto]* - Adicionar comentário\n\n` +
             `👨‍🔧 *Comandos para Técnicos*\n` +
             `• *atribuir 00001* - Assumir chamado\n` +
+            `• *cancelar 00001* - Cancelar sua atribuição\n` +
             `• *transferir 00001 5511999999999* - Transferir para outro técnico\n` +
             `• *encerrar 00001* - Fechar chamado\n` +
             `• *reabrir 00001* - Reabrir chamado\n` +
@@ -1479,6 +1521,173 @@ serve(async (req) => {
               } catch (notifyErr) {
                 console.error('⚠️ Error notifying client:', notifyErr);
               }
+            }
+          }
+          
+          break;
+        }
+
+        case 'unassign': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\n\nExemplo: *cancelar 00001*');
+            break;
+          }
+          
+          // Find ticket
+          const { data: unassignTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!unassignTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+          
+          // Check if ticket is assigned
+          if (!unassignTicket.assigned_to) {
+            await sendResponse(`⚠️ Este chamado não está atribuído a nenhum técnico.`);
+            break;
+          }
+          
+          // Verify sender is a technician or admin by phone
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone')
+            .or(`phone.ilike.%${phoneDigits}%`)
+            .maybeSingle();
+          
+          if (!profile) {
+            await sendResponse(
+              `⛔ *Você não está cadastrado no sistema.*\n\n` +
+              `Para usar este comando, seu telefone precisa estar vinculado ao seu perfil.\n\n` +
+              `💡 Peça ao administrador para cadastrar seu telefone ou acesse seu perfil no sistema.`
+            );
+            break;
+          }
+          
+          // Check roles
+          const { data: userRoles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.id);
+          
+          const roles = userRoles?.map((r: any) => r.role) || [];
+          const isAdmin = roles.includes('admin');
+          const isTechnician = roles.includes('technician');
+          
+          if (!isAdmin && !isTechnician) {
+            await sendResponse(
+              `⛔ *Você não tem permissão para cancelar atribuições.*\n\n` +
+              `👤 Apenas técnicos e administradores podem usar este comando.`
+            );
+            break;
+          }
+          
+          // Check if user can unassign (must be assigned to them, or be admin)
+          const isAssignedToMe = unassignTicket.assigned_to === profile.id;
+          
+          if (!isAssignedToMe && !isAdmin) {
+            // Fetch current assignee name
+            const { data: currentTech } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', unassignTicket.assigned_to)
+              .maybeSingle();
+            
+            await sendResponse(
+              `⛔ *Você não pode cancelar esta atribuição.*\n\n` +
+              `👨‍🔧 Técnico atual: *${currentTech?.full_name || 'Desconhecido'}*\n\n` +
+              `💡 Apenas o técnico atribuído ou um administrador pode cancelar.`
+            );
+            break;
+          }
+          
+          // Get current technician name before updating
+          const { data: oldTech } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', unassignTicket.assigned_to)
+            .maybeSingle();
+          
+          // Unassign the ticket
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              assigned_to: null,
+              technician_phone: null,
+              status: 'open' // Return to open status
+            })
+            .eq('id', unassignTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error unassigning ticket:', updateError);
+            await sendResponse(`❌ Erro ao cancelar atribuição. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          const commentText = isAssignedToMe 
+            ? `${profile.full_name || pushName} cancelou sua atribuição ao chamado via WhatsApp`
+            : `${profile.full_name || pushName} (admin) removeu a atribuição de ${oldTech?.full_name || 'técnico'} via WhatsApp`;
+          
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: unassignTicket.id,
+              user_id: profile.id,
+              comment: commentText,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          // Build response message
+          const responseMsg = isAssignedToMe
+            ? `✅ *Atribuição Cancelada*\n\n` +
+              `📋 Chamado: *${ticketNum}*\n` +
+              `${unassignTicket.title}\n\n` +
+              `🔄 Status alterado para: *Aberto*\n\n` +
+              `O chamado voltou para a fila de atendimento.`
+            : `✅ *Atribuição Removida*\n\n` +
+              `📋 Chamado: *${ticketNum}*\n` +
+              `👨‍🔧 Técnico removido: *${oldTech?.full_name || 'Desconhecido'}*\n\n` +
+              `🔄 Status alterado para: *Aberto*`;
+          
+          await sendResponse(responseMsg);
+          
+          // Notify client if has contact_phone
+          if (unassignTicket.contact_phone && settings) {
+            const clientMsg = `📢 *Atualização do Chamado ${ticketNum}*\n\n` +
+              `Seu chamado voltou para a fila de atendimento.\n\n` +
+              `📋 ${unassignTicket.title}\n` +
+              `${getStatusEmoji('open')} Status: Aberto\n\n` +
+              `Um técnico será atribuído em breve.`;
+            
+            const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+            try {
+              await fetch(
+                `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'apikey': settings.evolutionApiKey,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    number: unassignTicket.contact_phone,
+                    text: clientMsg,
+                  }),
+                }
+              );
+              console.log('✅ Client notified about unassignment');
+            } catch (notifyErr) {
+              console.error('⚠️ Error notifying client:', notifyErr);
             }
           }
           
