@@ -8,8 +8,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Download, Printer, Save, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
+import JsBarcode from 'jsbarcode';
 import { useLabels } from '@/hooks/useLabels';
 import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
@@ -20,8 +23,12 @@ interface LabelDialogProps {
   connection: any;
 }
 
+type CodeType = 'qrcode' | 'barcode' | 'both';
+
 export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [barcodeDataUrl, setBarcodeDataUrl] = useState<string>('');
+  const [codeType, setCodeType] = useState<CodeType>('qrcode');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { createLabel, isCreating } = useLabels();
   const { isAdmin, isTechnician, isLoading: roleLoading } = useUserRole();
@@ -30,11 +37,12 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
 
   useEffect(() => {
     if (open && connection) {
-      generateQRCode();
+      generateCodes();
     }
   }, [open, connection]);
 
-  const generateQRCode = async () => {
+  const generateCodes = async () => {
+    // Generate QR Code
     const qrData = JSON.stringify({
       code: connection.connection_code,
       id: connection.id,
@@ -61,6 +69,25 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
     } catch (error) {
       console.error('Error generating QR code:', error);
     }
+
+    // Generate Barcode (Code 128)
+    try {
+      const canvas = document.createElement('canvas');
+      JsBarcode(canvas, connection.connection_code, {
+        format: 'CODE128',
+        width: 2,
+        height: 80,
+        displayValue: true,
+        font: 'monospace',
+        fontSize: 14,
+        margin: 10,
+        background: '#FFFFFF',
+        lineColor: '#000000',
+      });
+      setBarcodeDataUrl(canvas.toDataURL());
+    } catch (error) {
+      console.error('Error generating barcode:', error);
+    }
   };
 
   const handleSave = async () => {
@@ -69,10 +96,13 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
       return;
     }
 
+    // Save the primary code type
+    const codeData = codeType === 'barcode' ? barcodeDataUrl : qrCodeDataUrl;
+
     try {
       console.log('Creating label for connection:', connection.id);
       createLabel(
-        { connectionId: connection.id, qrCodeData: qrCodeDataUrl },
+        { connectionId: connection.id, qrCodeData: codeData },
         {
           onSuccess: () => {
             console.log('Label created successfully');
@@ -94,13 +124,52 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
   const handleDownload = () => {
     const link = document.createElement('a');
     link.download = `${connection.connection_code}.png`;
-    link.href = qrCodeDataUrl;
-    link.click();
+    
+    if (codeType === 'both') {
+      // Create combined image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = 320;
+        canvas.height = 420;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const qrImg = new Image();
+        const barcodeImg = new Image();
+        
+        qrImg.onload = () => {
+          ctx.drawImage(qrImg, 10, 10, 300, 300);
+          barcodeImg.src = barcodeDataUrl;
+        };
+        
+        barcodeImg.onload = () => {
+          ctx.drawImage(barcodeImg, 10, 320, 300, 90);
+          link.href = canvas.toDataURL();
+          link.click();
+        };
+        
+        qrImg.src = qrCodeDataUrl;
+      }
+    } else {
+      link.href = codeType === 'barcode' ? barcodeDataUrl : qrCodeDataUrl;
+      link.click();
+    }
   };
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      let codeHtml = '';
+      
+      if (codeType === 'qrcode' || codeType === 'both') {
+        codeHtml += `<img src="${qrCodeDataUrl}" class="qr-code" alt="QR Code" style="width: 250px; height: 250px;" />`;
+      }
+      
+      if (codeType === 'barcode' || codeType === 'both') {
+        codeHtml += `<img src="${barcodeDataUrl}" class="barcode" alt="Código de Barras" style="width: 280px; height: 80px; margin-top: 10px;" />`;
+      }
+      
       printWindow.document.write(`
         <html>
           <head>
@@ -120,7 +189,7 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
                 text-align: center;
                 max-width: 400px;
               }
-              .qr-code { margin: 20px 0; }
+              .qr-code, .barcode { margin: 10px 0; display: block; margin-left: auto; margin-right: auto; }
               .info { margin: 10px 0; font-size: 14px; }
               .code { font-size: 24px; font-weight: bold; margin: 10px 0; }
               @media print {
@@ -131,7 +200,7 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
           <body>
             <div class="label-container">
               <div class="code">${connection.connection_code}</div>
-              <img src="${qrCodeDataUrl}" class="qr-code" alt="QR Code" />
+              ${codeHtml}
               <div class="info">
                 <strong>A:</strong> ${connection.equipment_a_name} - ${connection.port_a_name}
               </div>
@@ -160,7 +229,7 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Gerar Etiqueta QR Code</DialogTitle>
+          <DialogTitle>Gerar Etiqueta</DialogTitle>
           <DialogDescription>
             Etiqueta para conexão {connection?.connection_code}
           </DialogDescription>
@@ -177,13 +246,36 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
             </Alert>
           )}
 
-          {/* QR Code Preview */}
+          {/* Code Type Selector */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tipo de Código</Label>
+            <RadioGroup value={codeType} onValueChange={(value: CodeType) => setCodeType(value)} className="flex gap-4">
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="qrcode" id="qrcode" />
+                <Label htmlFor="qrcode" className="cursor-pointer">QR Code</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="barcode" id="barcode" />
+                <Label htmlFor="barcode" className="cursor-pointer">Código de Barras</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="both" id="both" />
+                <Label htmlFor="both" className="cursor-pointer">Ambos</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Code Preview */}
           <div className="flex flex-col items-center p-6 bg-muted rounded-lg">
-            {qrCodeDataUrl ? (
-              <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64" />
-            ) : (
-              <div className="w-64 h-64 flex items-center justify-center text-muted-foreground">
-                Gerando QR Code...
+            {(codeType === 'qrcode' || codeType === 'both') && qrCodeDataUrl && (
+              <img src={qrCodeDataUrl} alt="QR Code" className="w-48 h-48" />
+            )}
+            {(codeType === 'barcode' || codeType === 'both') && barcodeDataUrl && (
+              <img src={barcodeDataUrl} alt="Código de Barras" className={codeType === 'both' ? 'mt-2' : ''} style={{ maxWidth: '100%' }} />
+            )}
+            {!qrCodeDataUrl && !barcodeDataUrl && (
+              <div className="w-48 h-48 flex items-center justify-center text-muted-foreground">
+                Gerando código...
               </div>
             )}
             <p className="text-2xl font-bold mt-4">{connection?.connection_code}</p>
@@ -215,17 +307,17 @@ export const LabelDialog = ({ open, onOpenChange, connection }: LabelDialogProps
           <div className="flex gap-2">
             <Button 
               onClick={handleSave} 
-              disabled={isCreating || roleLoading || !canCreateLabel || !qrCodeDataUrl} 
+              disabled={isCreating || roleLoading || !canCreateLabel || (!qrCodeDataUrl && !barcodeDataUrl)} 
               className="flex-1"
             >
               <Save className="w-4 h-4 mr-2" />
               {isCreating ? 'Salvando...' : 'Salvar'}
             </Button>
-            <Button onClick={handleDownload} variant="outline" disabled={!qrCodeDataUrl}>
+            <Button onClick={handleDownload} variant="outline" disabled={!qrCodeDataUrl && !barcodeDataUrl}>
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
-            <Button onClick={handlePrint} variant="outline" disabled={!qrCodeDataUrl}>
+            <Button onClick={handlePrint} variant="outline" disabled={!qrCodeDataUrl && !barcodeDataUrl}>
               <Printer className="w-4 h-4 mr-2" />
               Imprimir
             </Button>
