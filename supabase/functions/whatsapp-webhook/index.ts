@@ -65,6 +65,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'assign', args };
   }
   
+  // Check for transfer command (técnico transfere para outro)
+  if (lowerText.startsWith('transferir ')) {
+    const args = text.substring(text.toLowerCase().indexOf('transferir ') + 11).trim();
+    return { command: 'transfer', args };
+  }
+  
   // Check for new ticket command
   if (lowerText.startsWith('novo:') || lowerText.startsWith('novo ')) {
     return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
@@ -536,8 +542,10 @@ serve(async (req) => {
             `• *meus chamados* - Listar seus chamados\n\n` +
             `➕ *Criar/Gerenciar*\n` +
             `• *novo: [título]* - Criar chamado\n` +
-            `• *comentar 00001 [texto]* - Adicionar comentário\n` +
-            `• *atribuir 00001* - Assumir chamado (técnicos)\n` +
+            `• *comentar 00001 [texto]* - Adicionar comentário\n\n` +
+            `👨‍🔧 *Comandos para Técnicos*\n` +
+            `• *atribuir 00001* - Assumir chamado\n` +
+            `• *transferir 00001 5511999999999* - Transferir para outro técnico\n` +
             `• *encerrar 00001* - Fechar chamado\n` +
             `• *reabrir 00001* - Reabrir chamado\n` +
             `• *prioridade 00001 alta* - Alterar prioridade\n\n` +
@@ -1237,6 +1245,237 @@ serve(async (req) => {
                   }
                 );
                 console.log('✅ Client notified about assignment');
+              } catch (notifyErr) {
+                console.error('⚠️ Error notifying client:', notifyErr);
+              }
+            }
+          }
+          
+          break;
+        }
+
+        case 'transfer': {
+          // Parse: "00001 5511999999999"
+          const parts = command.args.split(/\s+/);
+          
+          if (parts.length < 2) {
+            await sendResponse(
+              `⚠️ Informe o número do chamado e o telefone do técnico.\n\n` +
+              `Exemplo: *transferir 00001 5511999999999*`
+            );
+            break;
+          }
+          
+          const ticketPart = parts[0];
+          const targetPhone = parts.slice(1).join('').replace(/\D/g, '');
+          
+          const ticketNum = parseTicketNumberFromArgs(ticketPart);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Número do chamado inválido.\nExemplo: *transferir 00001 5511999999999*');
+            break;
+          }
+          
+          if (!targetPhone || targetPhone.length < 8) {
+            await sendResponse('⚠️ Telefone do técnico inválido.\nExemplo: *transferir 00001 5511999999999*');
+            break;
+          }
+          
+          // Find ticket
+          const { data: transferTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!transferTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+          
+          // Verify sender is a technician or admin by phone
+          const senderPhoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone')
+            .or(`phone.ilike.%${senderPhoneDigits}%`)
+            .maybeSingle();
+          
+          if (!senderProfile) {
+            await sendResponse(
+              `⛔ *Você não está cadastrado no sistema.*\n\n` +
+              `Para usar este comando, seu telefone precisa estar vinculado ao seu perfil.\n\n` +
+              `💡 Acesse seu perfil no sistema para cadastrar seu telefone.`
+            );
+            break;
+          }
+          
+          // Check if sender has technician or admin role
+          const { data: senderRoles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', senderProfile.id);
+          
+          const senderRolesList = senderRoles?.map((r: any) => r.role) || [];
+          
+          if (!senderRolesList.includes('admin') && !senderRolesList.includes('technician')) {
+            await sendResponse(
+              `⛔ *Você não tem permissão para transferir chamados.*\n\n` +
+              `👤 Apenas técnicos e administradores podem usar este comando.`
+            );
+            break;
+          }
+          
+          // Check if sender is assigned to ticket or is admin
+          if (transferTicket.assigned_to && 
+              transferTicket.assigned_to !== senderProfile.id && 
+              !senderRolesList.includes('admin')) {
+            await sendResponse(
+              `⛔ *Você não pode transferir este chamado.*\n\n` +
+              `👤 Apenas o técnico atribuído ou um admin pode transferi-lo.`
+            );
+            break;
+          }
+          
+          // Find target technician by phone
+          const targetPhoneDigits = targetPhone.slice(-9);
+          const { data: targetProfile } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone')
+            .or(`phone.ilike.%${targetPhoneDigits}%`)
+            .maybeSingle();
+          
+          if (!targetProfile) {
+            await sendResponse(
+              `❌ *Técnico não encontrado.*\n\n` +
+              `O telefone ${targetPhone} não está cadastrado no sistema.\n\n` +
+              `💡 Verifique se o técnico cadastrou o telefone no perfil dele.`
+            );
+            break;
+          }
+          
+          // Check if target is technician or admin
+          const { data: targetRoles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', targetProfile.id);
+          
+          const targetRolesList = targetRoles?.map((r: any) => r.role) || [];
+          
+          if (!targetRolesList.includes('admin') && !targetRolesList.includes('technician')) {
+            await sendResponse(
+              `❌ *${targetProfile.full_name || 'Este usuário'} não é técnico.*\n\n` +
+              `👤 Só é possível transferir para técnicos ou administradores.`
+            );
+            break;
+          }
+          
+          // Don't transfer to self
+          if (targetProfile.id === senderProfile.id) {
+            await sendResponse(`⚠️ O chamado já está atribuído a você.`);
+            break;
+          }
+          
+          // Transfer the ticket
+          const newStatus = transferTicket.status === 'open' ? 'in_progress' : transferTicket.status;
+          
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              assigned_to: targetProfile.id,
+              technician_phone: targetProfile.phone || targetPhone,
+              status: newStatus
+            })
+            .eq('id', transferTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error transferring ticket:', updateError);
+            await sendResponse(`❌ Erro ao transferir chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: transferTicket.id,
+              user_id: senderProfile.id,
+              comment: `Chamado transferido de ${senderProfile.full_name || pushName} para ${targetProfile.full_name || 'outro técnico'} via WhatsApp`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          // Notify sender (confirmation)
+          await sendResponse(
+            `✅ *Chamado ${ticketNum} Transferido*\n\n` +
+            `📋 ${transferTicket.title}\n` +
+            `👨‍🔧 Novo técnico: *${targetProfile.full_name || 'Técnico'}*\n\n` +
+            `O novo técnico foi notificado.`
+          );
+          
+          // Notify target technician
+          if (targetProfile.phone && settings) {
+            const targetMsg = `📢 *Novo Chamado Atribuído a Você*\n\n` +
+              `📋 Número: *${ticketNum}*\n` +
+              `📝 ${transferTicket.title}\n` +
+              `${getPriorityEmoji(transferTicket.priority)} Prioridade: ${getPriorityLabel(transferTicket.priority)}\n` +
+              `${getStatusEmoji(newStatus)} Status: ${getStatusLabel(newStatus)}\n\n` +
+              `👤 Transferido por: ${senderProfile.full_name || pushName}\n\n` +
+              `💡 Use *detalhes ${ticketNum.split('-').pop()}* para ver mais.`;
+            
+            const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+            try {
+              await fetch(
+                `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'apikey': settings.evolutionApiKey,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    number: targetProfile.phone,
+                    text: targetMsg,
+                  }),
+                }
+              );
+              console.log('✅ Target technician notified');
+            } catch (notifyErr) {
+              console.error('⚠️ Error notifying target technician:', notifyErr);
+            }
+          }
+          
+          // Notify client if has contact_phone
+          if (transferTicket.contact_phone && settings) {
+            const clientPhone = formatPhoneForQuery(transferTicket.contact_phone);
+            const senderPhoneClean = formatPhoneForQuery(senderPhone);
+            
+            if (!clientPhone.includes(senderPhoneClean.slice(-9)) && !senderPhoneClean.includes(clientPhone.slice(-9))) {
+              const clientMsg = `📢 *Atualização do Chamado ${ticketNum}*\n\n` +
+                `Seu chamado foi transferido para o técnico *${targetProfile.full_name || 'responsável'}*.\n\n` +
+                `📋 ${transferTicket.title}\n` +
+                `${getStatusEmoji(newStatus)} Status: ${getStatusLabel(newStatus)}\n\n` +
+                `O técnico entrará em contato em breve!`;
+              
+              const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+              try {
+                await fetch(
+                  `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'apikey': settings.evolutionApiKey,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      number: transferTicket.contact_phone,
+                      text: clientMsg,
+                    }),
+                  }
+                );
+                console.log('✅ Client notified about transfer');
               } catch (notifyErr) {
                 console.error('⚠️ Error notifying client:', notifyErr);
               }

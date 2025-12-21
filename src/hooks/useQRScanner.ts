@@ -1,9 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { supabase } from '@/integrations/supabase/client';
-import { parseQRCode, QRCodeData } from '@/lib/qr-validator';
+import { parseQRCode, parseConnectionCode, QRCodeData } from '@/lib/qr-validator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+
+// Supported formats for scanning
+const SUPPORTED_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+];
 
 interface ScanResult {
   data: QRCodeData;
@@ -42,16 +52,32 @@ export const useQRScanner = () => {
     }
 
     // Get available cameras
-    Html5Qrcode.getCameras().then(devices => {
-      if (devices && devices.length > 0) {
-        setCameras(devices);
-        // Prefer back camera on mobile
-        const backCamera = devices.find(d => d.label.toLowerCase().includes('back'));
-        setSelectedCamera(backCamera?.id || devices[0].id);
+    const getCameras = async () => {
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (devices && devices.length > 0) {
+          setCameras(devices);
+          // Prefer back camera on mobile
+          const backCamera = devices.find(d => 
+            d.label.toLowerCase().includes('back') || 
+            d.label.toLowerCase().includes('traseira') ||
+            d.label.toLowerCase().includes('rear')
+          );
+          setSelectedCamera(backCamera?.id || devices[0].id);
+        } else {
+          setError('Nenhuma câmera encontrada. Verifique as permissões do navegador.');
+        }
+      } catch (err: any) {
+        console.error('Error getting cameras:', err);
+        if (err.name === 'NotAllowedError') {
+          setError('Permissão de câmera negada. Habilite nas configurações do navegador.');
+        } else {
+          setError('Não foi possível acessar as câmeras. Verifique as permissões.');
+        }
       }
-    }).catch(err => {
-      console.error('Error getting cameras:', err);
-    });
+    };
+    
+    getCameras();
   }, []);
 
   const addToHistory = useCallback((code: string, connectionId: string) => {
@@ -69,14 +95,19 @@ export const useQRScanner = () => {
   const processQRCode = useCallback(async (decodedText: string) => {
     setError(null);
     
-    // Parse QR code
-    const qrData = parseQRCode(decodedText);
+    // Try to parse as JSON QR code first
+    let qrData = parseQRCode(decodedText);
+    
+    // If not a JSON QR code, try to parse as connection code (barcode)
+    if (!qrData) {
+      qrData = await parseConnectionCode(decodedText);
+    }
     
     if (!qrData) {
-      setError('QR Code inválido. Este QR Code não pertence ao sistema.');
+      setError('Código não reconhecido. Este código não pertence ao sistema.');
       toast({
-        title: 'QR Code Inválido',
-        description: 'Este QR Code não é do sistema InfraConnexus.',
+        title: 'Código Não Reconhecido',
+        description: 'Este código não é do sistema InfraConnexus.',
         variant: 'destructive',
       });
       return;
@@ -132,7 +163,7 @@ export const useQRScanner = () => {
         description: `${qrData.code} - ${connection.equipment_a_name} → ${connection.equipment_b_name}`,
       });
     } catch (err: any) {
-      console.error('Error processing QR code:', err);
+      console.error('Error processing code:', err);
       setError('Erro ao buscar dados da conexão.');
       toast({
         title: 'Erro',
@@ -144,7 +175,7 @@ export const useQRScanner = () => {
 
   const startScanner = useCallback(async (elementId: string) => {
     if (!selectedCamera) {
-      setError('Nenhuma câmera disponível');
+      setError('Nenhuma câmera disponível. Verifique as permissões do navegador.');
       return;
     }
 
@@ -152,7 +183,10 @@ export const useQRScanner = () => {
       setIsScanning(true);
       setError(null);
       
-      const html5QrCode = new Html5Qrcode(elementId);
+      const html5QrCode = new Html5Qrcode(elementId, {
+        formatsToSupport: SUPPORTED_FORMATS,
+        verbose: false,
+      });
       
       await html5QrCode.start(
         selectedCamera,
@@ -173,7 +207,19 @@ export const useQRScanner = () => {
       return html5QrCode;
     } catch (err: any) {
       console.error('Error starting scanner:', err);
-      setError('Erro ao iniciar câmera. Verifique as permissões.');
+      
+      if (err.name === 'NotAllowedError') {
+        setError('Permissão de câmera negada. Habilite nas configurações do navegador.');
+      } else if (err.name === 'NotFoundError') {
+        setError('Câmera não encontrada no dispositivo.');
+      } else if (err.name === 'NotReadableError') {
+        setError('Câmera está sendo usada por outro aplicativo.');
+      } else if (err.name === 'OverconstrainedError') {
+        setError('A câmera selecionada não está disponível.');
+      } else {
+        setError('Erro ao iniciar câmera. Verifique as permissões e tente novamente.');
+      }
+      
       setIsScanning(false);
       toast({
         title: 'Erro ao Acessar Câmera',
@@ -186,7 +232,10 @@ export const useQRScanner = () => {
   const stopScanner = useCallback(async (html5QrCode: Html5Qrcode | undefined) => {
     if (html5QrCode) {
       try {
-        await html5QrCode.stop();
+        const state = html5QrCode.getState();
+        if (state === 2 || state === 3) { // SCANNING or PAUSED
+          await html5QrCode.stop();
+        }
         html5QrCode.clear();
       } catch (err) {
         console.error('Error stopping scanner:', err);
@@ -197,7 +246,11 @@ export const useQRScanner = () => {
 
   const resumeScanning = useCallback((html5QrCode: Html5Qrcode | undefined) => {
     if (html5QrCode) {
-      html5QrCode.resume();
+      try {
+        html5QrCode.resume();
+      } catch (err) {
+        console.error('Error resuming scanner:', err);
+      }
       setScanResult(null);
       setError(null);
     }
