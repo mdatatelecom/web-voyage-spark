@@ -118,19 +118,17 @@ serve(async (req) => {
           console.log('Instance state before listing groups:', stateData);
           
           const state = stateData?.instance?.state || stateData?.state || 'unknown';
-          const disconnectionReasonCode = stateData?.instance?.disconnectionReasonCode ?? stateData?.disconnectionReasonCode ?? 0;
           
-          // Check if really connected (state is open AND no disconnection reason)
-          const isReallyConnected = (state === 'open' || state === 'connected') && disconnectionReasonCode === 0;
+          // Check if really connected - connectionStatus/state "open" or "connected" is the source of truth
+          // disconnectionReasonCode is historical and doesn't get cleared after reconnection
+          const isReallyConnected = (state === 'open' || state === 'connected');
           
           if (!isReallyConnected) {
-            const reason = disconnectionReasonCode === 401 ? 'dispositivo removido' : 
-                          disconnectionReasonCode !== 0 ? `código ${disconnectionReasonCode}` : state;
-            console.log('Instance not connected, cannot list groups:', reason);
+            console.log('Instance not connected, cannot list groups. State:', state);
             return new Response(
               JSON.stringify({ 
                 success: false, 
-                message: `Instância desconectada (${reason}). Clique em reconectar.`,
+                message: `Instância desconectada (${state}). Clique em reconectar.`,
                 groups: [],
                 needsReconnect: true
               }),
@@ -249,24 +247,22 @@ serve(async (req) => {
 
         // Extract instance names from the response
         // Note: Evolution API returns 'connectionStatus' not 'state'
-        // Also extract disconnectionReasonCode to detect false "connected" states
+        // disconnectionReasonCode is historical and should NOT be used to determine current connection
         const instanceList = Array.isArray(instances) 
           ? instances.map((inst: any) => {
               const rawState = inst.connectionStatus || inst.instance?.state || inst.state || 'unknown';
               const disconnectionReasonCode = inst.instance?.disconnectionReasonCode ?? inst.disconnectionReasonCode ?? 0;
               
-              // If state shows open/connected but has a disconnection reason, mark as needs_reconnect
-              let effectiveState = rawState;
-              if ((rawState === 'open' || rawState === 'connected') && disconnectionReasonCode !== 0) {
-                effectiveState = 'needs_reconnect';
-              }
+              // connectionStatus is the source of truth - if "open", it's connected
+              // disconnectionReasonCode is historical and doesn't get cleared after reconnection
+              const effectiveState = rawState;
               
               return {
                 name: inst.instance?.instanceName || inst.instanceName || inst.name,
                 displayName: inst.instance?.instanceName || inst.instanceName || inst.name,
                 state: effectiveState,
                 rawState,
-                disconnectionReasonCode,
+                disconnectionReasonCode, // Keep for logging purposes only
                 profileName: inst.instance?.profileName || inst.profileName || null,
                 profilePictureUrl: inst.profilePicUrl || inst.instance?.profilePictureUrl || inst.profilePictureUrl || null
               };
@@ -593,8 +589,9 @@ serve(async (req) => {
         
         console.log('Connection details:', { state, disconnectionReasonCode, disconnectionObject });
         
-        // Check if really connected - state is open AND no disconnection reason code
-        const isReallyConnected = (state === 'open' || state === 'connected') && disconnectionReasonCode === 0;
+        // Check if really connected - connectionStatus/state is the source of truth
+        // disconnectionReasonCode is historical and doesn't get cleared after reconnection
+        const isReallyConnected = (state === 'open' || state === 'connected');
         
         if (isReallyConnected) {
           return new Response(
