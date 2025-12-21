@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User } from 'lucide-react';
 import { useTickets } from '@/hooks/useTickets';
+import { useAuth } from '@/hooks/useAuth';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
 import {
   TICKET_CATEGORIES,
@@ -37,12 +38,14 @@ import { ptBR } from 'date-fns/locale';
 
 export default function SupportTickets() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
 
   const filteredTickets = tickets?.filter((ticket) => {
     const matchesSearch =
@@ -53,8 +56,14 @@ export default function SupportTickets() {
     const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
     const matchesCategory = categoryFilter === 'all' || ticket.category === categoryFilter;
+    
+    const matchesAssignment = 
+      assignmentFilter === 'all' ||
+      (assignmentFilter === 'mine' && ticket.created_by === user?.id) ||
+      (assignmentFilter === 'assigned_to_me' && ticket.assigned_to === user?.id) ||
+      (assignmentFilter === 'unassigned' && !ticket.assigned_to);
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesAssignment;
   });
 
   const stats = {
@@ -149,7 +158,7 @@ export default function SupportTickets() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -159,6 +168,17 @@ export default function SupportTickets() {
                   className="pl-10"
                 />
               </div>
+              <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Atribuição" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="mine">📝 Criados por Mim</SelectItem>
+                  <SelectItem value="assigned_to_me">👨‍🔧 Atribuídos a Mim</SelectItem>
+                  <SelectItem value="unassigned">🔓 Não Atribuídos</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
@@ -213,6 +233,7 @@ export default function SupportTickets() {
                   <TableHead>Categoria</TableHead>
                   <TableHead>Prioridade</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Atribuído a</TableHead>
                   <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -220,13 +241,13 @@ export default function SupportTickets() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredTickets?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum chamado encontrado
                     </TableCell>
                   </TableRow>
@@ -255,6 +276,18 @@ export default function SupportTickets() {
                         <Badge variant={getStatusVariant(ticket.status)}>
                           {getStatusLabel(ticket.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {ticket.assignee_name ? (
+                          <div className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{ticket.assignee_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic text-sm">
+                            Não atribuído
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(ticket.created_at!), "dd/MM/yyyy HH:mm", {
