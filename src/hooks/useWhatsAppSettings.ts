@@ -29,6 +29,8 @@ export interface EvolutionInstance {
   name: string;
   displayName: string;
   state: string;
+  rawState?: string;
+  disconnectionReasonCode?: number;
   profileName: string | null;
   profilePictureUrl: string | null;
 }
@@ -126,11 +128,16 @@ export const useWhatsAppSettings = () => {
     }
   };
 
-  const testConnection = async (testSettings?: WhatsAppSettings): Promise<{ success: boolean; message: string }> => {
+  const testConnection = async (testSettings?: WhatsAppSettings): Promise<{ 
+    success: boolean; 
+    message: string; 
+    needsReconnect?: boolean;
+    disconnectionReasonCode?: number;
+  }> => {
     const settingsToTest = testSettings || settings;
     
     if (!settingsToTest.evolutionApiUrl || !settingsToTest.evolutionApiKey || !settingsToTest.evolutionInstance) {
-      return { success: false, message: 'Preencha todos os campos obrigatórios' };
+      return { success: false, message: 'Preencha todos os campos obrigatórios', needsReconnect: false };
     }
 
     setIsTesting(true);
@@ -145,13 +152,27 @@ export const useWhatsAppSettings = () => {
       if (error) throw error;
 
       if (data?.success) {
-        return { success: true, message: data.message || 'Conexão OK' };
+        return { 
+          success: true, 
+          message: data.message || 'Conexão OK',
+          needsReconnect: false,
+          disconnectionReasonCode: data.disconnectionReasonCode
+        };
       } else {
-        return { success: false, message: data?.message || 'Falha na conexão' };
+        return { 
+          success: false, 
+          message: data?.message || 'Falha na conexão',
+          needsReconnect: data?.needsReconnect || false,
+          disconnectionReasonCode: data?.disconnectionReasonCode
+        };
       }
     } catch (error) {
       console.error('Erro ao testar conexão:', error);
-      return { success: false, message: error instanceof Error ? error.message : 'Erro desconhecido' };
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        needsReconnect: false
+      };
     } finally {
       setIsTesting(false);
     }
