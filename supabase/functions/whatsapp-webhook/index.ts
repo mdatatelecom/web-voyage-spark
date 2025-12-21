@@ -1021,25 +1021,71 @@ serve(async (req) => {
         }
 
         case 'list': {
-          // List open tickets for this phone number
+          // List open tickets for this phone number (as client OR technician)
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          
+          // First, try to find user's profile to get their ID
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .or(`phone.ilike.%${phoneDigits}%`)
+            .maybeSingle();
+          
+          // Build OR conditions: contact_phone (client) OR technician_phone OR assigned_to (technician)
+          let orConditions = [
+            `contact_phone.ilike.%${phoneDigits}%`,
+            `technician_phone.ilike.%${phoneDigits}%`
+          ];
+          
+          if (userProfile) {
+            orConditions.push(`assigned_to.eq.${userProfile.id}`);
+          }
+          
           const { data: userTickets } = await supabase
             .from('support_tickets')
             .select('*')
-            .or(`contact_phone.ilike.%${formatPhoneForQuery(senderPhone)}%`)
+            .or(orConditions.join(','))
             .in('status', ['open', 'in_progress'])
             .order('created_at', { ascending: false })
-            .limit(10);
+            .limit(15);
 
           if (!userTickets || userTickets.length === 0) {
             await sendResponse('📭 Você não possui chamados abertos no momento.');
           } else {
+            // Separate tickets by role
+            const myAssigned = userTickets.filter(t => 
+              t.assigned_to === userProfile?.id || 
+              t.technician_phone?.includes(phoneDigits)
+            );
+            const myCreated = userTickets.filter(t => 
+              t.contact_phone?.includes(phoneDigits) &&
+              !myAssigned.find(a => a.id === t.id)
+            );
+            
             let listMessage = `📋 *Seus Chamados Abertos*\n\n`;
-            userTickets.forEach((t, i) => {
-              listMessage += `${i + 1}. *${t.ticket_number}*\n`;
-              listMessage += `   📝 ${t.title}\n`;
-              listMessage += `   ${getStatusEmoji(t.status)} ${getStatusLabel(t.status)} | ${getPriorityEmoji(t.priority)} ${getPriorityLabel(t.priority)}\n\n`;
-            });
-            listMessage += `\n💡 Use *detalhes ${userTickets[0].ticket_number.split('-')[2]}* para ver mais.`;
+            let counter = 1;
+            
+            if (myAssigned.length > 0) {
+              listMessage += `👨‍🔧 *Atribuídos a Você:*\n`;
+              myAssigned.forEach((t) => {
+                listMessage += `${counter}. *${t.ticket_number}*\n`;
+                listMessage += `   📝 ${t.title}\n`;
+                listMessage += `   ${getStatusEmoji(t.status)} ${getStatusLabel(t.status)} | ${getPriorityEmoji(t.priority)} ${getPriorityLabel(t.priority)}\n\n`;
+                counter++;
+              });
+            }
+            
+            if (myCreated.length > 0) {
+              listMessage += `📞 *Abertos por Você:*\n`;
+              myCreated.forEach((t) => {
+                listMessage += `${counter}. *${t.ticket_number}*\n`;
+                listMessage += `   📝 ${t.title}\n`;
+                listMessage += `   ${getStatusEmoji(t.status)} ${getStatusLabel(t.status)} | ${getPriorityEmoji(t.priority)} ${getPriorityLabel(t.priority)}\n\n`;
+                counter++;
+              });
+            }
+            
+            listMessage += `💡 Use *detalhes ${userTickets[0].ticket_number.split('-')[2]}* para ver mais.`;
             
             await sendResponse(listMessage);
           }
