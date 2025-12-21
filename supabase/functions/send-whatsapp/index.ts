@@ -486,6 +486,87 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'send-test') {
+      // Send a test message
+      if (!phone) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Número de telefone é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const testMessage = message || '✅ Teste de integração WhatsApp realizado com sucesso! - Sistema de Racks';
+      console.log('Sending test WhatsApp message to:', phone);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: phone,
+              text: testMessage,
+            }),
+          }
+        );
+
+        console.log('Evolution API send-test response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Evolution API send-test error:', errorData);
+          
+          // Enhanced error message for 401 errors
+          if (response.status === 401) {
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                message: 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.' 
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          let errorMsg = `Erro ${response.status}`;
+          if (errorData?.response?.message) {
+            errorMsg = Array.isArray(errorData.response.message) 
+              ? errorData.response.message.join(', ') 
+              : String(errorData.response.message);
+          } else if (errorData?.message) {
+            errorMsg = String(errorData.message);
+          }
+          
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Test message sent successfully:', data);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Mensagem de teste enviada para ${phone}!`,
+            data 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Send-test fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'send') {
       if (!phone || !message) {
         return new Response(
@@ -512,9 +593,23 @@ serve(async (req) => {
           }
         );
 
+        console.log('Evolution API send response status:', response.status);
+
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Evolution API send error:', errorText);
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Evolution API send error:', errorData);
+          
+          // Enhanced error message for 401 errors
+          if (response.status === 401) {
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                message: 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.' 
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
           return new Response(
             JSON.stringify({ 
               success: false, 

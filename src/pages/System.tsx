@@ -139,6 +139,7 @@ export default function System() {
     settings: whatsAppSettings, 
     isLoading: whatsAppLoading, 
     isTesting: whatsAppTesting, 
+    isSendingTest: whatsAppSendingTest,
     instances: whatsAppInstances,
     isLoadingInstances: whatsAppLoadingInstances,
     isCreatingInstance: whatsAppCreatingInstance,
@@ -149,7 +150,8 @@ export default function System() {
     createInstance: createWhatsAppInstance,
     deleteInstance: deleteWhatsAppInstance,
     logoutInstance: logoutWhatsAppInstance,
-    connectInstance: connectWhatsAppInstance
+    connectInstance: connectWhatsAppInstance,
+    sendTestMessage: sendWhatsAppTestMessage
   } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -170,6 +172,13 @@ export default function System() {
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const [reconnectQrCode, setReconnectQrCode] = useState<string | null>(null);
   const [instanceToReconnect, setInstanceToReconnect] = useState<string>('');
+
+  // Test Message Dialog
+  const [showTestMessageDialog, setShowTestMessageDialog] = useState(false);
+  const [testPhoneNumber, setTestPhoneNumber] = useState('');
+  const [testMessageContent, setTestMessageContent] = useState('');
+  const [testMessageStatus, setTestMessageStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [testMessageResult, setTestMessageResult] = useState<string>('');
 
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) return;
@@ -1165,6 +1174,21 @@ export default function System() {
                     </Button>
                     
                     <Button
+                      variant="outline"
+                      onClick={() => {
+                        setTestPhoneNumber('');
+                        setTestMessageContent('');
+                        setTestMessageStatus('idle');
+                        setTestMessageResult('');
+                        setShowTestMessageDialog(true);
+                      }}
+                      disabled={!localWhatsAppSettings.evolutionApiUrl || !localWhatsAppSettings.evolutionApiKey || !localWhatsAppSettings.evolutionInstance}
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar Teste
+                    </Button>
+                    
+                    <Button
                       onClick={() => saveWhatsAppSettings(localWhatsAppSettings)}
                       className="flex-1"
                     >
@@ -1382,6 +1406,91 @@ export default function System() {
                       <DialogFooter>
                         <Button variant="outline" onClick={handleCloseReconnectDialog}>
                           {reconnectQrCode ? 'Fechar' : 'Cancelar'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Dialog para enviar mensagem de teste */}
+                  <Dialog open={showTestMessageDialog} onOpenChange={setShowTestMessageDialog}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Send className="h-5 w-5" />
+                          Enviar Mensagem de Teste
+                        </DialogTitle>
+                        <DialogDescription>
+                          Envie uma mensagem de teste para verificar se a integração WhatsApp está funcionando.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="testPhone">Número de Telefone</Label>
+                          <Input
+                            id="testPhone"
+                            value={testPhoneNumber}
+                            onChange={(e) => setTestPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                            placeholder="5511999999999"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Formato: código do país + DDD + número (apenas números, sem espaços ou caracteres especiais)
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="testMessage">Mensagem (opcional)</Label>
+                          <Input
+                            id="testMessage"
+                            value={testMessageContent}
+                            onChange={(e) => setTestMessageContent(e.target.value)}
+                            placeholder="✅ Teste de integração WhatsApp realizado com sucesso!"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Deixe em branco para usar a mensagem padrão
+                          </p>
+                        </div>
+                        
+                        {testMessageResult && (
+                          <Alert variant={testMessageStatus === 'error' ? 'destructive' : 'default'}>
+                            {testMessageStatus === 'success' ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : (
+                              <XCircle className="h-4 w-4" />
+                            )}
+                            <AlertDescription>{testMessageResult}</AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowTestMessageDialog(false)}>
+                          Fechar
+                        </Button>
+                        <Button 
+                          onClick={async () => {
+                            if (!testPhoneNumber) {
+                              setTestMessageStatus('error');
+                              setTestMessageResult('Informe o número de telefone');
+                              return;
+                            }
+                            
+                            setTestMessageStatus('sending');
+                            setTestMessageResult('Enviando mensagem...');
+                            
+                            const result = await sendWhatsAppTestMessage(
+                              testPhoneNumber,
+                              testMessageContent || undefined,
+                              localWhatsAppSettings
+                            );
+                            
+                            setTestMessageStatus(result.success ? 'success' : 'error');
+                            setTestMessageResult(result.message);
+                          }}
+                          disabled={!testPhoneNumber || testMessageStatus === 'sending' || whatsAppSendingTest}
+                        >
+                          {(testMessageStatus === 'sending' || whatsAppSendingTest) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Enviar Teste
                         </Button>
                       </DialogFooter>
                     </DialogContent>
