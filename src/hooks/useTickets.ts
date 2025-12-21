@@ -91,14 +91,46 @@ export const useTickets = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      return { data, updatedFields: updates };
     },
-    onSuccess: () => {
+    onSuccess: async ({ data, updatedFields }) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
       toast({
         title: 'Chamado atualizado',
         description: 'O chamado foi atualizado com sucesso.',
       });
+
+      // Send WhatsApp notification if status was changed and contact_phone exists
+      if (updatedFields.status && data.contact_phone) {
+        try {
+          const statusMessages: Record<string, string> = {
+            open: 'foi reaberto',
+            in_progress: 'está em andamento',
+            resolved: 'foi resolvido',
+            closed: 'foi fechado',
+          };
+          
+          const statusText = statusMessages[updatedFields.status] || `teve o status alterado para ${updatedFields.status}`;
+          
+          const message = `🔔 *Atualização de Chamado*\n\n` +
+            `Chamado: *${data.ticket_number}*\n` +
+            `Título: ${data.title}\n\n` +
+            `O chamado ${statusText}.\n\n` +
+            `Para mais detalhes, acesse o sistema.`;
+
+          await supabase.functions.invoke('send-whatsapp', {
+            body: {
+              action: 'send',
+              phone: data.contact_phone,
+              message,
+              ticketId: data.id,
+            },
+          });
+        } catch (err) {
+          console.error('Error sending WhatsApp notification for ticket update:', err);
+          // Don't show error toast - WhatsApp notification is optional
+        }
+      }
     },
     onError: (error) => {
       console.error('Error updating ticket:', error);

@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
-import { Bell, Mail, Save } from 'lucide-react';
+import { Bell, Mail, Save, MessageCircle } from 'lucide-react';
 
 export default function NotificationSettings() {
   const { user } = useAuth();
@@ -19,6 +19,12 @@ export default function NotificationSettings() {
   const [alertWarning, setAlertWarning] = useState(true);
   const [alertInfo, setAlertInfo] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
+  
+  // WhatsApp settings
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappAlertCritical, setWhatsappAlertCritical] = useState(true);
+  const [whatsappAlertWarning, setWhatsappAlertWarning] = useState(false);
 
   // Fetch current settings
   const { data: settings, isLoading } = useQuery({
@@ -49,6 +55,11 @@ export default function NotificationSettings() {
       setAlertWarning(settings.alert_warning);
       setAlertInfo(settings.alert_info);
       setEmailAddress(settings.email_address || '');
+      // WhatsApp settings
+      setWhatsappEnabled((settings as any).whatsapp_enabled ?? false);
+      setWhatsappPhone((settings as any).whatsapp_phone || '');
+      setWhatsappAlertCritical((settings as any).whatsapp_alert_critical ?? true);
+      setWhatsappAlertWarning((settings as any).whatsapp_alert_warning ?? false);
     }
   }, [settings]);
 
@@ -64,6 +75,10 @@ export default function NotificationSettings() {
         alert_warning: alertWarning,
         alert_info: alertInfo,
         email_address: emailAddress || null,
+        whatsapp_enabled: whatsappEnabled,
+        whatsapp_phone: whatsappPhone || null,
+        whatsapp_alert_critical: whatsappAlertCritical,
+        whatsapp_alert_warning: whatsappAlertWarning,
         updated_at: new Date().toISOString(),
       };
 
@@ -120,6 +135,32 @@ export default function NotificationSettings() {
     },
     onError: (error: any) => {
       toast.error('Erro ao enviar email de teste', {
+        description: error.message,
+      });
+    },
+  });
+
+  // Send test WhatsApp mutation
+  const { mutate: sendTestWhatsApp, isPending: isSendingWhatsAppTest } = useMutation({
+    mutationFn: async () => {
+      if (!whatsappPhone) throw new Error('Telefone não configurado');
+
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'send',
+          phone: whatsappPhone,
+          message: '🔔 *Teste de Notificação WhatsApp*\n\nEste é um WhatsApp de teste do sistema de alertas.\n\nSe você recebeu esta mensagem, suas configurações de notificação estão funcionando corretamente!',
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success('WhatsApp de teste enviado');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao enviar WhatsApp de teste', {
         description: error.message,
       });
     },
@@ -245,8 +286,80 @@ export default function NotificationSettings() {
             </div>
           )}
 
+          {/* WhatsApp Notifications */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="whatsapp-enabled" className="text-base flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Notificações por WhatsApp
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Receber alertas importantes por WhatsApp
+                </p>
+              </div>
+              <Switch
+                id="whatsapp-enabled"
+                checked={whatsappEnabled}
+                onCheckedChange={setWhatsappEnabled}
+              />
+            </div>
+
+            {whatsappEnabled && (
+              <>
+                <div className="space-y-2 pl-6">
+                  <Label htmlFor="whatsapp-phone">Telefone para Alertas</Label>
+                  <Input
+                    id="whatsapp-phone"
+                    type="tel"
+                    placeholder="5511999999999"
+                    value={whatsappPhone}
+                    onChange={(e) => setWhatsappPhone(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Formato: código do país + DDD + número (ex: 5511999999999)
+                  </p>
+                </div>
+
+                <div className="space-y-3 pl-6 pt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="whatsapp-critical" className="font-normal">
+                        Alertas Críticos
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Problemas graves que requerem ação imediata
+                      </p>
+                    </div>
+                    <Switch
+                      id="whatsapp-critical"
+                      checked={whatsappAlertCritical}
+                      onCheckedChange={setWhatsappAlertCritical}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="whatsapp-warning" className="font-normal">
+                        Alertas de Aviso
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Situações que precisam de atenção
+                      </p>
+                    </div>
+                    <Switch
+                      id="whatsapp-warning"
+                      checked={whatsappAlertWarning}
+                      onCheckedChange={setWhatsappAlertWarning}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex flex-wrap gap-3 pt-4 border-t">
             <Button onClick={() => saveSettings()} disabled={isPending}>
               <Save className="w-4 h-4 mr-2" />
               {isPending ? 'Salvando...' : 'Salvar Configurações'}
@@ -259,6 +372,16 @@ export default function NotificationSettings() {
               >
                 <Mail className="w-4 h-4 mr-2" />
                 {isSendingTest ? 'Enviando...' : 'Enviar Email de Teste'}
+              </Button>
+            )}
+            {whatsappEnabled && whatsappPhone && (
+              <Button
+                variant="outline"
+                onClick={() => sendTestWhatsApp()}
+                disabled={isSendingWhatsAppTest}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                {isSendingWhatsAppTest ? 'Enviando...' : 'Enviar WhatsApp de Teste'}
               </Button>
             )}
           </div>
