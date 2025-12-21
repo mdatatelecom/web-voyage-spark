@@ -33,6 +33,7 @@ import RackComparison from "./pages/RackComparison";
 import CameraMap from "./pages/CameraMap";
 import SupportTickets from "./pages/SupportTickets";
 import TicketDetails from "./pages/TicketDetails";
+import TicketMetrics from "./pages/TicketMetrics";
 import WhatsAppHistory from "./pages/WhatsAppHistory";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -262,6 +263,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <TicketDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tickets/metrics"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <TicketMetrics />
                 </ProtectedRoute>
               } 
             />

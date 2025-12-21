@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { differenceInHours, differenceInMinutes, startOfDay, subDays, isAfter, parseISO } from 'date-fns';
+import { differenceInHours, differenceInMinutes, startOfDay, subDays, subMonths, isAfter, isBefore, parseISO, format, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface TicketStats {
   totalTickets: number;
@@ -16,6 +16,12 @@ export interface TicketStats {
   ticketsByStatus: { status: string; count: number; label: string }[];
   ticketsTrend: { date: string; created: number; resolved: number }[];
   ticketsByPriority: { priority: string; count: number; label: string }[];
+  // Advanced metrics
+  slaCompliance: number;
+  overdueTickets: number;
+  urgentTickets: { id: string; ticket_number: string; title: string; due_date: string; priority: string; hoursRemaining: number }[];
+  resolutionByCategory: { category: string; label: string; avgMinutes: number; count: number }[];
+  monthlyTrend: { month: string; created: number; resolved: number; avgResolutionMinutes: number }[];
 }
 
 const getCategoryLabel = (category: string): string => {
@@ -55,7 +61,8 @@ export const useTicketStats = () => {
   return useQuery({
     queryKey: ['ticket-stats'],
     queryFn: async (): Promise<TicketStats> => {
-      const today = startOfDay(new Date());
+      const now = new Date();
+      const today = startOfDay(now);
       const sevenDaysAgo = subDays(today, 7);
 
       // Fetch all tickets
@@ -183,6 +190,97 @@ export const useTicketStats = () => {
         });
       }
 
+      // === ADVANCED METRICS ===
+
+      // SLA Compliance (tickets with due_date resolved before due_date)
+      const ticketsWithDueDate = allTickets.filter(t => t.due_date);
+      const resolvedWithinSLA = ticketsWithDueDate.filter(t => {
+        if (t.status !== 'resolved' && t.status !== 'closed') return false;
+        if (!t.resolved_at) return false;
+        return isBefore(parseISO(t.resolved_at), parseISO(t.due_date!));
+      }).length;
+      const slaCompliance = ticketsWithDueDate.length > 0 
+        ? Math.round((resolvedWithinSLA / ticketsWithDueDate.length) * 100) 
+        : 100;
+
+      // Overdue tickets (open/in_progress with due_date in the past)
+      const overdueTickets = allTickets.filter(t => {
+        if (t.status === 'resolved' || t.status === 'closed') return false;
+        if (!t.due_date) return false;
+        return isBefore(parseISO(t.due_date), now);
+      }).length;
+
+      // Urgent tickets (due in next 24 hours)
+      const urgentTickets = allTickets
+        .filter(t => {
+          if (t.status === 'resolved' || t.status === 'closed') return false;
+          if (!t.due_date) return false;
+          const dueDate = parseISO(t.due_date);
+          const hoursUntilDue = differenceInHours(dueDate, now);
+          return hoursUntilDue > 0 && hoursUntilDue <= 24;
+        })
+        .map(t => ({
+          id: t.id,
+          ticket_number: t.ticket_number,
+          title: t.title,
+          due_date: t.due_date!,
+          priority: t.priority,
+          hoursRemaining: differenceInHours(parseISO(t.due_date!), now)
+        }))
+        .sort((a, b) => a.hoursRemaining - b.hoursRemaining);
+
+      // Resolution time by category
+      const categoryResolutionMap = new Map<string, { totalMinutes: number; count: number }>();
+      resolvedWithTime.forEach(t => {
+        const cat = t.category || 'other';
+        const current = categoryResolutionMap.get(cat) || { totalMinutes: 0, count: 0 };
+        const minutes = differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.created_at!));
+        current.totalMinutes += minutes;
+        current.count++;
+        categoryResolutionMap.set(cat, current);
+      });
+      const resolutionByCategory = Array.from(categoryResolutionMap.entries()).map(([category, data]) => ({
+        category,
+        label: getCategoryLabel(category),
+        avgMinutes: Math.round(data.totalMinutes / data.count),
+        count: data.count
+      })).sort((a, b) => b.count - a.count);
+
+      // Monthly trend (last 6 months)
+      const monthlyTrend: { month: string; created: number; resolved: number; avgResolutionMinutes: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = startOfMonth(subMonths(now, i));
+        const monthEnd = endOfMonth(subMonths(now, i));
+        
+        const createdInMonth = allTickets.filter(t => {
+          const created = parseISO(t.created_at!);
+          return isAfter(created, monthStart) && isBefore(created, monthEnd);
+        });
+        
+        const resolvedInMonth = allTickets.filter(t => {
+          if (!t.resolved_at) return false;
+          const resolved = parseISO(t.resolved_at);
+          return isAfter(resolved, monthStart) && isBefore(resolved, monthEnd);
+        });
+        
+        // Calculate avg resolution for this month
+        const resolvedWithTimeInMonth = resolvedInMonth.filter(t => t.created_at);
+        let avgMinutes = 0;
+        if (resolvedWithTimeInMonth.length > 0) {
+          const total = resolvedWithTimeInMonth.reduce((sum, t) => {
+            return sum + differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.created_at!));
+          }, 0);
+          avgMinutes = Math.round(total / resolvedWithTimeInMonth.length);
+        }
+        
+        monthlyTrend.push({
+          month: format(monthStart, 'MMM/yy'),
+          created: createdInMonth.length,
+          resolved: resolvedInMonth.length,
+          avgResolutionMinutes: avgMinutes
+        });
+      }
+
       return {
         totalTickets,
         openTickets,
@@ -196,7 +294,13 @@ export const useTicketStats = () => {
         ticketsByTechnician,
         ticketsByStatus,
         ticketsTrend,
-        ticketsByPriority
+        ticketsByPriority,
+        // Advanced
+        slaCompliance,
+        overdueTickets,
+        urgentTickets,
+        resolutionByCategory,
+        monthlyTrend
       };
     },
     refetchInterval: 60000 // Refresh every minute
