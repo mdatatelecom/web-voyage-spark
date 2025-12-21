@@ -174,21 +174,51 @@ serve(async (req) => {
 
         const rawText = await response.text();
         console.log('Raw groups response length:', rawText.length);
+        console.log('Raw groups response preview:', rawText.substring(0, 500));
         
         const groupsData = JSON.parse(rawText);
-        console.log('Groups found:', Array.isArray(groupsData) ? groupsData.length : 'not an array', 'Type:', typeof groupsData);
+        console.log('Parsed groups data type:', typeof groupsData, 'isArray:', Array.isArray(groupsData));
+        
+        // Handle different response formats from Evolution API
+        // Can be: [{...}] or { groups: [...] } or { data: [...] }
+        let rawGroups: any[] = [];
+        if (Array.isArray(groupsData)) {
+          rawGroups = groupsData;
+          console.log('Groups is direct array with', rawGroups.length, 'items');
+        } else if (groupsData?.groups && Array.isArray(groupsData.groups)) {
+          rawGroups = groupsData.groups;
+          console.log('Groups extracted from .groups property with', rawGroups.length, 'items');
+        } else if (groupsData?.data && Array.isArray(groupsData.data)) {
+          rawGroups = groupsData.data;
+          console.log('Groups extracted from .data property with', rawGroups.length, 'items');
+        } else {
+          console.log('Unknown groups response structure:', Object.keys(groupsData || {}));
+          // Try to find any array property
+          for (const key of Object.keys(groupsData || {})) {
+            if (Array.isArray(groupsData[key])) {
+              rawGroups = groupsData[key];
+              console.log(`Groups extracted from .${key} property with`, rawGroups.length, 'items');
+              break;
+            }
+          }
+        }
+
+        // Log first group structure for debugging
+        if (rawGroups.length > 0) {
+          console.log('First group structure:', JSON.stringify(rawGroups[0]).substring(0, 300));
+        }
 
         // Extract group info from the response
-        const groupList = Array.isArray(groupsData) 
-          ? groupsData.map((group: any) => ({
-              id: group.id || group.jid,
-              subject: group.subject || group.name || 'Grupo sem nome',
-              size: group.size || group.participants?.length || 0,
-              creation: group.creation || 0,
-              owner: group.owner || '',
-              desc: group.desc || group.description || '',
-            }))
-          : [];
+        const groupList = rawGroups.map((group: any) => ({
+          id: group.id || group.jid,
+          subject: group.subject || group.name || 'Grupo sem nome',
+          size: group.size || group.participants?.length || 0,
+          creation: group.creation || 0,
+          owner: group.owner || '',
+          desc: group.desc || group.description || '',
+        }));
+        
+        console.log('Final group list with', groupList.length, 'groups');
 
         return new Response(
           JSON.stringify({ 

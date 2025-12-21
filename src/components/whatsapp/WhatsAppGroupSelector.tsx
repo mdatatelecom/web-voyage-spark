@@ -56,6 +56,21 @@ export const WhatsAppGroupSelector = ({
     }
   };
 
+  // Auto-load groups when user selects "group" target type and instance is connected
+  useEffect(() => {
+    if (
+      settings.targetType === 'group' && 
+      settings.evolutionInstance && 
+      settings.evolutionApiUrl && 
+      settings.evolutionApiKey &&
+      !hasLoadedGroups &&
+      !isLoading
+    ) {
+      console.log('Auto-loading groups for instance:', settings.evolutionInstance);
+      handleLoadGroups();
+    }
+  }, [settings.targetType, settings.evolutionInstance, settings.evolutionApiUrl, settings.evolutionApiKey]);
+
   const handleTargetTypeChange = (value: 'individual' | 'group') => {
     onSettingsChange({
       ...settings,
