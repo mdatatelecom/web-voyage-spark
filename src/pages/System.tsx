@@ -1246,16 +1246,28 @@ export default function System() {
                       <Input
                         id="countryCode"
                         value={localWhatsAppSettings.defaultCountryCode}
-                        onChange={(e) => setLocalWhatsAppSettings({ 
-                          ...localWhatsAppSettings, 
-                          defaultCountryCode: e.target.value 
-                        })}
+                        onChange={(e) => {
+                          // Only allow digits and limit to 3 characters (country codes are 1-3 digits)
+                          const cleaned = e.target.value.replace(/\D/g, '').slice(0, 3);
+                          setLocalWhatsAppSettings({ 
+                            ...localWhatsAppSettings, 
+                            defaultCountryCode: cleaned
+                          });
+                        }}
+                        maxLength={3}
                         placeholder="55"
+                        pattern="[0-9]*"
+                        inputMode="numeric"
                         className="w-32"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Será adicionado automaticamente se o número não tiver código do país
+                        Código do país para números sem DDI (ex: 55 para Brasil, 1 para EUA)
                       </p>
+                      {localWhatsAppSettings.defaultCountryCode && localWhatsAppSettings.defaultCountryCode.length > 3 && (
+                        <p className="text-xs text-destructive">
+                          ⚠️ Código inválido! Use apenas 1-3 dígitos (ex: 55)
+                        </p>
+                      )}
                     </div>
                   </div>
                   
