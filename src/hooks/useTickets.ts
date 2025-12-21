@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
-import { getCategoryLabel, getPriorityLabel } from '@/constants/ticketTypes';
+import { getCategoryLabel, getPriorityLabel, getStatusLabel } from '@/constants/ticketTypes';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -293,6 +293,7 @@ export const useTickets = () => {
       }
 
       // Technician assigned
+      let assignedTechName = '';
       if (updatedFields.assigned_to) {
         try {
           const { data: techProfile } = await supabase
@@ -300,9 +301,10 @@ export const useTickets = () => {
             .select('full_name')
             .eq('id', updatedFields.assigned_to)
             .maybeSingle();
-          const techName = techProfile?.full_name || 'Técnico';
-          changes.push(`👨‍🔧 Técnico atribuído: *${techName}*.`);
+          assignedTechName = techProfile?.full_name || 'Técnico';
+          changes.push(`👨‍🔧 Técnico atribuído: *${assignedTechName}*.`);
         } catch {
+          assignedTechName = 'Técnico';
           changes.push(`👨‍🔧 Técnico atribuído ao chamado.`);
         }
       }
@@ -394,6 +396,31 @@ export const useTickets = () => {
             });
           } catch (err) {
             console.error('Error sending WhatsApp notification for ticket update:', err);
+          }
+        }
+
+        // Send specific notification to client when technician is assigned via web system
+        if (updatedFields.assigned_to && data.contact_phone && assignedTechName) {
+          const clientAssignmentMessage = `📢 *Seu Chamado Recebeu um Técnico!*\n\n` +
+            `📋 Chamado: *${data.ticket_number}*\n` +
+            `📝 ${data.title}\n\n` +
+            `👨‍🔧 Técnico Atribuído: *${assignedTechName}*\n` +
+            `${getStatusLabel(data.status)}\n\n` +
+            `O técnico entrará em contato em breve!\n\n` +
+            `💡 Qualquer dúvida, responda esta mensagem.`;
+          
+          try {
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send',
+                phone: data.contact_phone,
+                message: clientAssignmentMessage,
+                ticketId: data.id,
+              },
+            });
+            console.log('✅ [UPDATE] Client notified about technician assignment');
+          } catch (err) {
+            console.error('Error sending client assignment notification:', err);
           }
         }
       } // End of changes.length > 0 check

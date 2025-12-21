@@ -88,9 +88,25 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'unassign', args };
   }
   
-  // Check for new ticket command
-  if (lowerText.startsWith('novo:') || lowerText.startsWith('novo ')) {
-    return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
+  // Check for new ticket command with category wizard
+  if (lowerText === 'novo') {
+    return { command: 'novo', args: '' };
+  }
+  
+  // Check for category-based ticket creation
+  if (lowerText.startsWith('novo ')) {
+    const argsText = text.replace(/^novo\s+/i, '').trim();
+    return { command: 'novo', args: argsText };
+  }
+  if (lowerText.startsWith('novo:')) {
+    return { command: 'novo', args: text.replace(/^novo:\s*/i, '').trim() };
+  }
+  
+  // Check for available (unassigned) tickets command
+  if (lowerText === 'disponiveis' || lowerText === 'disponíveis' || 
+      lowerText === 'nao atribuidos' || lowerText === 'não atribuídos' || 
+      lowerText === 'abertos sem tecnico') {
+    return { command: 'available', args: '' };
   }
   
   // Check for list command - with filter option
@@ -99,6 +115,16 @@ const extractCommand = (text: string): { command: string; args: string } | null 
   }
   if (lowerText === 'todos chamados' || lowerText === 'todos meus chamados' || lowerText === 'todos tickets') {
     return { command: 'list', args: 'all' };
+  }
+  
+  // Check for cancel wizard command
+  if (lowerText === 'cancelar criacao' || lowerText === 'cancelar criação') {
+    return { command: 'cancel_wizard', args: '' };
+  }
+  
+  // Check for skip due date command
+  if (lowerText === 'pular') {
+    return { command: 'skip', args: '' };
   }
   
   // Check for help command
@@ -582,6 +608,143 @@ serve(async (req) => {
       ticket = ticketData;
     }
 
+    // Check for active wizard session
+    const { data: activeSession } = await supabase
+      .from('whatsapp_sessions')
+      .select('*')
+      .eq('phone', senderPhone)
+      .maybeSingle();
+
+    if (activeSession) {
+      // Check if session expired (30 minutes)
+      const sessionAge = Date.now() - new Date(activeSession.updated_at).getTime();
+      if (sessionAge > 30 * 60 * 1000) {
+        await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+        console.log('🕐 Session expired, cleaned up');
+      } else {
+        // Process based on session state
+        const sessionData = activeSession.data as { category?: string; description?: string };
+        
+        // Check for cancel command
+        if (messageContent.toLowerCase() === 'cancelar criação' || 
+            messageContent.toLowerCase() === 'cancelar criacao' ||
+            messageContent.toLowerCase() === 'cancelar') {
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          await sendResponse('❌ Criação de chamado cancelada.');
+          return new Response(
+            JSON.stringify({ success: true, message: 'Wizard cancelled' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (activeSession.state === 'awaiting_description') {
+          // User sent the description
+          await supabase
+            .from('whatsapp_sessions')
+            .update({ 
+              state: 'awaiting_due_date',
+              data: { ...sessionData, description: messageContent },
+              updated_at: new Date().toISOString()
+            })
+            .eq('phone', senderPhone);
+          
+          await sendResponse(
+            `✅ *Descrição registrada*\n\n` +
+            `Deseja definir um prazo?\n\n` +
+            `📅 Envie a data (ex: *25/12/2025*)\n` +
+            `⏭️ Ou digite *pular* para criar sem prazo`
+          );
+          return new Response(
+            JSON.stringify({ success: true, message: 'Description saved' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (activeSession.state === 'awaiting_due_date') {
+          let dueDate: Date | null = null;
+          
+          if (messageContent.toLowerCase() !== 'pular') {
+            // Try to parse date (DD/MM/YYYY format)
+            const dateMatch = messageContent.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (dateMatch) {
+              const day = parseInt(dateMatch[1]);
+              const month = parseInt(dateMatch[2]) - 1;
+              const year = parseInt(dateMatch[3]);
+              dueDate = new Date(year, month, day);
+              
+              // Validate date
+              if (isNaN(dueDate.getTime())) {
+                await sendResponse('⚠️ Data inválida. Use o formato *DD/MM/AAAA* ou *pular*.');
+                return new Response(
+                  JSON.stringify({ success: true, message: 'Invalid date' }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+            } else {
+              await sendResponse('⚠️ Formato de data inválido.\n\nUse: *25/12/2025* ou digite *pular*');
+              return new Response(
+                JSON.stringify({ success: true, message: 'Invalid date format' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+          
+          // Create ticket with all data
+          const { data: newTicket, error: createError } = await supabase
+            .from('support_tickets')
+            .insert({
+              title: (sessionData.description || 'Sem título').substring(0, 100),
+              description: sessionData.description || 'Chamado via WhatsApp',
+              category: sessionData.category || 'other',
+              priority: 'medium',
+              status: 'open',
+              contact_phone: senderPhone,
+              due_date: dueDate?.toISOString() || null,
+              created_by: '00000000-0000-0000-0000-000000000000'
+            })
+            .select()
+            .single();
+          
+          // Clean session
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          
+          if (createError) {
+            console.error('❌ Error creating ticket:', createError);
+            await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+          } else {
+            let successMessage = `✅ *Chamado Criado com Sucesso!*\n\n` +
+              `📋 Número: *${newTicket.ticket_number}*\n` +
+              `📝 Título: ${newTicket.title}\n` +
+              `🏷️ Categoria: ${getCategoryLabel(sessionData.category || 'other')}\n` +
+              `${getStatusEmoji('open')} Status: Aberto\n`;
+            
+            if (dueDate) {
+              successMessage += `📅 Prazo: ${dueDate.toLocaleDateString('pt-BR')}\n`;
+            }
+            
+            successMessage += `\nAcompanhe seu chamado pelo número acima.`;
+            
+            await sendResponse(successMessage);
+
+            await supabase
+              .from('whatsapp_message_mapping')
+              .insert({
+                ticket_id: newTicket.id,
+                message_id: messageId,
+                group_id: groupId,
+                phone_number: senderPhone,
+                direction: 'inbound'
+              });
+          }
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Ticket created' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Check for bot commands
     const command = extractCommand(messageContent);
 
@@ -596,12 +759,15 @@ serve(async (req) => {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *meus chamados* - Listar abertos\n` +
             `• *todos chamados* - Listar todos\n` +
+            `• *disponiveis* - Não atribuídos 👨‍🔧\n` +
             `• *status 00001* - Ver status\n` +
             `• *detalhes 00001* - Ver detalhes\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `➕ *CRIAR E COMENTAR*\n` +
+            `➕ *CRIAR CHAMADO*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *novo: [título]* - Criar chamado\n` +
+            `• *novo* - Menu de categorias\n` +
+            `• *novo manutenção* - Com categoria\n` +
+            `• *novo: [título]* - Rápido\n` +
             `• *comentar 00001 [texto]*\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `🔄 *ALTERAR STATUS*\n` +
@@ -614,8 +780,8 @@ serve(async (req) => {
             `👨‍🔧 *ATRIBUIÇÃO (Técnicos)*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *atribuir 00001* - Assumir\n` +
-            `• *cancelar 00001* - Remover atribuição\n` +
-            `• *transferir 00001 5511999999999*\n\n` +
+            `• *cancelar 00001* - Remover\n` +
+            `• *transferir 00001 [telefone]*\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `⚡ *PRIORIDADE*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1189,12 +1355,110 @@ serve(async (req) => {
         }
 
         case 'novo': {
+          // Category map
+          const categoryMap: Record<string, string> = {
+            'hardware': 'hardware',
+            'software': 'software',
+            'rede': 'network',
+            'network': 'network',
+            'acesso': 'access',
+            'access': 'access',
+            'manutenção': 'maintenance',
+            'manutencao': 'maintenance',
+            'maintenance': 'maintenance',
+            'instalação': 'installation',
+            'instalacao': 'installation',
+            'installation': 'installation',
+            'outros': 'other',
+            'other': 'other'
+          };
+          
+          // If no args, show category menu
           if (!command.args) {
-            await sendResponse('⚠️ Por favor, informe o título do chamado.\nExemplo: *novo: Problema com internet*');
+            const categoryMenu = `📝 *Abrir Novo Chamado*\n\n` +
+              `Escolha a categoria:\n\n` +
+              `1️⃣ *novo hardware* - Hardware\n` +
+              `2️⃣ *novo software* - Software\n` +
+              `3️⃣ *novo rede* - Rede\n` +
+              `4️⃣ *novo acesso* - Acesso\n` +
+              `5️⃣ *novo manutenção* - Manutenção\n` +
+              `6️⃣ *novo instalação* - Instalação\n` +
+              `7️⃣ *novo outros* - Outros\n\n` +
+              `💡 Ou use: *novo: [título]* para criar rápido`;
+            
+            await sendResponse(categoryMenu);
+            break;
+          }
+          
+          const argsLower = command.args.toLowerCase();
+          const firstWord = argsLower.split(' ')[0];
+          const detectedCategory = categoryMap[firstWord];
+          const remainingText = command.args.replace(new RegExp(`^${firstWord}\\s*`, 'i'), '').trim();
+          
+          // If category detected without remaining text, start wizard
+          if (detectedCategory && !remainingText) {
+            // Save session to continue the flow
+            await supabase
+              .from('whatsapp_sessions')
+              .upsert({
+                phone: senderPhone,
+                state: 'awaiting_description',
+                data: { category: detectedCategory },
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'phone' });
+            
+            await sendResponse(
+              `📝 *Categoria: ${getCategoryLabel(detectedCategory)}*\n\n` +
+              `Agora descreva o problema:\n\n` +
+              `💡 Digite a descrição do chamado ou *cancelar criação* para desistir.`
+            );
+            break;
+          }
+          
+          // If category + text, create ticket with that category and text as title
+          if (detectedCategory && remainingText) {
+            const { data: newTicket, error: createError } = await supabase
+              .from('support_tickets')
+              .insert({
+                title: remainingText,
+                description: `Chamado aberto via WhatsApp por ${pushName}`,
+                category: detectedCategory,
+                priority: 'medium',
+                status: 'open',
+                contact_phone: senderPhone || null,
+                created_by: '00000000-0000-0000-0000-000000000000'
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              console.error('❌ Error creating ticket:', createError);
+              await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+            } else {
+              const successMessage = `✅ *Chamado Criado com Sucesso!*\n\n` +
+                `📋 Número: *${newTicket.ticket_number}*\n` +
+                `📝 Título: ${newTicket.title}\n` +
+                `🏷️ Categoria: ${getCategoryLabel(detectedCategory)}\n` +
+                `${getStatusEmoji('open')} Status: Aberto\n\n` +
+                `Acompanhe seu chamado pelo número acima.\n` +
+                `Use *detalhes ${newTicket.ticket_number.split('-')[2]}* para ver mais informações.`;
+              
+              await sendResponse(successMessage);
+
+              await supabase
+                .from('whatsapp_message_mapping')
+                .insert({
+                  ticket_id: newTicket.id,
+                  message_id: messageId,
+                  group_id: groupId,
+                  phone_number: senderPhone,
+                  direction: 'inbound'
+                });
+            }
             break;
           }
 
-          // Create new ticket
+          // No category detected - use args as title (quick mode)
           const { data: newTicket, error: createError } = await supabase
             .from('support_tickets')
             .insert({
@@ -1204,7 +1468,7 @@ serve(async (req) => {
               priority: 'medium',
               status: 'open',
               contact_phone: senderPhone || null,
-              created_by: '00000000-0000-0000-0000-000000000000' // System user
+              created_by: '00000000-0000-0000-0000-000000000000'
             })
             .select()
             .single();
@@ -1222,7 +1486,133 @@ serve(async (req) => {
             
             await sendResponse(successMessage);
 
-            // Save message mapping
+            await supabase
+              .from('whatsapp_message_mapping')
+              .insert({
+                ticket_id: newTicket.id,
+                message_id: messageId,
+                group_id: groupId,
+                phone_number: senderPhone,
+                direction: 'inbound'
+              });
+          }
+          break;
+        }
+
+        case 'available': {
+          // Check if sender is a technician or admin
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .or(`phone.ilike.%${phoneDigits}%`)
+            .maybeSingle();
+          
+          if (!profile) {
+            await sendResponse(
+              `⛔ *Você não está cadastrado no sistema.*\n\n` +
+              `Este comando é exclusivo para técnicos cadastrados.`
+            );
+            break;
+          }
+          
+          const { data: userRoles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.id);
+          
+          const roles = userRoles?.map((r: any) => r.role) || [];
+          
+          if (!roles.includes('admin') && !roles.includes('technician')) {
+            await sendResponse('⛔ Apenas técnicos podem ver chamados disponíveis.');
+            break;
+          }
+          
+          // Fetch unassigned tickets
+          const { data: availableTickets } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .is('assigned_to', null)
+            .in('status', ['open', 'in_progress'])
+            .order('created_at', { ascending: true })
+            .limit(15);
+          
+          if (!availableTickets?.length) {
+            await sendResponse('✅ Não há chamados disponíveis no momento.');
+          } else {
+            let message = `🔓 *Chamados Disponíveis* (${availableTickets.length})\n\n`;
+            
+            availableTickets.forEach((t, i) => {
+              message += `${i + 1}. *${t.ticket_number}*\n`;
+              message += `   📝 ${t.title}\n`;
+              message += `   ${getPriorityEmoji(t.priority)} ${getPriorityLabel(t.priority)} | `;
+              message += `🏷️ ${getCategoryLabel(t.category)}\n\n`;
+            });
+            
+            message += `💡 Use *atribuir XXXXX* para assumir um chamado.`;
+            
+            await sendResponse(message);
+          }
+          break;
+        }
+
+        case 'cancel_wizard': {
+          // Cancel any active wizard session
+          await supabase
+            .from('whatsapp_sessions')
+            .delete()
+            .eq('phone', senderPhone);
+          
+          await sendResponse('❌ Criação de chamado cancelada.');
+          break;
+        }
+
+        case 'skip': {
+          // Handle skip command for wizard (skip due date)
+          const { data: skipSession } = await supabase
+            .from('whatsapp_sessions')
+            .select('*')
+            .eq('phone', senderPhone)
+            .maybeSingle();
+          
+          if (!skipSession || skipSession.state !== 'awaiting_due_date') {
+            await sendResponse('⚠️ Nenhum chamado em criação para pular.');
+            break;
+          }
+          
+          const sessionData = skipSession.data as { category: string; description: string };
+          
+          // Create ticket without due date
+          const { data: newTicket, error: createError } = await supabase
+            .from('support_tickets')
+            .insert({
+              title: sessionData.description.substring(0, 100),
+              description: sessionData.description,
+              category: sessionData.category,
+              priority: 'medium',
+              status: 'open',
+              contact_phone: senderPhone,
+              created_by: '00000000-0000-0000-0000-000000000000'
+            })
+            .select()
+            .single();
+          
+          // Clean session
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          
+          if (createError) {
+            console.error('❌ Error creating ticket:', createError);
+            await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+          } else {
+            const successMessage = `✅ *Chamado Criado com Sucesso!*\n\n` +
+              `📋 Número: *${newTicket.ticket_number}*\n` +
+              `📝 Título: ${newTicket.title}\n` +
+              `🏷️ Categoria: ${getCategoryLabel(sessionData.category)}\n` +
+              `${getStatusEmoji('open')} Status: Aberto\n\n` +
+              `Acompanhe seu chamado pelo número acima.`;
+            
+            await sendResponse(successMessage);
+
             await supabase
               .from('whatsapp_message_mapping')
               .insert({
