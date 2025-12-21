@@ -34,7 +34,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, instanceName, settings: providedSettings } = await req.json();
+    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
@@ -947,6 +947,117 @@ serve(async (req) => {
             success: false, 
             message: `Erro ao enviar: ${errorMessage}` 
           }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Send message to WhatsApp group
+    if (action === 'send-group') {
+      if (!groupId || !message) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'ID do grupo e mensagem são obrigatórios' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Sending WhatsApp message to group:', groupId);
+
+      // Initialize supabase client for logging
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: groupId,
+              text: message,
+            }),
+          }
+        );
+
+        console.log('Evolution API send-group response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Evolution API send-group error:', {
+            status: response.status,
+            error: errorData?.error,
+            response: errorData?.response
+          });
+          
+          let errorMsg = `Erro ao enviar para grupo: ${response.status}`;
+          if (response.status === 401) {
+            errorMsg = 'Erro de autenticação (401): Verifique a API Key.';
+          } else if (errorData?.response?.message) {
+            errorMsg = Array.isArray(errorData.response.message) 
+              ? errorData.response.message.map((m: any) => m.message || JSON.stringify(m)).join(', ')
+              : String(errorData.response.message);
+          }
+          
+          // Log failed message
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: groupId,
+            message_content: message,
+            message_type: 'group_notification',
+            status: 'error',
+            error_message: errorMsg,
+            sent_at: null,
+            external_id: null,
+          });
+          
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Message sent successfully to group:', groupId, 'Data:', data);
+
+        // Log successful message
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: groupId,
+          message_content: message,
+          message_type: 'group_notification',
+          status: 'sent',
+          error_message: null,
+          sent_at: new Date().toISOString(),
+          external_id: data?.key?.id || null,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Mensagem enviada para o grupo com sucesso', data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Send-group fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        
+        // Log failed message
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: groupId,
+          message_content: message,
+          message_type: 'group_notification',
+          status: 'error',
+          error_message: `Erro ao enviar: ${errorMessage}`,
+          sent_at: null,
+          external_id: null,
+        });
+        
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro ao enviar: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
