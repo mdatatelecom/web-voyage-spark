@@ -59,6 +59,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'comment', args: text.substring(text.toLowerCase().indexOf('comentar ') + 9).trim() };
   }
   
+  // Check for assign command (técnico se atribui ao chamado)
+  if (lowerText.startsWith('atribuir ') || lowerText.startsWith('assumir ')) {
+    const args = lowerText.replace(/^(atribuir|assumir)\s+/, '').trim();
+    return { command: 'assign', args };
+  }
+  
   // Check for new ticket command
   if (lowerText.startsWith('novo:') || lowerText.startsWith('novo ')) {
     return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
@@ -531,6 +537,7 @@ serve(async (req) => {
             `➕ *Criar/Gerenciar*\n` +
             `• *novo: [título]* - Criar chamado\n` +
             `• *comentar 00001 [texto]* - Adicionar comentário\n` +
+            `• *atribuir 00001* - Assumir chamado (técnicos)\n` +
             `• *encerrar 00001* - Fechar chamado\n` +
             `• *reabrir 00001* - Reabrir chamado\n` +
             `• *prioridade 00001 alta* - Alterar prioridade\n\n` +
@@ -1083,6 +1090,159 @@ serve(async (req) => {
             
             await sendResponse(successMsg);
           }
+          break;
+        }
+
+        case 'assign': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\n\nExemplo: *atribuir 00001*');
+            break;
+          }
+          
+          // Find ticket
+          const { data: assignTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!assignTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+          
+          // Verify sender is a technician or admin by phone
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone')
+            .or(`phone.ilike.%${phoneDigits}%`)
+            .maybeSingle();
+          
+          if (!profile) {
+            await sendResponse(
+              `⛔ *Você não está cadastrado no sistema.*\n\n` +
+              `Para usar este comando, seu telefone precisa estar vinculado ao seu perfil.\n\n` +
+              `💡 Peça ao administrador para cadastrar seu telefone ou acesse seu perfil no sistema.`
+            );
+            break;
+          }
+          
+          // Check if has technician or admin role
+          const { data: userRoles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.id);
+          
+          const roles = userRoles?.map((r: any) => r.role) || [];
+          
+          if (!roles.includes('admin') && !roles.includes('technician')) {
+            await sendResponse(
+              `⛔ *Você não tem permissão para atribuir chamados.*\n\n` +
+              `👤 Apenas técnicos e administradores podem usar este comando.`
+            );
+            break;
+          }
+          
+          // Check if already assigned to someone else
+          if (assignTicket.assigned_to && assignTicket.assigned_to !== profile.id) {
+            // Fetch current assignee name
+            const { data: currentTech } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', assignTicket.assigned_to)
+              .maybeSingle();
+            
+            await sendResponse(
+              `⚠️ *Este chamado já está atribuído.*\n\n` +
+              `👨‍🔧 Técnico atual: *${currentTech?.full_name || 'Desconhecido'}*\n\n` +
+              `💡 Para reatribuir, peça ao técnico atual ou a um admin.`
+            );
+            break;
+          }
+          
+          // Assign the ticket
+          const newStatus = assignTicket.status === 'open' ? 'in_progress' : assignTicket.status;
+          
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              assigned_to: profile.id,
+              technician_phone: profile.phone || senderPhone,
+              status: newStatus
+            })
+            .eq('id', assignTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error assigning ticket:', updateError);
+            await sendResponse(`❌ Erro ao atribuir chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: assignTicket.id,
+              user_id: profile.id,
+              comment: `Chamado atribuído a ${profile.full_name || pushName} via WhatsApp`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          // Build response message
+          let responseMsg = `✅ *Chamado ${ticketNum} Atribuído a Você*\n\n` +
+            `📋 ${assignTicket.title}\n` +
+            `${getPriorityEmoji(assignTicket.priority)} Prioridade: ${getPriorityLabel(assignTicket.priority)}\n`;
+          
+          if (newStatus !== assignTicket.status) {
+            responseMsg += `\n🔄 Status alterado para: *${getStatusLabel(newStatus)}*`;
+          }
+          
+          responseMsg += `\n\n💡 Use *detalhes ${ticketNum.split('-').pop()}* para ver mais informações.`;
+          
+          await sendResponse(responseMsg);
+          
+          // Notify client if has contact_phone and is different from sender
+          if (assignTicket.contact_phone && settings) {
+            const clientPhone = formatPhoneForQuery(assignTicket.contact_phone);
+            const senderPhoneClean = formatPhoneForQuery(senderPhone);
+            
+            if (!clientPhone.includes(senderPhoneClean.slice(-9)) && !senderPhoneClean.includes(clientPhone.slice(-9))) {
+              const clientMsg = `📢 *Atualização do Chamado ${ticketNum}*\n\n` +
+                `Seu chamado foi atribuído ao técnico *${profile.full_name || pushName}*.\n\n` +
+                `📋 ${assignTicket.title}\n` +
+                `${getStatusEmoji(newStatus)} Status: ${getStatusLabel(newStatus)}\n\n` +
+                `O técnico entrará em contato em breve!`;
+              
+              // Send to client (individual)
+              const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+              try {
+                await fetch(
+                  `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'apikey': settings.evolutionApiKey,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      number: assignTicket.contact_phone,
+                      text: clientMsg,
+                    }),
+                  }
+                );
+                console.log('✅ Client notified about assignment');
+              } catch (notifyErr) {
+                console.error('⚠️ Error notifying client:', notifyErr);
+              }
+            }
+          }
+          
           break;
         }
       }
