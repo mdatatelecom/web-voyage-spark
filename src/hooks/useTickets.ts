@@ -40,12 +40,36 @@ export const useTickets = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
       toast({
         title: 'Chamado criado',
         description: 'O chamado foi criado com sucesso.',
       });
+
+      // Send WhatsApp notification if contact_phone is provided
+      if (data.contact_phone) {
+        try {
+          const message = `🔔 *Novo Chamado Aberto*\n\n` +
+            `Chamado: *${data.ticket_number}*\n` +
+            `Título: ${data.title}\n` +
+            `Prioridade: ${data.priority}\n\n` +
+            `Seu chamado foi registrado com sucesso. Em breve entraremos em contato.\n\n` +
+            `Para mais detalhes, acesse o sistema.`;
+
+          await supabase.functions.invoke('send-whatsapp', {
+            body: {
+              action: 'send',
+              phone: data.contact_phone,
+              message,
+              ticketId: data.id,
+            },
+          });
+        } catch (err) {
+          console.error('Error sending WhatsApp notification for new ticket:', err);
+          // Don't show error toast - WhatsApp notification is optional
+        }
+      }
     },
     onError: (error) => {
       console.error('Error creating ticket:', error);

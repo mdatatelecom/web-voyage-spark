@@ -33,6 +33,7 @@ import RackComparison from "./pages/RackComparison";
 import CameraMap from "./pages/CameraMap";
 import SupportTickets from "./pages/SupportTickets";
 import TicketDetails from "./pages/TicketDetails";
+import WhatsAppHistory from "./pages/WhatsAppHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -260,6 +261,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <TicketDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/whatsapp-history"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <WhatsAppHistory />
                 </ProtectedRoute>
               } 
             />

@@ -499,6 +499,11 @@ serve(async (req) => {
       const testMessage = message || '✅ Teste de integração WhatsApp realizado com sucesso! - Sistema de Racks';
       console.log('Sending test WhatsApp message to:', phone);
 
+      // Initialize supabase client for logging
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
       try {
         const response = await fetch(
           `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
@@ -521,25 +526,28 @@ serve(async (req) => {
           const errorData = await response.json().catch(() => ({}));
           console.error('Evolution API send-test error:', errorData);
           
-          // Enhanced error message for 401 errors
-          if (response.status === 401) {
-            return new Response(
-              JSON.stringify({ 
-                success: false, 
-                message: 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.' 
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          
           let errorMsg = `Erro ${response.status}`;
-          if (errorData?.response?.message) {
+          if (response.status === 401) {
+            errorMsg = 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.';
+          } else if (errorData?.response?.message) {
             errorMsg = Array.isArray(errorData.response.message) 
               ? errorData.response.message.join(', ') 
               : String(errorData.response.message);
           } else if (errorData?.message) {
             errorMsg = String(errorData.message);
           }
+          
+          // Log failed test message
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: null,
+            phone_number: phone,
+            message_content: testMessage,
+            message_type: 'test',
+            status: 'error',
+            error_message: errorMsg,
+            sent_at: null,
+            external_id: null,
+          });
           
           return new Response(
             JSON.stringify({ success: false, message: errorMsg }),
@@ -549,6 +557,18 @@ serve(async (req) => {
 
         const data = await response.json();
         console.log('Test message sent successfully:', data);
+
+        // Log successful test message
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: null,
+          phone_number: phone,
+          message_content: testMessage,
+          message_type: 'test',
+          status: 'sent',
+          error_message: null,
+          sent_at: new Date().toISOString(),
+          external_id: data?.key?.id || null,
+        });
 
         return new Response(
           JSON.stringify({ 
@@ -561,6 +581,19 @@ serve(async (req) => {
       } catch (fetchError: unknown) {
         console.error('Send-test fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        
+        // Log failed test message
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: null,
+          phone_number: phone,
+          message_content: testMessage,
+          message_type: 'test',
+          status: 'error',
+          error_message: `Erro de conexão: ${errorMessage}`,
+          sent_at: null,
+          external_id: null,
+        });
+        
         return new Response(
           JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -577,6 +610,14 @@ serve(async (req) => {
       }
 
       console.log('Sending WhatsApp message to:', phone);
+
+      // Initialize supabase client for logging
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Determine message type
+      const messageType = ticketId ? 'notification' : 'manual';
 
       try {
         const response = await fetch(
@@ -600,21 +641,27 @@ serve(async (req) => {
           const errorData = await response.json().catch(() => ({}));
           console.error('Evolution API send error:', errorData);
           
-          // Enhanced error message for 401 errors
+          let errorMsg = `Erro ao enviar: ${response.status}`;
           if (response.status === 401) {
-            return new Response(
-              JSON.stringify({ 
-                success: false, 
-                message: 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.' 
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            errorMsg = 'Erro de autenticação (401): Verifique se a API Key é a Global API Key do servidor Evolution (AUTHENTICATION_API_KEY), não uma chave de instância.';
           }
+          
+          // Log failed message - always log regardless of ticketId
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: phone,
+            message_content: message,
+            message_type: messageType,
+            status: 'error',
+            error_message: errorMsg,
+            sent_at: null,
+            external_id: null,
+          });
           
           return new Response(
             JSON.stringify({ 
               success: false, 
-              message: `Erro ao enviar: ${response.status}` 
+              message: errorMsg 
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -623,22 +670,17 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully:', data);
 
-        // Log to whatsapp_notifications table
-        if (ticketId) {
-          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-          const supabase = createClient(supabaseUrl, supabaseKey);
-
-          await supabase.from('whatsapp_notifications').insert({
-            ticket_id: ticketId,
-            phone_number: phone,
-            message_content: message,
-            message_type: 'notification',
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-            external_id: data?.key?.id || null,
-          });
-        }
+        // Log successful message - always log regardless of ticketId
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: phone,
+          message_content: message,
+          message_type: messageType,
+          status: 'sent',
+          error_message: null,
+          sent_at: new Date().toISOString(),
+          external_id: data?.key?.id || null,
+        });
 
         return new Response(
           JSON.stringify({ success: true, message: 'Mensagem enviada com sucesso', data }),
@@ -647,6 +689,19 @@ serve(async (req) => {
       } catch (fetchError: unknown) {
         console.error('Send fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        
+        // Log failed message
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: phone,
+          message_content: message,
+          message_type: messageType,
+          status: 'error',
+          error_message: `Erro ao enviar: ${errorMessage}`,
+          sent_at: null,
+          external_id: null,
+        });
+        
         return new Response(
           JSON.stringify({ 
             success: false, 
