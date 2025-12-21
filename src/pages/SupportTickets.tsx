@@ -62,7 +62,10 @@ export default function SupportTickets() {
       assignmentFilter === 'all' ||
       (assignmentFilter === 'mine' && ticket.created_by === user?.id) ||
       (assignmentFilter === 'assigned_to_me' && ticket.assigned_to === user?.id) ||
-      (assignmentFilter === 'unassigned' && !ticket.assigned_to);
+      (assignmentFilter === 'unassigned' && !ticket.assigned_to) ||
+      (assignmentFilter === 'my_resolved' && 
+        (ticket.created_by === user?.id || ticket.assigned_to === user?.id) && 
+        (ticket.status === 'resolved' || ticket.status === 'closed'));
 
     // Date filter
     const ticketDate = new Date(ticket.created_at!);
@@ -80,7 +83,7 @@ export default function SupportTickets() {
     total: tickets?.length || 0,
     open: tickets?.filter((t) => t.status === 'open').length || 0,
     inProgress: tickets?.filter((t) => t.status === 'in_progress').length || 0,
-    resolved: tickets?.filter((t) => t.status === 'resolved').length || 0,
+    resolved: tickets?.filter((t) => t.status === 'resolved' || t.status === 'closed').length || 0,
   };
 
   const getPriorityBadgeVariant = (priority: string) => {
@@ -156,11 +159,12 @@ export default function SupportTickets() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Resolvidos
+                Finalizados
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
+              <p className="text-xs text-muted-foreground">Resolvidos + Fechados</p>
             </CardContent>
           </Card>
         </div>
@@ -192,6 +196,7 @@ export default function SupportTickets() {
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="mine">📝 Criados por Mim</SelectItem>
                   <SelectItem value="assigned_to_me">👨‍🔧 Atribuídos a Mim</SelectItem>
+                  <SelectItem value="my_resolved">✅ Meus Resolvidos</SelectItem>
                   <SelectItem value="unassigned">🔓 Não Atribuídos</SelectItem>
                 </SelectContent>
               </Select>

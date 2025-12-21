@@ -30,6 +30,9 @@ import {
   FileText,
   Music,
   Video,
+  Paperclip,
+  Table,
+  ExternalLink,
 } from 'lucide-react';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
@@ -153,6 +156,83 @@ export default function TicketDetails() {
                 <p className="whitespace-pre-wrap">{ticket.description}</p>
               </CardContent>
             </Card>
+
+            {/* Ticket Attachments */}
+            {ticket.attachments && (ticket.attachments as any[]).length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Paperclip className="h-5 w-5" />
+                    Anexos do Chamado ({(ticket.attachments as any[]).length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {(ticket.attachments as any[]).map((attachment: any, idx: number) => {
+                      const getFileIcon = (type: string) => {
+                        if (type?.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
+                        if (type?.startsWith('video/')) return <Video className="h-8 w-8 text-purple-500" />;
+                        if (type?.startsWith('audio/')) return <Music className="h-8 w-8 text-blue-500" />;
+                        if (type?.includes('word') || type?.includes('document')) return <FileText className="h-8 w-8 text-blue-600" />;
+                        if (type?.includes('excel') || type?.includes('spreadsheet')) return <Table className="h-8 w-8 text-green-600" />;
+                        return <FileIcon className="h-8 w-8 text-muted-foreground" />;
+                      };
+
+                      const formatFileSize = (bytes?: number) => {
+                        if (!bytes) return '';
+                        if (bytes < 1024) return `${bytes} B`;
+                        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                      };
+
+                      const isImage = attachment.type?.startsWith('image/');
+
+                      return (
+                        <div key={idx} className="relative group">
+                          {isImage ? (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block relative overflow-hidden rounded-lg border hover:border-primary transition-colors"
+                            >
+                              <img
+                                src={attachment.url}
+                                alt={attachment.name}
+                                className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">
+                                {attachment.name}
+                              </div>
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <ExternalLink className="h-4 w-4 text-white drop-shadow-lg" />
+                              </div>
+                            </a>
+                          ) : (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-col items-center p-4 border rounded-lg hover:bg-muted hover:border-primary transition-colors h-32 justify-center"
+                            >
+                              {getFileIcon(attachment.type)}
+                              <span className="text-xs mt-2 truncate w-full text-center font-medium">
+                                {attachment.name}
+                              </span>
+                              {attachment.size && (
+                                <span className="text-xs text-muted-foreground">
+                                  {formatFileSize(attachment.size)}
+                                </span>
+                              )}
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Comments */}
             <Card>
