@@ -34,6 +34,7 @@ export const useWhatsAppSettings = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [instances, setInstances] = useState<EvolutionInstance[]>([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
+  const [isCreatingInstance, setIsCreatingInstance] = useState(false);
 
   const loadSettings = async () => {
     try {
@@ -193,6 +194,65 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const createInstance = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string; qrcode?: string | null }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    setIsCreatingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'create-instance',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Instância criada',
+          description: `A instância "${instanceName}" foi criada com sucesso.`,
+        });
+        return { 
+          success: true, 
+          message: data.message,
+          qrcode: data.qrcode 
+        };
+      } else {
+        toast({
+          title: 'Erro ao criar instância',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao criar instância' };
+      }
+    } catch (error) {
+      console.error('Erro ao criar instância:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsCreatingInstance(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -203,8 +263,10 @@ export const useWhatsAppSettings = () => {
     isTesting,
     instances,
     isLoadingInstances,
+    isCreatingInstance,
     saveSettings,
     testConnection,
     listInstances,
+    createInstance,
   };
 };

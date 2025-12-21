@@ -136,6 +136,84 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'create-instance') {
+      // Create a new instance
+      const { instanceName } = await req.json();
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Creating new Evolution API instance:', instanceName);
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/create`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              instanceName,
+              qrcode: true,
+              integration: 'WHATSAPP-BAILEYS',
+              rejectCall: false,
+              groupsIgnore: false,
+              alwaysOnline: false,
+            }),
+          }
+        );
+
+        console.log('Evolution API create instance response status:', response.status);
+
+        const data = await response.json();
+        console.log('Evolution API create instance response:', data);
+
+        if (!response.ok) {
+          const errorMsg = data?.response?.message?.[0] || data?.message || `Erro ${response.status}`;
+          console.error('Evolution API create instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: errorMsg,
+              qrcode: null
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Extract QR code from response
+        const qrcode = data?.qrcode?.base64 || data?.qrcode?.pairingCode || data?.qrcode || null;
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Instância criada com sucesso',
+            instance: data.instance,
+            hash: data.hash,
+            qrcode
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Create instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro de conexão: ${errorMessage}`,
+            qrcode: null
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'test') {
       // Test connection by checking instance status
       console.log('Testing connection to Evolution API...');
