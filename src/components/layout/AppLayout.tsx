@@ -1,6 +1,7 @@
-import { ReactNode, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket } from 'lucide-react';
+import { ReactNode, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +22,20 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { labels } = useLabels();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
   const [terminalOpen, setTerminalOpen] = useState(false);
+  
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   // Use mobile layout for viewers and network_viewers
   const isMobileViewer = isViewer || isNetworkViewer;
@@ -111,18 +121,70 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="sticky top-16 h-[calc(100vh-4rem)] w-64 border-r bg-sidebar">
-          <ScrollArea className="h-full">
-            <nav className="flex flex-col gap-1 p-4">
+        <aside className={cn(
+          "sticky top-16 h-[calc(100vh-4rem)] border-r bg-sidebar transition-all duration-300",
+          sidebarCollapsed ? "w-16" : "w-64"
+        )}>
+          <div className="flex justify-end p-2 border-b">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="h-8 w-8"
+            >
+              {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </Button>
+          </div>
+          <ScrollArea className="h-[calc(100%-49px)]">
+            <nav className="flex flex-col gap-1 p-2">
               {menuItems.map((item) => {
                 if (!item.visible) return null;
                 
                 const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                
+                if (sidebarCollapsed) {
+                  return (
+                    <Tooltip key={item.path}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={isActive ? "secondary" : "ghost"}
+                          size="icon"
+                          className={cn(
+                            "h-10 w-10",
+                            isActive && "bg-primary/10 text-primary"
+                          )}
+                          onClick={() => {
+                            if (item.action) {
+                              item.action();
+                            } else {
+                              navigate(item.path);
+                            }
+                          }}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.badge !== undefined && item.badge > 0 && (
+                            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
+                              {item.badge}
+                            </span>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{item.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                
                 return (
                   <Button
                     key={item.path}
-                    variant="ghost"
-                    className="justify-start gap-2 relative"
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "justify-start gap-2 relative",
+                      isActive && "bg-primary/10 text-primary font-medium"
+                    )}
                     onClick={() => {
                       if (item.action) {
                         item.action();
