@@ -364,6 +364,65 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const connectInstance = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string; qrcode?: string | null }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    setIsCreatingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'connect-instance',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'QR Code gerado',
+          description: `Escaneie o QR Code para conectar a instância "${instanceName}".`,
+        });
+        return { 
+          success: true, 
+          message: data.message,
+          qrcode: data.qrcode 
+        };
+      } else {
+        toast({
+          title: 'Erro ao reconectar',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao reconectar instância' };
+      }
+    } catch (error) {
+      console.error('Erro ao reconectar instância:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsCreatingInstance(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -382,5 +441,6 @@ export const useWhatsAppSettings = () => {
     createInstance,
     deleteInstance,
     logoutInstance,
+    connectInstance,
   };
 };

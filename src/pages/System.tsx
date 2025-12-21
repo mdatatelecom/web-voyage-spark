@@ -148,7 +148,8 @@ export default function System() {
     listInstances: listWhatsAppInstances,
     createInstance: createWhatsAppInstance,
     deleteInstance: deleteWhatsAppInstance,
-    logoutInstance: logoutWhatsAppInstance
+    logoutInstance: logoutWhatsAppInstance,
+    connectInstance: connectWhatsAppInstance
   } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -164,6 +165,11 @@ export default function System() {
   const [showDeleteInstanceDialog, setShowDeleteInstanceDialog] = useState(false);
   const [deleteAction, setDeleteAction] = useState<'delete' | 'logout'>('logout');
   const [instanceToDelete, setInstanceToDelete] = useState<string>('');
+
+  // Reconnect Instance Dialog
+  const [showReconnectDialog, setShowReconnectDialog] = useState(false);
+  const [reconnectQrCode, setReconnectQrCode] = useState<string | null>(null);
+  const [instanceToReconnect, setInstanceToReconnect] = useState<string>('');
 
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) return;
@@ -246,6 +252,41 @@ export default function System() {
       setInstanceToDelete(localWhatsAppSettings.evolutionInstance);
       setDeleteAction('logout');
       setShowDeleteInstanceDialog(true);
+    }
+  };
+
+  const handleReconnectInstance = async () => {
+    if (!instanceToReconnect) return;
+    
+    const result = await connectWhatsAppInstance(
+      instanceToReconnect,
+      localWhatsAppSettings.evolutionApiUrl,
+      localWhatsAppSettings.evolutionApiKey
+    );
+    
+    if (result.success && result.qrcode) {
+      setReconnectQrCode(result.qrcode);
+    }
+  };
+
+  const handleOpenReconnectDialog = () => {
+    if (localWhatsAppSettings.evolutionInstance) {
+      setInstanceToReconnect(localWhatsAppSettings.evolutionInstance);
+      setReconnectQrCode(null);
+      setShowReconnectDialog(true);
+    }
+  };
+
+  const handleCloseReconnectDialog = () => {
+    setShowReconnectDialog(false);
+    setInstanceToReconnect('');
+    setReconnectQrCode(null);
+    // Refresh instances after closing
+    if (localWhatsAppSettings.evolutionApiUrl && localWhatsAppSettings.evolutionApiKey) {
+      listWhatsAppInstances(
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
     }
   };
 
@@ -990,6 +1031,17 @@ export default function System() {
                           type="button"
                           variant="outline"
                           size="icon"
+                          onClick={handleOpenReconnectDialog}
+                          disabled={!localWhatsAppSettings.evolutionInstance || whatsAppCreatingInstance}
+                          title="Reconectar instância (gerar novo QR Code)"
+                          className="text-primary hover:text-primary"
+                        >
+                          <Wifi className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
                           onClick={handleOpenDeleteDialog}
                           disabled={!localWhatsAppSettings.evolutionInstance}
                           title="Excluir ou desconectar instância"
@@ -999,7 +1051,7 @@ export default function System() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Configure URL e API Key primeiro, depois clique em buscar para listar, + para criar ou lixeira para excluir
+                        Buscar (↻), Criar (+), Reconectar (📶) ou Excluir (🗑️) instâncias
                       </p>
                     </div>
                     
@@ -1236,6 +1288,65 @@ export default function System() {
                         >
                           {whatsAppDeletingInstance && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                           {deleteAction === 'delete' ? 'Excluir' : 'Desconectar'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Dialog para reconectar instância */}
+                  <Dialog open={showReconnectDialog} onOpenChange={handleCloseReconnectDialog}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Wifi className="h-5 w-5" />
+                          Reconectar Instância
+                        </DialogTitle>
+                        <DialogDescription>
+                          Gere um novo QR Code para reconectar a instância "{instanceToReconnect}".
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        {!reconnectQrCode ? (
+                          <div className="text-center space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Clique no botão abaixo para gerar um novo QR Code e reconectar o WhatsApp.
+                            </p>
+                            <Button 
+                              onClick={handleReconnectInstance}
+                              disabled={whatsAppCreatingInstance}
+                              className="w-full"
+                            >
+                              {whatsAppCreatingInstance && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                              Gerar QR Code
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center space-y-4">
+                            <Alert>
+                              <CheckCircle2 className="h-4 w-4" />
+                              <AlertTitle>QR Code gerado!</AlertTitle>
+                              <AlertDescription>
+                                Escaneie o QR Code abaixo com o WhatsApp para reconectar.
+                              </AlertDescription>
+                            </Alert>
+                            <div className="bg-white p-4 rounded-lg inline-block">
+                              <img 
+                                src={reconnectQrCode.startsWith('data:') ? reconnectQrCode : `data:image/png;base64,${reconnectQrCode}`} 
+                                alt="QR Code" 
+                                className="w-64 h-64 mx-auto"
+                              />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Após escanear, feche este dialog e atualize a lista de instâncias.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={handleCloseReconnectDialog}>
+                          {reconnectQrCode ? 'Fechar' : 'Cancelar'}
                         </Button>
                       </DialogFooter>
                     </DialogContent>

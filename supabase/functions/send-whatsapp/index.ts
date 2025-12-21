@@ -63,7 +63,7 @@ serve(async (req) => {
     const apiUrl = settings.evolutionApiUrl ? settings.evolutionApiUrl.replace(/\/$/, '') : '';
 
     // Actions that don't require evolutionInstance
-    const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance'];
+    const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance', 'connect-instance'];
     
     // Validate settings based on action
     if (!actionsWithoutInstance.includes(action)) {
@@ -188,7 +188,17 @@ serve(async (req) => {
         console.log('Evolution API create instance response:', data);
 
         if (!response.ok) {
-          const errorMsg = data?.response?.message?.[0] || data?.message || `Erro ${response.status}`;
+          // Handle error message properly
+          let errorMsg = `Erro ${response.status}`;
+          if (data?.response?.message) {
+            errorMsg = Array.isArray(data.response.message) 
+              ? data.response.message.join(', ') 
+              : String(data.response.message);
+          } else if (data?.message) {
+            errorMsg = String(data.message);
+          } else if (data?.error) {
+            errorMsg = String(data.error);
+          }
           console.error('Evolution API create instance error:', errorMsg);
           return new Response(
             JSON.stringify({ 
@@ -228,8 +238,7 @@ serve(async (req) => {
     }
 
     if (action === 'delete-instance') {
-      // Delete an instance permanently
-      const { instanceName } = await req.json();
+      // Delete an instance permanently (instanceName comes from the initial body parse)
       
       if (!instanceName) {
         return new Response(
@@ -280,7 +289,7 @@ serve(async (req) => {
 
     if (action === 'logout-instance') {
       // Logout/disconnect from an instance (keeps the instance but disconnects WhatsApp)
-      const { instanceName } = await req.json();
+      // instanceName comes from the initial body parse
       
       if (!instanceName) {
         return new Response(
@@ -324,6 +333,77 @@ serve(async (req) => {
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
         return new Response(
           JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    if (action === 'connect-instance') {
+      // Reconnect an existing instance to get QR code
+      // instanceName comes from the initial body parse
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Connecting Evolution API instance:', instanceName);
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/connect/${instanceName}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API connect instance response status:', response.status);
+
+        const data = await response.json();
+        console.log('Evolution API connect instance response:', data);
+
+        if (!response.ok) {
+          let errorMsg = `Erro ${response.status}`;
+          if (data?.response?.message) {
+            errorMsg = Array.isArray(data.response.message) 
+              ? data.response.message.join(', ') 
+              : String(data.response.message);
+          } else if (data?.message) {
+            errorMsg = String(data.message);
+          } else if (data?.error) {
+            errorMsg = String(data.error);
+          }
+          console.error('Evolution API connect instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg, qrcode: null }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Extract QR code - the connect endpoint returns base64 or code
+        const qrcode = data?.base64 || data?.code || data?.qrcode?.base64 || data?.qrcode || null;
+        const pairingCode = data?.pairingCode || null;
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'QR Code gerado com sucesso',
+            qrcode,
+            pairingCode
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Connect instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}`, qrcode: null }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
