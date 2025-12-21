@@ -249,17 +249,49 @@ export const useTickets = () => {
         description: 'O chamado foi atualizado com sucesso.',
       });
 
-      // Send WhatsApp notification if status was changed
+      // Build notification messages based on what changed
+      const changes: string[] = [];
+
+      // Status change
       if (updatedFields.status) {
         const statusMessages: Record<string, string> = {
-          open: '🔵 O chamado foi reaberto.',
-          in_progress: '🟡 O chamado está em andamento.',
-          resolved: '🟢 O chamado foi resolvido.',
-          closed: '⚫ O chamado foi fechado.',
+          open: '🔵 Status alterado para *Aberto*.',
+          in_progress: '🟡 Status alterado para *Em Andamento*.',
+          resolved: '🟢 Status alterado para *Resolvido*.',
+          closed: '⚫ Status alterado para *Fechado*.',
         };
-        
-        const statusText = statusMessages[updatedFields.status] || `O chamado teve o status alterado para ${updatedFields.status}.`;
-        
+        changes.push(statusMessages[updatedFields.status] || `Status alterado para ${updatedFields.status}.`);
+      }
+
+      // Priority change
+      if (updatedFields.priority) {
+        const priorityLabels: Record<string, string> = {
+          low: 'Baixa',
+          medium: 'Média',
+          high: 'Alta',
+          critical: 'Crítica'
+        };
+        changes.push(`⚠️ Prioridade alterada para *${priorityLabels[updatedFields.priority] || updatedFields.priority}*.`);
+      }
+
+      // Technician assigned
+      if (updatedFields.assigned_to) {
+        try {
+          const { data: techProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', updatedFields.assigned_to)
+            .maybeSingle();
+          const techName = techProfile?.full_name || 'Técnico';
+          changes.push(`👨‍🔧 Técnico atribuído: *${techName}*.`);
+        } catch {
+          changes.push(`👨‍🔧 Técnico atribuído ao chamado.`);
+        }
+      }
+
+      // Only send notification if there are changes to report
+      if (changes.length > 0) {
+        const statusText = changes.join('\n');
         const message = buildTicketMessage(data, 'update', statusText);
 
         // Check for WhatsApp settings to send to group
@@ -346,7 +378,7 @@ export const useTickets = () => {
             console.error('Error sending WhatsApp notification for ticket update:', err);
           }
         }
-      }
+      } // End of changes.length > 0 check
     },
     onError: (error) => {
       console.error('Error updating ticket:', error);
