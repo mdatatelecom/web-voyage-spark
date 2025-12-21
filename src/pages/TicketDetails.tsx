@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -31,9 +35,17 @@ import {
   Music,
   Video,
   Paperclip,
-  Table,
+  Table as TableIcon,
   ExternalLink,
+  Upload,
+  Plus,
+  X,
+  Loader2,
+  ZoomIn,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
 import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
@@ -52,12 +64,81 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function TicketDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { ticket, comments, isLoading, commentsLoading, addComment } = useTicket(id!);
+  const { ticket, comments, isLoading, commentsLoading, addComment, refetch } = useTicket(id!);
   const { updateTicket } = useTickets();
   const { sendTicketNotification, isEnabled: whatsAppEnabled } = useWhatsApp();
   
   const [newComment, setNewComment] = useState('');
   const [isInternalComment, setIsInternalComment] = useState(false);
+  
+  // Lightbox state
+  const [lightboxImage, setLightboxImage] = useState<{url: string, name: string} | null>(null);
+  
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file upload
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !ticket) return;
+    setUploading(true);
+    
+    try {
+      const newAttachments = [...((ticket.attachments as any[]) || [])];
+      
+      for (const file of Array.from(files)) {
+        const fileName = `tickets/${ticket.id}/${Date.now()}-${file.name}`;
+        
+        const { data, error } = await supabase.storage
+          .from('public')
+          .upload(fileName, file);
+        
+        if (!error && data) {
+          const { data: urlData } = supabase.storage.from('public').getPublicUrl(data.path);
+          newAttachments.push({
+            name: file.name,
+            url: urlData.publicUrl,
+            type: file.type,
+            size: file.size,
+            uploaded_at: new Date().toISOString()
+          });
+        } else {
+          toast.error(`Erro ao fazer upload de ${file.name}`);
+        }
+      }
+      
+      await updateTicket.mutateAsync({
+        id: ticket.id,
+        attachments: newAttachments
+      });
+      
+      refetch();
+      toast.success('Anexo(s) adicionado(s) com sucesso');
+    } catch (error) {
+      toast.error('Erro ao adicionar anexos');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!ticket) return;
@@ -157,24 +238,78 @@ export default function TicketDetails() {
               </CardContent>
             </Card>
 
-            {/* Ticket Attachments */}
-            {ticket.attachments && (ticket.attachments as any[]).length > 0 && (
-              <Card>
-                <CardHeader>
+            {/* Ticket Attachments with Drag-and-Drop */}
+            <Card 
+              className={cn(
+                "relative transition-all",
+                dragActive && "ring-2 ring-primary ring-dashed bg-primary/5"
+              )}
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
+            >
+              {/* Drop overlay */}
+              {dragActive && (
+                <div className="absolute inset-0 bg-primary/10 flex items-center justify-center z-10 rounded-lg">
+                  <div className="text-center">
+                    <Upload className="h-12 w-12 text-primary mx-auto" />
+                    <p className="text-lg font-medium mt-2">Solte os arquivos aqui</p>
+                  </div>
+                </div>
+              )}
+              
+              <CardHeader>
+                <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <Paperclip className="h-5 w-5" />
-                    Anexos do Chamado ({(ticket.attachments as any[]).length})
+                    Anexos do Chamado ({((ticket.attachments as any[]) || []).length})
                   </CardTitle>
-                </CardHeader>
-                <CardContent>
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar Anexo
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {((ticket.attachments as any[]) || []).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Upload className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum anexo</p>
+                    <p className="text-sm">Arraste arquivos aqui ou clique em "Adicionar Anexo"</p>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {(ticket.attachments as any[]).map((attachment: any, idx: number) => {
+                    {((ticket.attachments as any[]) || []).map((attachment: any, idx: number) => {
                       const getFileIcon = (type: string) => {
                         if (type?.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
                         if (type?.startsWith('video/')) return <Video className="h-8 w-8 text-purple-500" />;
                         if (type?.startsWith('audio/')) return <Music className="h-8 w-8 text-blue-500" />;
                         if (type?.includes('word') || type?.includes('document')) return <FileText className="h-8 w-8 text-blue-600" />;
-                        if (type?.includes('excel') || type?.includes('spreadsheet')) return <Table className="h-8 w-8 text-green-600" />;
+                        if (type?.includes('excel') || type?.includes('spreadsheet')) return <TableIcon className="h-8 w-8 text-green-600" />;
                         return <FileIcon className="h-8 w-8 text-muted-foreground" />;
                       };
 
@@ -190,11 +325,9 @@ export default function TicketDetails() {
                       return (
                         <div key={idx} className="relative group">
                           {isImage ? (
-                            <a
-                              href={attachment.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block relative overflow-hidden rounded-lg border hover:border-primary transition-colors"
+                            <button
+                              onClick={() => setLightboxImage({ url: attachment.url, name: attachment.name })}
+                              className="block relative overflow-hidden rounded-lg border hover:border-primary transition-colors w-full text-left cursor-zoom-in"
                             >
                               <img
                                 src={attachment.url}
@@ -205,9 +338,9 @@ export default function TicketDetails() {
                                 {attachment.name}
                               </div>
                               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <ExternalLink className="h-4 w-4 text-white drop-shadow-lg" />
+                                <ZoomIn className="h-4 w-4 text-white drop-shadow-lg" />
                               </div>
-                            </a>
+                            </button>
                           ) : (
                             <a
                               href={attachment.url}
@@ -230,9 +363,9 @@ export default function TicketDetails() {
                       );
                     })}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
 
             {/* Comments */}
             <Card>
@@ -533,6 +666,46 @@ export default function TicketDetails() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none">
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute right-4 top-4 z-20 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="relative flex items-center justify-center w-full h-full min-h-[60vh]">
+            {lightboxImage && (
+              <>
+                <img
+                  src={lightboxImage.url}
+                  alt={lightboxImage.name}
+                  className="max-w-full max-h-[85vh] object-contain"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                  <p className="font-medium text-white truncate mb-3">{lightboxImage.name}</p>
+                  <div className="flex gap-3">
+                    <Button size="sm" variant="secondary" asChild>
+                      <a href={lightboxImage.url} download={lightboxImage.name}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Baixar
+                      </a>
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={lightboxImage.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Abrir em nova aba
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

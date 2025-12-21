@@ -479,6 +479,7 @@ export const useTicket = (ticketId: string) => {
     data: ticket,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ['ticket', ticketId],
     queryFn: async () => {
@@ -634,5 +635,6 @@ export const useTicket = (ticketId: string) => {
     commentsLoading,
     error,
     addComment,
+    refetch,
   };
 };
