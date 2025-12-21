@@ -2,6 +2,85 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { getCategoryLabel, getPriorityLabel } from '@/constants/ticketTypes';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+// Helper to truncate description
+const truncateDescription = (text: string, maxLength: number = 200): string => {
+  if (!text) return 'Não informada';
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+};
+
+// Helper to fetch related entity names
+const fetchRelatedNames = async (buildingId?: string | null, equipmentId?: string | null) => {
+  let buildingName = '';
+  let equipmentName = '';
+
+  if (buildingId) {
+    const { data } = await supabase
+      .from('buildings')
+      .select('name')
+      .eq('id', buildingId)
+      .maybeSingle();
+    buildingName = data?.name || '';
+  }
+
+  if (equipmentId) {
+    const { data } = await supabase
+      .from('equipment')
+      .select('name')
+      .eq('id', equipmentId)
+      .maybeSingle();
+    equipmentName = data?.name || '';
+  }
+
+  return { buildingName, equipmentName };
+};
+
+// Build detailed WhatsApp message for ticket
+const buildTicketMessage = (
+  data: Tables<'support_tickets'>,
+  type: 'new' | 'update',
+  statusText?: string,
+  buildingName?: string,
+  equipmentName?: string
+): string => {
+  if (type === 'new') {
+    let message = `🔔 *Novo Chamado Aberto*\n\n`;
+    message += `📋 Chamado: *${data.ticket_number}*\n`;
+    message += `📝 Título: ${data.title}\n`;
+    message += `🏷️ Categoria: ${getCategoryLabel(data.category)}\n`;
+    message += `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n`;
+    
+    if (buildingName) {
+      message += `📍 Local: ${buildingName}\n`;
+    }
+    if (equipmentName) {
+      message += `🔧 Equipamento: ${equipmentName}\n`;
+    }
+    if (data.due_date) {
+      message += `📅 Prazo: ${format(new Date(data.due_date), "dd/MM/yyyy", { locale: ptBR })}\n`;
+    }
+    if (data.contact_phone) {
+      message += `📞 Contato: ${data.contact_phone}\n`;
+    }
+    
+    message += `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n`;
+    message += `🔗 Para mais detalhes, acesse o sistema.`;
+    
+    return message;
+  } else {
+    let message = `🔔 *Atualização de Chamado*\n\n`;
+    message += `📋 Chamado: *${data.ticket_number}*\n`;
+    message += `📝 Título: ${data.title}\n`;
+    message += `\n${statusText}\n\n`;
+    message += `🔗 Para mais detalhes, acesse o sistema.`;
+    
+    return message;
+  }
+};
 
 export type Ticket = Tables<'support_tickets'>;
 export type TicketInsert = TablesInsert<'support_tickets'>;
@@ -47,12 +126,13 @@ export const useTickets = () => {
         description: 'O chamado foi criado com sucesso.',
       });
 
-      const message = `🔔 *Novo Chamado Aberto*\n\n` +
-        `Chamado: *${data.ticket_number}*\n` +
-        `Título: ${data.title}\n` +
-        `Prioridade: ${data.priority}\n\n` +
-        `Seu chamado foi registrado com sucesso. Em breve entraremos em contato.\n\n` +
-        `Para mais detalhes, acesse o sistema.`;
+      // Fetch related names for detailed message
+      const { buildingName, equipmentName } = await fetchRelatedNames(
+        data.related_building_id,
+        data.related_equipment_id
+      );
+
+      const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName);
 
       // Check for WhatsApp settings to send to group
       try {
@@ -172,19 +252,15 @@ export const useTickets = () => {
       // Send WhatsApp notification if status was changed
       if (updatedFields.status) {
         const statusMessages: Record<string, string> = {
-          open: 'foi reaberto',
-          in_progress: 'está em andamento',
-          resolved: 'foi resolvido',
-          closed: 'foi fechado',
+          open: '🔵 O chamado foi reaberto.',
+          in_progress: '🟡 O chamado está em andamento.',
+          resolved: '🟢 O chamado foi resolvido.',
+          closed: '⚫ O chamado foi fechado.',
         };
         
-        const statusText = statusMessages[updatedFields.status] || `teve o status alterado para ${updatedFields.status}`;
+        const statusText = statusMessages[updatedFields.status] || `O chamado teve o status alterado para ${updatedFields.status}.`;
         
-        const message = `🔔 *Atualização de Chamado*\n\n` +
-          `Chamado: *${data.ticket_number}*\n` +
-          `Título: ${data.title}\n\n` +
-          `O chamado ${statusText}.\n\n` +
-          `Para mais detalhes, acesse o sistema.`;
+        const message = buildTicketMessage(data, 'update', statusText);
 
         // Check for WhatsApp settings to send to group
         try {

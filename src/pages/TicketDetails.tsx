@@ -23,6 +23,7 @@ import {
   Building2,
   Package,
   Phone,
+  MessageCircle,
 } from 'lucide-react';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
@@ -166,34 +167,55 @@ export default function TicketDetails() {
                     Nenhum comentário ainda
                   </p>
                 ) : (
-                  comments?.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className={`p-4 rounded-lg border ${
-                        comment.is_internal
-                          ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
-                          : 'bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">Usuário</span>
-                          {comment.is_internal && (
-                            <Badge variant="outline" className="text-xs">
-                              Interno
-                            </Badge>
-                          )}
+                  comments?.map((comment) => {
+                    const isWhatsApp = (comment as any).source === 'whatsapp';
+                    const senderName = (comment as any).whatsapp_sender_name;
+                    const senderPhone = (comment as any).whatsapp_sender_phone;
+                    
+                    return (
+                      <div
+                        key={comment.id}
+                        className={`p-4 rounded-lg border ${
+                          isWhatsApp
+                            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+                            : comment.is_internal
+                            ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800'
+                            : 'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {isWhatsApp ? (
+                              <MessageCircle className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <span className="text-sm font-medium">
+                              {isWhatsApp && senderName 
+                                ? `${senderName}${senderPhone ? ` (${senderPhone})` : ''}`
+                                : 'Usuário'}
+                            </span>
+                            {isWhatsApp && (
+                              <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                                WhatsApp
+                              </Badge>
+                            )}
+                            {comment.is_internal && (
+                              <Badge variant="outline" className="text-xs">
+                                Interno
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(comment.created_at!), "dd/MM/yyyy HH:mm", {
+                              locale: ptBR,
+                            })}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(comment.created_at!), "dd/MM/yyyy HH:mm", {
-                            locale: ptBR,
-                          })}
-                        </span>
+                        <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
 
                 <Separator />

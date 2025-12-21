@@ -923,8 +923,11 @@ export type Database = {
           created_at: string | null
           id: string
           is_internal: boolean | null
+          source: string | null
           ticket_id: string
           user_id: string
+          whatsapp_sender_name: string | null
+          whatsapp_sender_phone: string | null
         }
         Insert: {
           attachments?: Json | null
@@ -932,8 +935,11 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_internal?: boolean | null
+          source?: string | null
           ticket_id: string
           user_id: string
+          whatsapp_sender_name?: string | null
+          whatsapp_sender_phone?: string | null
         }
         Update: {
           attachments?: Json | null
@@ -941,8 +947,11 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_internal?: boolean | null
+          source?: string | null
           ticket_id?: string
           user_id?: string
+          whatsapp_sender_name?: string | null
+          whatsapp_sender_phone?: string | null
         }
         Relationships: [
           {
@@ -977,6 +986,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_message_mapping: {
+        Row: {
+          created_at: string | null
+          direction: string | null
+          group_id: string | null
+          id: string
+          message_id: string
+          phone_number: string | null
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          direction?: string | null
+          group_id?: string | null
+          id?: string
+          message_id: string
+          phone_number?: string | null
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string | null
+          group_id?: string | null
+          id?: string
+          message_id?: string
+          phone_number?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_mapping_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_notifications: {
         Row: {
