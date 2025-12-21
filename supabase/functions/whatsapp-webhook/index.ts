@@ -158,6 +158,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'help', args: '' };
   }
   
+  // Check for attach command (anexar mídia a chamado existente)
+  if (lowerText.startsWith('anexar ') || lowerText.startsWith('anexo ')) {
+    const args = lowerText.replace(/^(anexar|anexo)\s+/, '').trim();
+    return { command: 'attach', args };
+  }
+  
   return null;
 };
 
@@ -1123,6 +1129,11 @@ serve(async (req) => {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *minhas estatisticas* - Desempenho\n` +
             `• *meus resolvidos* - Histórico\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📎 *ANEXAR ARQUIVOS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *anexar 00001* - Envie foto/doc\n` +
+            `  _com esta legenda para anexar_\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `⚡ *PRIORIDADE*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2749,6 +2760,147 @@ serve(async (req) => {
             }
           }
           
+          break;
+        }
+
+        case 'attach': {
+          // Attach media to existing ticket
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse(
+              `⚠️ *Informe o número do chamado*\n\n` +
+              `Use: *anexar [número]*\n` +
+              `Exemplo: *anexar 00001* ou *anexar TKT-2025-00001*\n\n` +
+              `💡 Envie uma foto ou documento com esta legenda.`
+            );
+            break;
+          }
+          
+          // Check if there's media in the message
+          if (!hasMedia) {
+            await sendResponse(
+              `❌ *Nenhuma mídia encontrada*\n\n` +
+              `Para anexar um arquivo, envie uma foto ou documento ` +
+              `com a legenda:\n\n` +
+              `📎 *anexar ${ticketNum.split('-').pop()}*\n\n` +
+              `💡 _Envie a foto ou PDF junto com o comando_`
+            );
+            break;
+          }
+          
+          // Find the ticket
+          const { data: attachTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+          
+          if (!attachTicket) {
+            await sendResponse(`❌ Chamado *${ticketNum}* não encontrado.`);
+            break;
+          }
+          
+          // Check permission
+          const attachPerm = await checkTicketPermission(supabase, attachTicket, senderPhone);
+          if (!attachPerm.allowed) {
+            await sendResponse(
+              `🔒 *Acesso Negado*\n\n` +
+              `Você não tem permissão para anexar arquivos a este chamado.\n\n` +
+              `💡 Apenas o criador ou técnicos podem anexar.`
+            );
+            break;
+          }
+          
+          // Process media
+          if (!settings) {
+            await sendResponse(`❌ Configurações do WhatsApp não encontradas.`);
+            break;
+          }
+          
+          console.log('📎 Processing media attachment for ticket:', ticketNum);
+          const mediaAttachment = await downloadAndUploadMedia(
+            supabase,
+            settings,
+            key,
+            mediaType,
+            mimeType,
+            fileName,
+            attachTicket.id
+          );
+          
+          if (!mediaAttachment) {
+            await sendResponse(
+              `❌ *Erro ao processar arquivo*\n\n` +
+              `Não foi possível salvar o anexo. Tente novamente.`
+            );
+            break;
+          }
+          
+          // Update ticket attachments
+          const currentAttachments = Array.isArray(attachTicket.attachments) 
+            ? attachTicket.attachments 
+            : [];
+          const updatedAttachments = [...currentAttachments, mediaAttachment];
+          
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              attachments: updatedAttachments,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', attachTicket.id);
+          
+          if (updateError) {
+            console.error('❌ Error updating ticket attachments:', updateError);
+            await sendResponse(`❌ Erro ao salvar anexo. Tente novamente.`);
+            break;
+          }
+          
+          // Calculate formatted size
+          const sizeBytes = mediaAttachment.size || 0;
+          let sizeFormatted = '';
+          if (sizeBytes >= 1024 * 1024) {
+            sizeFormatted = `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+          } else if (sizeBytes >= 1024) {
+            sizeFormatted = `${Math.round(sizeBytes / 1024)} KB`;
+          } else {
+            sizeFormatted = `${sizeBytes} bytes`;
+          }
+          
+          // Create a comment to log the attachment
+          await supabase.from('ticket_comments').insert({
+            ticket_id: attachTicket.id,
+            user_id: '00000000-0000-0000-0000-000000000000',
+            comment: `📎 Anexo adicionado via WhatsApp: ${mediaAttachment.name || fileName || 'arquivo'}`,
+            is_internal: false,
+            source: 'whatsapp',
+            whatsapp_sender_name: pushName,
+            whatsapp_sender_phone: senderPhone,
+            attachments: [mediaAttachment]
+          });
+          
+          // Save message mapping
+          await supabase
+            .from('whatsapp_message_mapping')
+            .insert({
+              ticket_id: attachTicket.id,
+              message_id: messageId,
+              group_id: groupId,
+              phone_number: senderPhone,
+              direction: 'inbound'
+            });
+          
+          await sendResponse(
+            `✅ *Anexo Adicionado!*\n\n` +
+            `📋 Chamado: *${ticketNum}*\n` +
+            `📎 Arquivo: ${mediaAttachment.name || fileName || 'arquivo'}\n` +
+            `📊 Tamanho: ${sizeFormatted}\n` +
+            `📂 Total de anexos: ${updatedAttachments.length}\n\n` +
+            `💡 _O anexo já está disponível no sistema._`
+          );
+          
+          console.log('✅ Media attached successfully to ticket:', ticketNum);
           break;
         }
       }
