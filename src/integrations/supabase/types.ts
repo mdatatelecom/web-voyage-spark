@@ -741,6 +741,142 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          attachments: Json | null
+          category: string
+          closed_at: string | null
+          contact_phone: string | null
+          created_at: string | null
+          created_by: string
+          description: string
+          due_date: string | null
+          id: string
+          priority: string
+          related_building_id: string | null
+          related_equipment_id: string | null
+          related_rack_id: string | null
+          related_room_id: string | null
+          resolved_at: string | null
+          status: string
+          technician_phone: string | null
+          ticket_number: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: Json | null
+          category?: string
+          closed_at?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by: string
+          description: string
+          due_date?: string | null
+          id?: string
+          priority?: string
+          related_building_id?: string | null
+          related_equipment_id?: string | null
+          related_rack_id?: string | null
+          related_room_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          technician_phone?: string | null
+          ticket_number: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: Json | null
+          category?: string
+          closed_at?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          priority?: string
+          related_building_id?: string | null
+          related_equipment_id?: string | null
+          related_rack_id?: string | null
+          related_room_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          technician_phone?: string | null
+          ticket_number?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_related_building_id_fkey"
+            columns: ["related_building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_equipment_id_fkey"
+            columns: ["related_equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_equipment_id_fkey"
+            columns: ["related_equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_a_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_equipment_id_fkey"
+            columns: ["related_equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_b_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_equipment_id_fkey"
+            columns: ["related_equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_port_availability"
+            referencedColumns: ["equipment_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_rack_id_fkey"
+            columns: ["related_rack_id"]
+            isOneToOne: false
+            referencedRelation: "racks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_rack_id_fkey"
+            columns: ["related_rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_a_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_rack_id_fkey"
+            columns: ["related_rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_b_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_related_room_id_fkey"
+            columns: ["related_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_settings: {
         Row: {
           created_at: string | null
@@ -768,6 +904,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_comments: {
+        Row: {
+          attachments: Json | null
+          comment: string
+          created_at: string | null
+          id: string
+          is_internal: boolean | null
+          ticket_id: string
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json | null
+          comment: string
+          created_at?: string | null
+          id?: string
+          is_internal?: boolean | null
+          ticket_id: string
+          user_id: string
+        }
+        Update: {
+          attachments?: Json | null
+          comment?: string
+          created_at?: string | null
+          id?: string
+          is_internal?: boolean | null
+          ticket_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           assigned_at: string
@@ -791,6 +965,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_notifications: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          external_id: string | null
+          id: string
+          message_content: string
+          message_type: string
+          phone_number: string
+          sent_at: string | null
+          status: string | null
+          ticket_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          message_content: string
+          message_type: string
+          phone_number: string
+          sent_at?: string | null
+          status?: string | null
+          ticket_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          message_content?: string
+          message_type?: string
+          phone_number?: string
+          sent_at?: string | null
+          status?: string | null
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_notifications_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
