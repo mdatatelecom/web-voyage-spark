@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User, Calendar } from 'lucide-react';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
@@ -33,7 +33,7 @@ import {
   getStatusLabel,
   getStatusVariant,
 } from '@/constants/ticketTypes';
-import { format } from 'date-fns';
+import { format, isToday, isAfter, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function SupportTickets() {
@@ -46,6 +46,7 @@ export default function SupportTickets() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
 
   const filteredTickets = tickets?.filter((ticket) => {
     const matchesSearch =
@@ -63,7 +64,16 @@ export default function SupportTickets() {
       (assignmentFilter === 'assigned_to_me' && ticket.assigned_to === user?.id) ||
       (assignmentFilter === 'unassigned' && !ticket.assigned_to);
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesAssignment;
+    // Date filter
+    const ticketDate = new Date(ticket.created_at!);
+    const today = startOfDay(new Date());
+    const matchesDate = 
+      dateFilter === 'all' ||
+      (dateFilter === 'today' && isToday(ticketDate)) ||
+      (dateFilter === 'week' && isAfter(ticketDate, subDays(today, 7))) ||
+      (dateFilter === 'month' && isAfter(ticketDate, subDays(today, 30)));
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesAssignment && matchesDate;
   });
 
   const stats = {
@@ -158,7 +168,7 @@ export default function SupportTickets() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -216,6 +226,18 @@ export default function SupportTickets() {
                       {category.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Períodos</SelectItem>
+                  <SelectItem value="today">📅 Hoje</SelectItem>
+                  <SelectItem value="week">📆 Últimos 7 dias</SelectItem>
+                  <SelectItem value="month">🗓️ Último mês</SelectItem>
                 </SelectContent>
               </Select>
             </div>

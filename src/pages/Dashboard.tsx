@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building, Cable, Network, Server, LogOut, BarChart3, AlertCircle, Loader2 } from 'lucide-react';
+import { Building, Cable, Network, Server, LogOut, BarChart3, AlertCircle, Loader2, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,10 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { Badge } from '@/components/ui/badge';
 import { useEffect } from 'react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { TicketStatsCards } from '@/components/tickets/TicketStatsCards';
+import { TicketsByCategoryChart } from '@/components/tickets/TicketsByCategoryChart';
+import { TicketsByTechnicianChart } from '@/components/tickets/TicketsByTechnicianChart';
+import { TicketTrendChart } from '@/components/tickets/TicketTrendChart';
 
 export default function Dashboard() {
   const {
@@ -284,6 +288,30 @@ export default function Dashboard() {
           <EquipmentTypeChart />
           <ConnectionStatusChart />
           <PortUsageChart />
+        </div>
+
+        {/* Ticket Metrics Section */}
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <Ticket className="h-6 w-6" />
+                Chamados de Suporte
+              </h3>
+              <p className="text-muted-foreground">Métricas e desempenho do suporte técnico</p>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/tickets')}>
+              Ver Todos
+            </Button>
+          </div>
+          
+          <TicketStatsCards />
+          
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+            <TicketsByCategoryChart />
+            <TicketsByTechnicianChart />
+            <TicketTrendChart />
+          </div>
         </div>
 
         <Card className="mt-8">

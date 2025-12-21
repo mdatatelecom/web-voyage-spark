@@ -127,6 +127,26 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'skip', args: '' };
   }
   
+  // Check for technician statistics command
+  if (lowerText === 'minhas estatisticas' || lowerText === 'minhas estatísticas' || 
+      lowerText === 'meu desempenho' || lowerText === 'minha performance') {
+    return { command: 'my_stats', args: '' };
+  }
+  
+  // Check for technician resolved history command
+  if (lowerText === 'meus resolvidos' || lowerText === 'historico resolvidos' || 
+      lowerText === 'histórico resolvidos') {
+    return { command: 'my_resolved', args: '' };
+  }
+  
+  // Check for confirmation responses
+  if (lowerText === 'sim' || lowerText === 's') {
+    return { command: 'confirm_yes', args: '' };
+  }
+  if (lowerText === 'nao' || lowerText === 'não' || lowerText === 'n') {
+    return { command: 'confirm_no', args: '' };
+  }
+  
   // Check for help command
   if (lowerText === 'ajuda' || lowerText === 'help' || lowerText === '/help') {
     return { command: 'help', args: '' };
@@ -623,16 +643,61 @@ serve(async (req) => {
         console.log('🕐 Session expired, cleaned up');
       } else {
         // Process based on session state
-        const sessionData = activeSession.data as { category?: string; description?: string };
+        const sessionData = activeSession.data as { category?: string; description?: string; ticket_id?: string; ticket_number?: string; action?: string };
         
         // Check for cancel command
         if (messageContent.toLowerCase() === 'cancelar criação' || 
             messageContent.toLowerCase() === 'cancelar criacao' ||
-            messageContent.toLowerCase() === 'cancelar') {
+            messageContent.toLowerCase() === 'cancelar' ||
+            messageContent.toLowerCase() === 'nao' ||
+            messageContent.toLowerCase() === 'não' ||
+            messageContent.toLowerCase() === 'n') {
           await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
-          await sendResponse('❌ Criação de chamado cancelada.');
+          await sendResponse('❌ Operação cancelada.');
           return new Response(
-            JSON.stringify({ success: true, message: 'Wizard cancelled' }),
+            JSON.stringify({ success: true, message: 'Operation cancelled' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle confirmation for resolve/close
+        if ((activeSession.state === 'confirm_resolve' || activeSession.state === 'confirm_close') && 
+            (messageContent.toLowerCase() === 'sim' || messageContent.toLowerCase() === 's')) {
+          const ticketId = sessionData.ticket_id;
+          const ticketNum = sessionData.ticket_number;
+          const action = activeSession.state === 'confirm_resolve' ? 'resolved' : 'closed';
+          
+          const updateData: any = { status: action };
+          if (action === 'resolved') updateData.resolved_at = new Date().toISOString();
+          if (action === 'closed') updateData.closed_at = new Date().toISOString();
+          
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update(updateData)
+            .eq('id', ticketId);
+          
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          
+          if (updateError) {
+            await sendResponse(`❌ Erro ao atualizar chamado.`);
+          } else {
+            await supabase.from('ticket_comments').insert({
+              ticket_id: ticketId,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Chamado ${action === 'resolved' ? 'resolvido' : 'encerrado'} via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+            
+            const statusEmoji = action === 'resolved' ? '🟢' : '⚫';
+            const statusLabel = action === 'resolved' ? 'Resolvido' : 'Fechado';
+            await sendResponse(`✅ *Chamado ${ticketNum} ${statusLabel}*\n\n${statusEmoji} Status atualizado com sucesso.`);
+          }
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Ticket updated' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -782,6 +847,11 @@ serve(async (req) => {
             `• *atribuir 00001* - Assumir\n` +
             `• *cancelar 00001* - Remover\n` +
             `• *transferir 00001 [telefone]*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📈 *ESTATÍSTICAS (Técnicos)*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *minhas estatisticas* - Desempenho\n` +
+            `• *meus resolvidos* - Histórico\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `⚡ *PRIORIDADE*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1623,6 +1693,109 @@ serve(async (req) => {
                 direction: 'inbound'
               });
           }
+          break;
+        }
+
+        case 'my_stats': {
+          // Technician statistics command
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: profile } = await supabase.from('profiles').select('id, full_name').or(`phone.ilike.%${phoneDigits}%`).maybeSingle();
+          
+          if (!profile) {
+            await sendResponse('⛔ Você não está cadastrado no sistema.');
+            break;
+          }
+          
+          const { data: userRoles } = await supabase.from('user_roles').select('role').eq('user_id', profile.id);
+          const roles = userRoles?.map((r: any) => r.role) || [];
+          
+          if (!roles.includes('admin') && !roles.includes('technician')) {
+            await sendResponse('⛔ Apenas técnicos podem ver estatísticas.');
+            break;
+          }
+          
+          // Fetch stats
+          const { data: allTickets } = await supabase.from('support_tickets').select('*').eq('assigned_to', profile.id);
+          const tickets = allTickets || [];
+          const resolved = tickets.filter(t => t.status === 'resolved' || t.status === 'closed');
+          const pending = tickets.filter(t => t.status === 'open' || t.status === 'in_progress');
+          
+          // Calculate avg resolution time
+          let avgMinutes = 0;
+          const withTime = resolved.filter(t => t.resolved_at && t.created_at);
+          if (withTime.length > 0) {
+            const total = withTime.reduce((sum, t) => {
+              const created = new Date(t.created_at!).getTime();
+              const resolvedAt = new Date(t.resolved_at!).getTime();
+              return sum + (resolvedAt - created) / 60000;
+            }, 0);
+            avgMinutes = Math.round(total / withTime.length);
+          }
+          
+          const hours = Math.floor(avgMinutes / 60);
+          const mins = avgMinutes % 60;
+          const avgTime = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+          
+          // Today/week/month
+          const today = new Date(); today.setHours(0,0,0,0);
+          const weekAgo = new Date(today.getTime() - 7*24*60*60*1000);
+          const monthAgo = new Date(today.getTime() - 30*24*60*60*1000);
+          
+          const resolvedToday = resolved.filter(t => new Date(t.resolved_at!) >= today).length;
+          const resolvedWeek = resolved.filter(t => new Date(t.resolved_at!) >= weekAgo).length;
+          const resolvedMonth = resolved.filter(t => new Date(t.resolved_at!) >= monthAgo).length;
+          
+          const rate = tickets.length > 0 ? Math.round((resolved.length / tickets.length) * 100) : 0;
+          
+          const msg = `📊 *Suas Estatísticas*\n\n` +
+            `📋 Total Atendidos: ${tickets.length}\n` +
+            `✅ Resolvidos: ${resolved.length}\n` +
+            `🔄 Em Andamento: ${pending.length}\n\n` +
+            `⏱️ Tempo Médio: ${avgTime}\n` +
+            `📈 Taxa de Resolução: ${rate}%\n\n` +
+            `📅 Hoje: ${resolvedToday} resolvidos\n` +
+            `📅 Esta Semana: ${resolvedWeek} resolvidos\n` +
+            `📅 Este Mês: ${resolvedMonth} resolvidos`;
+          
+          await sendResponse(msg);
+          break;
+        }
+
+        case 'my_resolved': {
+          const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
+          const { data: profile } = await supabase.from('profiles').select('id, full_name').or(`phone.ilike.%${phoneDigits}%`).maybeSingle();
+          
+          if (!profile) {
+            await sendResponse('⛔ Você não está cadastrado no sistema.');
+            break;
+          }
+          
+          const { data: resolved } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('assigned_to', profile.id)
+            .in('status', ['resolved', 'closed'])
+            .order('resolved_at', { ascending: false })
+            .limit(15);
+          
+          if (!resolved?.length) {
+            await sendResponse('📭 Você ainda não possui chamados resolvidos.');
+          } else {
+            let msg = `✅ *Seus Chamados Resolvidos* (${resolved.length})\n\n`;
+            resolved.forEach((t, i) => {
+              const resolvedDate = t.resolved_at ? new Date(t.resolved_at).toLocaleDateString('pt-BR') : 'N/A';
+              msg += `${i+1}. *${t.ticket_number}*\n`;
+              msg += `   📝 ${t.title.substring(0, 40)}${t.title.length > 40 ? '...' : ''}\n`;
+              msg += `   📅 ${resolvedDate}\n\n`;
+            });
+            await sendResponse(msg);
+          }
+          break;
+        }
+
+        case 'confirm_yes':
+        case 'confirm_no': {
+          await sendResponse('⚠️ Nenhuma ação pendente de confirmação.');
           break;
         }
 
