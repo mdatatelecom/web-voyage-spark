@@ -21,7 +21,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, settings: providedSettings } = await req.json();
+    const { action, phone, message, ticketId, instanceName, settings: providedSettings } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
@@ -150,9 +150,9 @@ serve(async (req) => {
     }
 
     if (action === 'create-instance') {
-      // Create a new instance
-      const { instanceName } = await req.json();
+      // Create a new instance (instanceName comes from the initial body parse)
       
+
       if (!instanceName) {
         return new Response(
           JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
