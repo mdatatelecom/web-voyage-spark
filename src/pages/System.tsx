@@ -71,7 +71,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Plus, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
 
 export default function System() {
   const { toast } = useToast();
@@ -141,10 +142,13 @@ export default function System() {
     instances: whatsAppInstances,
     isLoadingInstances: whatsAppLoadingInstances,
     isCreatingInstance: whatsAppCreatingInstance,
+    isDeletingInstance: whatsAppDeletingInstance,
     saveSettings: saveWhatsAppSettings, 
     testConnection: testWhatsAppConnection,
     listInstances: listWhatsAppInstances,
-    createInstance: createWhatsAppInstance
+    createInstance: createWhatsAppInstance,
+    deleteInstance: deleteWhatsAppInstance,
+    logoutInstance: logoutWhatsAppInstance
   } = useWhatsAppSettings();
   const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -155,6 +159,11 @@ export default function System() {
   const [showCreateInstanceDialog, setShowCreateInstanceDialog] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState('');
   const [createdQrCode, setCreatedQrCode] = useState<string | null>(null);
+
+  // Delete/Logout Instance Dialog
+  const [showDeleteInstanceDialog, setShowDeleteInstanceDialog] = useState(false);
+  const [deleteAction, setDeleteAction] = useState<'delete' | 'logout'>('logout');
+  const [instanceToDelete, setInstanceToDelete] = useState<string>('');
 
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) return;
@@ -190,6 +199,53 @@ export default function System() {
         localWhatsAppSettings.evolutionApiUrl,
         localWhatsAppSettings.evolutionApiKey
       );
+    }
+  };
+
+  const handleDeleteInstance = async () => {
+    if (!instanceToDelete) return;
+    
+    let result;
+    if (deleteAction === 'delete') {
+      result = await deleteWhatsAppInstance(
+        instanceToDelete,
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
+    } else {
+      result = await logoutWhatsAppInstance(
+        instanceToDelete,
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
+    }
+    
+    if (result.success) {
+      setShowDeleteInstanceDialog(false);
+      setInstanceToDelete('');
+      setDeleteAction('logout');
+      
+      // If deleted, clear selection
+      if (deleteAction === 'delete' && localWhatsAppSettings.evolutionInstance === instanceToDelete) {
+        setLocalWhatsAppSettings({
+          ...localWhatsAppSettings,
+          evolutionInstance: ''
+        });
+      }
+      
+      // Refresh instances
+      listWhatsAppInstances(
+        localWhatsAppSettings.evolutionApiUrl,
+        localWhatsAppSettings.evolutionApiKey
+      );
+    }
+  };
+
+  const handleOpenDeleteDialog = () => {
+    if (localWhatsAppSettings.evolutionInstance) {
+      setInstanceToDelete(localWhatsAppSettings.evolutionInstance);
+      setDeleteAction('logout');
+      setShowDeleteInstanceDialog(true);
     }
   };
 
@@ -930,9 +986,20 @@ export default function System() {
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleOpenDeleteDialog}
+                          disabled={!localWhatsAppSettings.evolutionInstance}
+                          title="Excluir ou desconectar instância"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Configure URL e API Key primeiro, depois clique em buscar para listar ou + para criar nova
+                        Configure URL e API Key primeiro, depois clique em buscar para listar, + para criar ou lixeira para excluir
                       </p>
                     </div>
                     
@@ -1109,6 +1176,67 @@ export default function System() {
                             Criar Instância
                           </Button>
                         )}
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Dialog para excluir/desconectar instância */}
+                  <Dialog open={showDeleteInstanceDialog} onOpenChange={setShowDeleteInstanceDialog}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                          <AlertTriangleIcon className="h-5 w-5" />
+                          Gerenciar Instância
+                        </DialogTitle>
+                        <DialogDescription>
+                          O que você deseja fazer com a instância "{instanceToDelete}"?
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        <RadioGroup 
+                          value={deleteAction} 
+                          onValueChange={(v) => setDeleteAction(v as 'delete' | 'logout')}
+                        >
+                          <div className="flex items-start space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50">
+                            <RadioGroupItem value="logout" id="logout" className="mt-1" />
+                            <div className="flex-1">
+                              <Label htmlFor="logout" className="font-medium cursor-pointer">
+                                Apenas Desconectar
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                Desconecta o WhatsApp, mas mantém a instância. 
+                                Você poderá reconectar escaneando um novo QR Code.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-3 p-3 border border-destructive/30 rounded-lg cursor-pointer hover:bg-destructive/5">
+                            <RadioGroupItem value="delete" id="delete" className="mt-1" />
+                            <div className="flex-1">
+                              <Label htmlFor="delete" className="font-medium text-destructive cursor-pointer">
+                                Excluir Permanentemente
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                Remove a instância completamente da Evolution API. 
+                                Esta ação não pode ser desfeita.
+                              </p>
+                            </div>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowDeleteInstanceDialog(false)}>
+                          Cancelar
+                        </Button>
+                        <Button 
+                          variant={deleteAction === 'delete' ? 'destructive' : 'default'}
+                          onClick={handleDeleteInstance}
+                          disabled={whatsAppDeletingInstance}
+                        >
+                          {whatsAppDeletingInstance && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          {deleteAction === 'delete' ? 'Excluir' : 'Desconectar'}
+                        </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>

@@ -35,6 +35,7 @@ export const useWhatsAppSettings = () => {
   const [instances, setInstances] = useState<EvolutionInstance[]>([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
+  const [isDeletingInstance, setIsDeletingInstance] = useState(false);
 
   const loadSettings = async () => {
     try {
@@ -253,6 +254,116 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const deleteInstance = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    setIsDeletingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'delete-instance',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Instância excluída',
+          description: `A instância "${instanceName}" foi excluída permanentemente.`,
+        });
+        return { success: true, message: data.message };
+      } else {
+        toast({
+          title: 'Erro ao excluir instância',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao excluir instância' };
+      }
+    } catch (error) {
+      console.error('Erro ao excluir instância:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsDeletingInstance(false);
+    }
+  };
+
+  const logoutInstance = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    setIsDeletingInstance(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'logout-instance',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'WhatsApp desconectado',
+          description: `A instância "${instanceName}" foi desconectada.`,
+        });
+        return { success: true, message: data.message };
+      } else {
+        toast({
+          title: 'Erro ao desconectar',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao desconectar instância' };
+      }
+    } catch (error) {
+      console.error('Erro ao desconectar instância:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsDeletingInstance(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -264,9 +375,12 @@ export const useWhatsAppSettings = () => {
     instances,
     isLoadingInstances,
     isCreatingInstance,
+    isDeletingInstance,
     saveSettings,
     testConnection,
     listInstances,
     createInstance,
+    deleteInstance,
+    logoutInstance,
   };
 };

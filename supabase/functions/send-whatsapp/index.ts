@@ -214,10 +214,111 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'delete-instance') {
+      // Delete an instance permanently
+      const { instanceName } = await req.json();
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Deleting Evolution API instance:', instanceName);
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/delete/${instanceName}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API delete instance response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message?.[0] || errorData?.message || `Erro ${response.status}`;
+          console.error('Evolution API delete instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Instância excluída com sucesso' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Delete instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    if (action === 'logout-instance') {
+      // Logout/disconnect from an instance (keeps the instance but disconnects WhatsApp)
+      const { instanceName } = await req.json();
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Logging out from Evolution API instance:', instanceName);
+      
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/logout/${instanceName}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API logout instance response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message?.[0] || errorData?.message || `Erro ${response.status}`;
+          console.error('Evolution API logout instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'WhatsApp desconectado com sucesso' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Logout instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'test') {
       // Test connection by checking instance status
       console.log('Testing connection to Evolution API...');
-      
       try {
         const response = await fetch(
           `${apiUrl}/instance/connectionState/${settings.evolutionInstance}`,
