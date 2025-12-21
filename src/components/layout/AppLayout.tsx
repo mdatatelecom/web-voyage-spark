@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -111,35 +112,37 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       <div className="flex">
         {/* Sidebar */}
         <aside className="sticky top-16 h-[calc(100vh-4rem)] w-64 border-r bg-sidebar">
-          <nav className="flex flex-col gap-1 p-4">
-            {menuItems.map((item) => {
-              if (!item.visible) return null;
-              
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.path}
-                  variant="ghost"
-                  className="justify-start gap-2 relative"
-                  onClick={() => {
-                    if (item.action) {
-                      item.action();
-                    } else {
-                      navigate(item.path);
-                    }
-                  }}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      {item.badge}
-                    </Badge>
-                  )}
-                </Button>
-              );
-            })}
-          </nav>
+          <ScrollArea className="h-full">
+            <nav className="flex flex-col gap-1 p-4">
+              {menuItems.map((item) => {
+                if (!item.visible) return null;
+                
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.path}
+                    variant="ghost"
+                    className="justify-start gap-2 relative"
+                    onClick={() => {
+                      if (item.action) {
+                        item.action();
+                      } else {
+                        navigate(item.path);
+                      }
+                    }}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
+            </nav>
+          </ScrollArea>
         </aside>
 
         {/* Main Content */}
