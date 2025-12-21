@@ -59,16 +59,29 @@ serve(async (req) => {
       settings = data.setting_value as WhatsAppSettings;
     }
 
-    // Validate settings
-    if (!settings.evolutionApiUrl || !settings.evolutionApiKey || !settings.evolutionInstance) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Configurações incompletas' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
-    }
-
     // Clean up API URL
-    const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+    const apiUrl = settings.evolutionApiUrl ? settings.evolutionApiUrl.replace(/\/$/, '') : '';
+
+    // Actions that don't require evolutionInstance
+    const actionsWithoutInstance = ['list-instances', 'create-instance', 'delete-instance', 'logout-instance'];
+    
+    // Validate settings based on action
+    if (!actionsWithoutInstance.includes(action)) {
+      if (!settings.evolutionApiUrl || !settings.evolutionApiKey || !settings.evolutionInstance) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Configurações incompletas' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+    } else {
+      // For actions without instance, just validate URL and key
+      if (!settings.evolutionApiUrl || !settings.evolutionApiKey) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'URL e API Key são obrigatórios' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+    }
 
     if (action === 'list-instances') {
       // List all available instances
