@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
@@ -627,6 +628,52 @@ export const useTicket = (ticketId: string) => {
       });
     },
   });
+
+  // Realtime subscriptions for ticket and comments updates
+  useEffect(() => {
+    if (!ticketId) return;
+
+    // Subscribe to ticket changes (for attachments, status, etc.)
+    const ticketChannel = supabase
+      .channel(`ticket-realtime-${ticketId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'support_tickets',
+          filter: `id=eq.${ticketId}`
+        },
+        (payload) => {
+          console.log('🔔 Ticket updated via realtime:', payload);
+          queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to comments changes
+    const commentsChannel = supabase
+      .channel(`ticket-comments-realtime-${ticketId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ticket_comments',
+          filter: `ticket_id=eq.${ticketId}`
+        },
+        (payload) => {
+          console.log('🔔 Comment added/updated via realtime:', payload);
+          queryClient.invalidateQueries({ queryKey: ['ticket-comments', ticketId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ticketChannel);
+      supabase.removeChannel(commentsChannel);
+    };
+  }, [ticketId, queryClient]);
 
   return {
     ticket,
