@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User, Calendar } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User, Calendar, BarChart3 } from 'lucide-react';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
@@ -109,10 +109,16 @@ export default function SupportTickets() {
               Gerencie os chamados de suporte técnico
             </p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Chamado
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/tickets/metrics')}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Métricas
+            </Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Chamado
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}

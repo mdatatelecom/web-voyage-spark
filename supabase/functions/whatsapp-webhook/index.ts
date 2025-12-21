@@ -118,8 +118,14 @@ const extractCommand = (text: string): { command: string; args: string } | null 
   }
   
   // Check for cancel wizard command
-  if (lowerText === 'cancelar criacao' || lowerText === 'cancelar criação') {
+  if (lowerText === 'cancelar criacao' || lowerText === 'cancelar criação' ||
+      lowerText === 'sair') {
     return { command: 'cancel_wizard', args: '' };
+  }
+  
+  // Check for guided wizard command
+  if (lowerText === 'criar chamado' || lowerText === 'novo chamado' || lowerText === 'abrir chamado') {
+    return { command: 'start_wizard', args: '' };
   }
   
   // Check for skip due date command
@@ -643,15 +649,277 @@ serve(async (req) => {
         console.log('🕐 Session expired, cleaned up');
       } else {
         // Process based on session state
-        const sessionData = activeSession.data as { category?: string; description?: string; ticket_id?: string; ticket_number?: string; action?: string };
+        const sessionData = activeSession.data as { category?: string; title?: string; description?: string; ticket_id?: string; ticket_number?: string; action?: string; new_ticket_id?: string; new_ticket_number?: string };
+        const lowerMsg = messageContent.toLowerCase().trim();
         
-        // Check for cancel command
-        if (messageContent.toLowerCase() === 'cancelar criação' || 
-            messageContent.toLowerCase() === 'cancelar criacao' ||
-            messageContent.toLowerCase() === 'cancelar' ||
-            messageContent.toLowerCase() === 'nao' ||
-            messageContent.toLowerCase() === 'não' ||
-            messageContent.toLowerCase() === 'n') {
+        // Check for cancel command in any wizard state
+        if (lowerMsg === 'cancelar criação' || 
+            lowerMsg === 'cancelar criacao' ||
+            lowerMsg === 'cancelar' ||
+            lowerMsg === 'sair') {
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          await sendResponse('❌ Operação cancelada. Se precisar, é só chamar.');
+          return new Response(
+            JSON.stringify({ success: true, message: 'Operation cancelled' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Handle wizard_categoria state (step 1: category selection)
+        if (activeSession.state === 'wizard_categoria') {
+          const categoryMapWizard: Record<string, string> = {
+            '1': 'maintenance',
+            '2': 'network',
+            '3': 'hardware',
+            '4': 'software',
+            '5': 'access',
+            '6': 'installation',
+            '7': 'other'
+          };
+          
+          const selectedCategory = categoryMapWizard[lowerMsg];
+          
+          if (!selectedCategory) {
+            await sendResponse(
+              `❌ Opção inválida. Responda apenas com o número (1-7).\n\n` +
+              `1️⃣ Manutenção\n` +
+              `2️⃣ Rede\n` +
+              `3️⃣ Hardware\n` +
+              `4️⃣ Software\n` +
+              `5️⃣ Acesso\n` +
+              `6️⃣ Instalação\n` +
+              `7️⃣ Outro`
+            );
+            return new Response(
+              JSON.stringify({ success: true, message: 'Invalid category' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          await supabase.from('whatsapp_sessions').update({
+            state: 'wizard_titulo',
+            data: { ...sessionData, category: selectedCategory },
+            updated_at: new Date().toISOString()
+          }).eq('phone', senderPhone);
+          
+          await sendResponse(
+            `✅ *Categoria: ${getCategoryLabel(selectedCategory)}*\n\n` +
+            `✍️ Informe um título curto para o chamado:\n\n` +
+            `💡 _Mínimo 5 caracteres_`
+          );
+          return new Response(
+            JSON.stringify({ success: true, message: 'Category selected' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle wizard_titulo state (step 2: title)
+        if (activeSession.state === 'wizard_titulo') {
+          if (messageContent.trim().length < 5) {
+            await sendResponse(`⚠️ O título deve ter no mínimo 5 caracteres.\n\n✍️ Digite novamente:`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Title too short' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          await supabase.from('whatsapp_sessions').update({
+            state: 'wizard_descricao',
+            data: { ...sessionData, title: messageContent.trim() },
+            updated_at: new Date().toISOString()
+          }).eq('phone', senderPhone);
+          
+          await sendResponse(
+            `✅ *Título registrado!*\n\n` +
+            `📝 Agora descreva o problema com mais detalhes:\n\n` +
+            `💡 _Mínimo 10 caracteres_`
+          );
+          return new Response(
+            JSON.stringify({ success: true, message: 'Title saved' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle wizard_descricao state (step 3: description - creates ticket)
+        if (activeSession.state === 'wizard_descricao') {
+          if (messageContent.trim().length < 10) {
+            await sendResponse(`⚠️ A descrição deve ter no mínimo 10 caracteres.\n\n📝 Digite novamente:`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Description too short' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          // Create the ticket
+          const { data: newTicket, error: createError } = await supabase
+            .from('support_tickets')
+            .insert({
+              title: sessionData.title || messageContent.trim().substring(0, 100),
+              description: messageContent.trim(),
+              category: sessionData.category || 'other',
+              priority: 'medium',
+              status: 'open',
+              contact_phone: senderPhone,
+              created_by: '00000000-0000-0000-0000-000000000000'
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error('❌ Error creating ticket:', createError);
+            await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+            await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+            return new Response(
+              JSON.stringify({ success: false, message: 'Error creating ticket' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          // Update session for post-creation options
+          await supabase.from('whatsapp_sessions').update({
+            state: 'wizard_pos_criacao',
+            data: { ...sessionData, new_ticket_id: newTicket.id, new_ticket_number: newTicket.ticket_number },
+            updated_at: new Date().toISOString()
+          }).eq('phone', senderPhone);
+
+          await supabase
+            .from('whatsapp_message_mapping')
+            .insert({
+              ticket_id: newTicket.id,
+              message_id: messageId,
+              group_id: groupId,
+              phone_number: senderPhone,
+              direction: 'inbound'
+            });
+          
+          await sendResponse(
+            `✅ *Chamado Criado com Sucesso!*\n\n` +
+            `📋 Número: *${newTicket.ticket_number}*\n` +
+            `🏷️ Categoria: ${getCategoryLabel(sessionData.category || 'other')}\n` +
+            `📝 ${sessionData.title}\n` +
+            `🔵 Status: Aberto\n\n` +
+            `Deseja:\n` +
+            `1️⃣ Adicionar mais informações\n` +
+            `2️⃣ Definir prioridade\n` +
+            `3️⃣ Encerrar\n\n` +
+            `💡 _Responda com o número ou qualquer texto para encerrar_`
+          );
+          return new Response(
+            JSON.stringify({ success: true, message: 'Ticket created' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle wizard_pos_criacao state (step 4: post-creation options)
+        if (activeSession.state === 'wizard_pos_criacao') {
+          const ticketId = sessionData.new_ticket_id;
+          const ticketNum = sessionData.new_ticket_number;
+          
+          if (lowerMsg === '1') {
+            // Add more info - save as comment
+            await supabase.from('whatsapp_sessions').update({
+              state: 'wizard_info_adicional',
+              updated_at: new Date().toISOString()
+            }).eq('phone', senderPhone);
+            
+            await sendResponse(`📝 Digite as informações adicionais para o chamado *${ticketNum}*:`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Awaiting additional info' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          if (lowerMsg === '2') {
+            // Set priority
+            await supabase.from('whatsapp_sessions').update({
+              state: 'wizard_prioridade',
+              updated_at: new Date().toISOString()
+            }).eq('phone', senderPhone);
+            
+            await sendResponse(
+              `⚡ *Definir Prioridade*\n\n` +
+              `Escolha a prioridade do chamado *${ticketNum}*:\n\n` +
+              `1️⃣ 🟢 Baixa\n` +
+              `2️⃣ 🟡 Média\n` +
+              `3️⃣ 🟠 Alta\n` +
+              `4️⃣ 🔴 Crítica`
+            );
+            return new Response(
+              JSON.stringify({ success: true, message: 'Awaiting priority' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          // Any other response (including "3") ends the wizard
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          await sendResponse(`✅ Atendimento finalizado. Obrigado!\n\n📋 Acompanhe pelo número *${ticketNum}*`);
+          return new Response(
+            JSON.stringify({ success: true, message: 'Wizard completed' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle wizard_info_adicional state
+        if (activeSession.state === 'wizard_info_adicional') {
+          const ticketId = sessionData.new_ticket_id;
+          const ticketNum = sessionData.new_ticket_number;
+          
+          await supabase.from('ticket_comments').insert({
+            ticket_id: ticketId,
+            user_id: '00000000-0000-0000-0000-000000000000',
+            comment: messageContent.trim(),
+            is_internal: false,
+            source: 'whatsapp',
+            whatsapp_sender_name: pushName,
+            whatsapp_sender_phone: senderPhone
+          });
+          
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          await sendResponse(`✅ Informação adicionada ao chamado *${ticketNum}*.\n\nAtendimento finalizado. Obrigado!`);
+          return new Response(
+            JSON.stringify({ success: true, message: 'Comment added' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle wizard_prioridade state
+        if (activeSession.state === 'wizard_prioridade') {
+          const ticketId = sessionData.new_ticket_id;
+          const ticketNum = sessionData.new_ticket_number;
+          
+          const priorityMapWizard: Record<string, string> = {
+            '1': 'low',
+            '2': 'medium',
+            '3': 'high',
+            '4': 'critical'
+          };
+          
+          const newPriority = priorityMapWizard[lowerMsg];
+          
+          if (!newPriority) {
+            await sendResponse(`❌ Opção inválida. Responda com um número de 1 a 4.`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Invalid priority' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          await supabase.from('support_tickets').update({ priority: newPriority }).eq('id', ticketId);
+          await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
+          
+          await sendResponse(
+            `✅ Prioridade do chamado *${ticketNum}* definida como ${getPriorityEmoji(newPriority)} *${getPriorityLabel(newPriority)}*.\n\n` +
+            `Atendimento finalizado. Obrigado!`
+          );
+          return new Response(
+            JSON.stringify({ success: true, message: 'Priority set' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Handle nao/não for confirmation (not in wizard states)
+        if ((lowerMsg === 'nao' || lowerMsg === 'não' || lowerMsg === 'n') && 
+            (activeSession.state === 'confirm_resolve' || activeSession.state === 'confirm_close')) {
           await supabase.from('whatsapp_sessions').delete().eq('phone', senderPhone);
           await sendResponse('❌ Operação cancelada.');
           return new Response(
@@ -830,17 +1098,20 @@ serve(async (req) => {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `➕ *CRIAR CHAMADO*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *criar chamado* - Wizard guiado ✨\n` +
             `• *novo* - Menu de categorias\n` +
             `• *novo manutenção* - Com categoria\n` +
-            `• *novo: [título]* - Rápido\n` +
-            `• *comentar 00001 [texto]*\n\n` +
+            `• *novo: [título]* - Criação rápida\n` +
+            `• *comentar 00001 [texto]*\n` +
+            `• *cancelar* ou *sair* - Cancela criação\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `🔄 *ALTERAR STATUS*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *iniciar 00001* - Em Andamento\n` +
-            `• *resolver 00001* - Resolvido\n` +
-            `• *encerrar 00001* - Fechado\n` +
-            `• *reabrir 00001* - Reabrir\n\n` +
+            `• *resolver 00001* - Resolvido ⚠️\n` +
+            `• *encerrar 00001* - Fechado ⚠️\n` +
+            `• *reabrir 00001* - Reabrir\n` +
+            `   ⚠️ _Pedirá confirmação_\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `👨‍🔧 *ATRIBUIÇÃO (Técnicos)*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1554,7 +1825,32 @@ serve(async (req) => {
             .delete()
             .eq('phone', senderPhone);
           
-          await sendResponse('❌ Criação de chamado cancelada.');
+          await sendResponse('❌ Operação cancelada. Se precisar, é só chamar.');
+          break;
+        }
+
+        case 'start_wizard': {
+          // Start the guided ticket creation wizard
+          await supabase.from('whatsapp_sessions').upsert({
+            phone: senderPhone,
+            state: 'wizard_categoria',
+            data: {},
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'phone' });
+
+          await sendResponse(
+            `🛠️ *Vamos abrir um chamado!*\n\n` +
+            `Escolha a categoria:\n\n` +
+            `1️⃣ Manutenção\n` +
+            `2️⃣ Rede\n` +
+            `3️⃣ Hardware\n` +
+            `4️⃣ Software\n` +
+            `5️⃣ Acesso\n` +
+            `6️⃣ Instalação\n` +
+            `7️⃣ Outro\n\n` +
+            `💡 _Responda apenas com o número_\n` +
+            `❌ _Digite *cancelar* para sair_`
+          );
           break;
         }
 
