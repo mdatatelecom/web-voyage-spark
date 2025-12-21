@@ -31,6 +31,8 @@ import MyConnections from "./pages/MyConnections";
 import NetworkMap from "./pages/NetworkMap";
 import RackComparison from "./pages/RackComparison";
 import CameraMap from "./pages/CameraMap";
+import SupportTickets from "./pages/SupportTickets";
+import TicketDetails from "./pages/TicketDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -242,6 +244,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <CameraMap />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tickets"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <SupportTickets />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tickets/:id"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <TicketDetails />
                 </ProtectedRoute>
               } 
             />
