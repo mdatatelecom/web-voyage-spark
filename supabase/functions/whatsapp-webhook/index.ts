@@ -36,6 +36,18 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'details', args };
   }
   
+  // Check for start/in-progress command
+  if (lowerText.startsWith('iniciar ') || lowerText.startsWith('andamento ')) {
+    const args = lowerText.replace(/^(iniciar|andamento)\s+/, '').trim();
+    return { command: 'start', args };
+  }
+  
+  // Check for resolve command
+  if (lowerText.startsWith('resolver ') || lowerText.startsWith('resolvido ')) {
+    const args = lowerText.replace(/^(resolver|resolvido)\s+/, '').trim();
+    return { command: 'resolve', args };
+  }
+  
   // Check for close command
   if (lowerText.startsWith('encerrar ') || lowerText.startsWith('fechar ')) {
     const args = lowerText.replace(/^(encerrar|fechar)\s+/, '').trim();
@@ -53,9 +65,8 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'priority', args };
   }
   
-// Check for comment command
+  // Check for comment command
   if (lowerText.startsWith('comentar ')) {
-    const argsText = lowerText.replace('comentar ', '').trim();
     return { command: 'comment', args: text.substring(text.toLowerCase().indexOf('comentar ') + 9).trim() };
   }
   
@@ -65,7 +76,7 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'assign', args };
   }
   
-// Check for transfer command (técnico transfere para outro)
+  // Check for transfer command (técnico transfere para outro)
   if (lowerText.startsWith('transferir ')) {
     const args = text.substring(text.toLowerCase().indexOf('transferir ') + 11).trim();
     return { command: 'transfer', args };
@@ -82,9 +93,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
   }
   
-  // Check for list command
+  // Check for list command - with filter option
   if (lowerText === 'meus chamados' || lowerText === 'meus tickets') {
     return { command: 'list', args: '' };
+  }
+  if (lowerText === 'todos chamados' || lowerText === 'todos meus chamados' || lowerText === 'todos tickets') {
+    return { command: 'list', args: 'all' };
   }
   
   // Check for help command
@@ -576,24 +590,38 @@ serve(async (req) => {
 
       switch (command.command) {
         case 'help': {
-          const helpMessage = `🤖 *Comandos Disponíveis*\n\n` +
-            `📊 *Consultas*\n` +
+          const helpMessage = `🤖 *Comandos do WhatsApp*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 *CONSULTAS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *meus chamados* - Listar abertos\n` +
+            `• *todos chamados* - Listar todos\n` +
             `• *status 00001* - Ver status\n` +
-            `• *detalhes 00001* - Ver detalhes completos\n` +
-            `• *meus chamados* - Listar seus chamados\n\n` +
-            `➕ *Criar/Gerenciar*\n` +
+            `• *detalhes 00001* - Ver detalhes\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `➕ *CRIAR E COMENTAR*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *novo: [título]* - Criar chamado\n` +
-            `• *comentar 00001 [texto]* - Adicionar comentário\n\n` +
-            `👨‍🔧 *Comandos para Técnicos*\n` +
-            `• *atribuir 00001* - Assumir chamado\n` +
-            `• *cancelar 00001* - Cancelar sua atribuição\n` +
-            `• *transferir 00001 5511999999999* - Transferir para outro técnico\n` +
-            `• *encerrar 00001* - Fechar chamado\n` +
-            `• *reabrir 00001* - Reabrir chamado\n` +
-            `• *prioridade 00001 alta* - Alterar prioridade\n\n` +
-            `📋 *Prioridades:* baixa, média, alta, crítica\n\n` +
-            `💡 _Responda a uma notificação ou mencione #TKT-XXXX-XXXXX para comentar_\n\n` +
-            `❓ *ajuda* - Mostrar este menu`;
+            `• *comentar 00001 [texto]*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔄 *ALTERAR STATUS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *iniciar 00001* - Em Andamento\n` +
+            `• *resolver 00001* - Resolvido\n` +
+            `• *encerrar 00001* - Fechado\n` +
+            `• *reabrir 00001* - Reabrir\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `👨‍🔧 *ATRIBUIÇÃO (Técnicos)*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *atribuir 00001* - Assumir\n` +
+            `• *cancelar 00001* - Remover atribuição\n` +
+            `• *transferir 00001 5511999999999*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `⚡ *PRIORIDADE*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *prioridade 00001 alta*\n` +
+            `  📋 baixa | média | alta | crítica\n\n` +
+            `💡 _Responda uma notificação para comentar_`;
           
           await sendResponse(helpMessage);
           break;
@@ -876,6 +904,194 @@ serve(async (req) => {
           break;
         }
 
+        case 'start': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *iniciar 00001*');
+            break;
+          }
+          
+          // Find ticket
+          const { data: startTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!startTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Check permission
+          const { allowed } = await checkTicketPermission(supabase, startTicket, senderPhone);
+          
+          if (!allowed) {
+            await sendResponse(
+              `⛔ *Você não tem permissão para alterar este chamado.*\n\n` +
+              `👤 Apenas o criador, técnico atribuído ou administradores podem alterar o status.`
+            );
+            break;
+          }
+
+          if (startTicket.status === 'in_progress') {
+            await sendResponse(`⚠️ Este chamado já está em andamento.`);
+            break;
+          }
+
+          if (startTicket.status === 'closed') {
+            await sendResponse(`⚠️ Este chamado está fechado. Use *reabrir ${ticketNum.split('-')[2]}* primeiro.`);
+            break;
+          }
+
+          // Update to in_progress
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ status: 'in_progress' })
+            .eq('id', startTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error starting ticket:', updateError);
+            await sendResponse(`❌ Erro ao iniciar chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: startTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Status alterado para "Em Andamento" via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          await sendResponse(
+            `✅ *Chamado ${ticketNum} Iniciado*\n\n` +
+            `📋 ${startTicket.title}\n` +
+            `${getStatusEmoji('in_progress')} Status: Em Andamento`
+          );
+          break;
+        }
+
+        case 'resolve': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *resolver 00001*');
+            break;
+          }
+          
+          // Find ticket
+          const { data: resolveTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!resolveTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Check permission
+          const { allowed } = await checkTicketPermission(supabase, resolveTicket, senderPhone);
+          
+          if (!allowed) {
+            await sendResponse(
+              `⛔ *Você não tem permissão para resolver este chamado.*\n\n` +
+              `👤 Apenas o criador, técnico atribuído ou administradores podem resolver.`
+            );
+            break;
+          }
+
+          if (resolveTicket.status === 'resolved') {
+            await sendResponse(`⚠️ Este chamado já está resolvido.`);
+            break;
+          }
+
+          if (resolveTicket.status === 'closed') {
+            await sendResponse(`⚠️ Este chamado está fechado. Use *reabrir ${ticketNum.split('-')[2]}* primeiro.`);
+            break;
+          }
+
+          // Update to resolved
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              status: 'resolved',
+              resolved_at: new Date().toISOString()
+            })
+            .eq('id', resolveTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error resolving ticket:', updateError);
+            await sendResponse(`❌ Erro ao resolver chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: resolveTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Chamado marcado como resolvido via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          // Notify client if has contact_phone
+          if (resolveTicket.contact_phone && settings) {
+            const clientPhone = formatPhoneForQuery(resolveTicket.contact_phone);
+            const senderPhoneClean = formatPhoneForQuery(senderPhone);
+            
+            // Don't notify if sender is the client
+            if (!clientPhone.includes(senderPhoneClean.slice(-9)) && !senderPhoneClean.includes(clientPhone.slice(-9))) {
+              const clientMsg = `✅ *Chamado Resolvido*\n\n` +
+                `📋 ${resolveTicket.ticket_number}\n` +
+                `${resolveTicket.title}\n\n` +
+                `Seu chamado foi marcado como resolvido.\n\n` +
+                `💡 Se precisar reabrir, use: *reabrir ${resolveTicket.ticket_number.split('-')[2]}*`;
+              
+              const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+              try {
+                await fetch(
+                  `${apiUrl}/message/sendText/${settings.evolutionInstance}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'apikey': settings.evolutionApiKey,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      number: resolveTicket.contact_phone,
+                      text: clientMsg,
+                    }),
+                  }
+                );
+                console.log('✅ Client notified about resolution');
+              } catch (notifyErr) {
+                console.error('⚠️ Error notifying client:', notifyErr);
+              }
+            }
+          }
+
+          await sendResponse(
+            `✅ *Chamado ${ticketNum} Resolvido*\n\n` +
+            `📋 ${resolveTicket.title}\n` +
+            `${getStatusEmoji('resolved')} Status: Resolvido\n\n` +
+            `💡 Use *encerrar ${ticketNum.split('-')[2]}* para fechar definitivamente.`
+          );
+          break;
+        }
+
         case 'priority': {
           // Parse: "00001 alta" or "TKT-2025-00001 crítica"
           const parts = command.args.split(/\s+/);
@@ -1021,7 +1237,8 @@ serve(async (req) => {
         }
 
         case 'list': {
-          // List open tickets for this phone number (as client OR technician)
+          // List tickets for this phone number (as client OR technician)
+          const showAll = command.args === 'all';
           const phoneDigits = formatPhoneForQuery(senderPhone).slice(-9);
           
           // First, try to find user's profile to get their ID
@@ -1041,16 +1258,26 @@ serve(async (req) => {
             orConditions.push(`assigned_to.eq.${userProfile.id}`);
           }
           
-          const { data: userTickets } = await supabase
+          // Build query
+          let query = supabase
             .from('support_tickets')
             .select('*')
             .or(orConditions.join(','))
-            .in('status', ['open', 'in_progress'])
-            .order('created_at', { ascending: false })
-            .limit(15);
+            .order('created_at', { ascending: false });
+          
+          // Apply status filter if not showing all
+          if (!showAll) {
+            query = query.in('status', ['open', 'in_progress']);
+          }
+          
+          const { data: userTickets } = await query.limit(showAll ? 20 : 15);
 
           if (!userTickets || userTickets.length === 0) {
-            await sendResponse('📭 Você não possui chamados abertos no momento.');
+            if (showAll) {
+              await sendResponse('📭 Você não possui chamados registrados.');
+            } else {
+              await sendResponse('📭 Você não possui chamados abertos no momento.\n\n💡 Use *todos chamados* para ver resolvidos e fechados.');
+            }
           } else {
             // Separate tickets by role
             const myAssigned = userTickets.filter(t => 
@@ -1062,7 +1289,8 @@ serve(async (req) => {
               !myAssigned.find(a => a.id === t.id)
             );
             
-            let listMessage = `📋 *Seus Chamados Abertos*\n\n`;
+            const listTitle = showAll ? 'Todos os Seus Chamados' : 'Seus Chamados Abertos';
+            let listMessage = `📋 *${listTitle}*\n\n`;
             let counter = 1;
             
             if (myAssigned.length > 0) {
@@ -1086,6 +1314,10 @@ serve(async (req) => {
             }
             
             listMessage += `💡 Use *detalhes ${userTickets[0].ticket_number.split('-')[2]}* para ver mais.`;
+            
+            if (!showAll) {
+              listMessage += `\n📋 Use *todos chamados* para ver resolvidos e fechados.`;
+            }
             
             await sendResponse(listMessage);
           }
