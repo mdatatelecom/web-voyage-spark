@@ -288,12 +288,14 @@ Deno.serve(async (req) => {
 
     console.log(`Created/updated ${alertsCreated} alerts`);
 
-    // Send email notifications for critical alerts
+    // Send notifications for alerts
     const criticalAlerts = createdAlerts.filter(a => a.severity === 'critical');
-    if (criticalAlerts.length > 0) {
-      console.log(`Sending email notifications for ${criticalAlerts.length} critical alerts`);
+    const warningAlerts = createdAlerts.filter(a => a.severity === 'warning');
+    
+    if (criticalAlerts.length > 0 || warningAlerts.length > 0) {
+      console.log(`Sending notifications for ${criticalAlerts.length} critical and ${warningAlerts.length} warning alerts`);
       
-      // Get admin users with email notifications enabled
+      // Get admin users with notifications enabled
       const { data: adminRoles } = await supabaseClient
         .from('user_roles')
         .select('user_id')
@@ -311,22 +313,22 @@ Deno.serve(async (req) => {
         if (admins) {
           for (const admin of admins) {
             // Check notification settings
-            const { data: settings } = await supabaseClient
+            const { data: notifSettings } = await supabaseClient
               .from('notification_settings')
               .select('*')
               .eq('user_id', admin.id)
               .single();
 
-            // Send if settings allow or if no settings (default to send)
-            const shouldSend = !settings || 
-              (settings.email_enabled && settings.alert_critical);
+            // Email notifications
+            const shouldSendEmail = !notifSettings || 
+              (notifSettings.email_enabled && notifSettings.alert_critical);
 
-            if (shouldSend) {
+            if (shouldSendEmail && criticalAlerts.length > 0) {
               // Get admin email
               const { data: { user } } = await supabaseClient.auth.admin.getUserById(admin.id);
               
               if (user?.email) {
-                const targetEmail = settings?.email_address || user.email;
+                const targetEmail = notifSettings?.email_address || user.email;
                 
                 // Send email for each critical alert
                 for (const alert of criticalAlerts) {
@@ -347,6 +349,60 @@ Deno.serve(async (req) => {
                     console.log(`Email sent to ${targetEmail} for alert ${alert.title}`);
                   } catch (emailError) {
                     console.error(`Failed to send email to ${targetEmail}:`, emailError);
+                  }
+                }
+              }
+            }
+
+            // WhatsApp notifications
+            const whatsappEnabled = (notifSettings as any)?.whatsapp_enabled ?? false;
+            const whatsappPhone = (notifSettings as any)?.whatsapp_phone;
+            const whatsappAlertCritical = (notifSettings as any)?.whatsapp_alert_critical ?? true;
+            const whatsappAlertWarning = (notifSettings as any)?.whatsapp_alert_warning ?? false;
+
+            if (whatsappEnabled && whatsappPhone) {
+              // Send WhatsApp for critical alerts
+              if (whatsappAlertCritical && criticalAlerts.length > 0) {
+                for (const alert of criticalAlerts) {
+                  try {
+                    const message = `🚨 *ALERTA CRÍTICO*\n\n` +
+                      `*${alert.title}*\n\n` +
+                      `${alert.message}\n\n` +
+                      `Acesse o sistema para mais detalhes.`;
+
+                    await supabaseClient.functions.invoke('send-whatsapp', {
+                      body: {
+                        action: 'send',
+                        phone: whatsappPhone,
+                        message,
+                      },
+                    });
+                    console.log(`WhatsApp sent to ${whatsappPhone} for critical alert: ${alert.title}`);
+                  } catch (whatsappError) {
+                    console.error(`Failed to send WhatsApp to ${whatsappPhone}:`, whatsappError);
+                  }
+                }
+              }
+
+              // Send WhatsApp for warning alerts
+              if (whatsappAlertWarning && warningAlerts.length > 0) {
+                for (const alert of warningAlerts) {
+                  try {
+                    const message = `⚠️ *ALERTA DE AVISO*\n\n` +
+                      `*${alert.title}*\n\n` +
+                      `${alert.message}\n\n` +
+                      `Acesse o sistema para mais detalhes.`;
+
+                    await supabaseClient.functions.invoke('send-whatsapp', {
+                      body: {
+                        action: 'send',
+                        phone: whatsappPhone,
+                        message,
+                      },
+                    });
+                    console.log(`WhatsApp sent to ${whatsappPhone} for warning alert: ${alert.title}`);
+                  } catch (whatsappError) {
+                    console.error(`Failed to send WhatsApp to ${whatsappPhone}:`, whatsappError);
                   }
                 }
               }
