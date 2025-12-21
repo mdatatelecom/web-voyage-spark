@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User, Calendar, BarChart3 } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User, Calendar, BarChart3, Paperclip } from 'lucide-react';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
@@ -294,8 +294,16 @@ export default function SupportTickets() {
                       <TableCell className="font-mono font-medium">
                         {ticket.ticket_number}
                       </TableCell>
-                      <TableCell className="max-w-[300px] truncate">
-                        {ticket.title}
+                      <TableCell className="max-w-[300px]">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate">{ticket.title}</span>
+                          {ticket.attachments && (ticket.attachments as any[]).length > 0 && (
+                            <Badge variant="outline" className="flex-shrink-0 gap-1 px-1.5 py-0.5">
+                              <Paperclip className="h-3 w-3" />
+                              <span className="text-xs">{(ticket.attachments as any[]).length}</span>
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
