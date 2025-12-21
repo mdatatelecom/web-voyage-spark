@@ -46,6 +46,7 @@ import {
   EyeOff,
   Wifi,
   XCircle,
+  MessageCircle,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
@@ -61,6 +62,7 @@ import { useToast } from '@/hooks/use-toast';
 import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
+import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
 
 export default function System() {
   const { toast } = useToast();
@@ -122,9 +124,20 @@ export default function System() {
   const [relayTestStatus, setRelayTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [relayTestMessage, setRelayTestMessage] = useState<string>('');
 
+  // WhatsApp Settings
+  const { settings: whatsAppSettings, isLoading: whatsAppLoading, isTesting: whatsAppTesting, saveSettings: saveWhatsAppSettings, testConnection: testWhatsAppConnection } = useWhatsAppSettings();
+  const [localWhatsAppSettings, setLocalWhatsAppSettings] = useState(whatsAppSettings);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [whatsAppTestStatus, setWhatsAppTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [whatsAppTestMessage, setWhatsAppTestMessage] = useState<string>('');
+
   useEffect(() => {
     setLocalVpnSettings(vpnSettings);
   }, [vpnSettings]);
+
+  useEffect(() => {
+    setLocalWhatsAppSettings(whatsAppSettings);
+  }, [whatsAppSettings]);
 
   // Test relay connection via WebSocket (bypasses Mixed Content issues)
   const testRelayConnection = async () => {
@@ -260,6 +273,10 @@ export default function System() {
             <TabsTrigger value="vpn">
               <Globe className="w-4 h-4 mr-2" />
               VPN
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp">
+              <MessageCircle className="w-4 h-4 mr-2" />
+              WhatsApp
             </TabsTrigger>
             <TabsTrigger value="customization">
               <Palette className="w-4 h-4 mr-2" />
@@ -727,6 +744,190 @@ export default function System() {
                       <li>Execute o relay que aceita WebSocket e conecta via SSH</li>
                       <li>Configure a URL do relay acima (ex: wss://seu-vps:8080/ssh)</li>
                       <li>Ative "Usar SSH Relay Externo" e salve</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          {/* Tab: WhatsApp */}
+          <TabsContent value="whatsapp" className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                Integração WhatsApp (Evolution API)
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configure a integração com Evolution API para enviar notificações de chamados via WhatsApp.
+              </p>
+              
+              {whatsAppLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Toggle de habilitação */}
+                  <div className="flex items-center gap-4">
+                    <Switch
+                      id="whatsappEnabled"
+                      checked={localWhatsAppSettings.isEnabled}
+                      onCheckedChange={(checked) => setLocalWhatsAppSettings({ 
+                        ...localWhatsAppSettings, 
+                        isEnabled: checked 
+                      })}
+                    />
+                    <Label htmlFor="whatsappEnabled">Habilitar integração WhatsApp</Label>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* URL da Evolution API */}
+                    <div className="space-y-2">
+                      <Label htmlFor="evolutionUrl">URL da Evolution API</Label>
+                      <Input
+                        id="evolutionUrl"
+                        value={localWhatsAppSettings.evolutionApiUrl}
+                        onChange={(e) => setLocalWhatsAppSettings({ 
+                          ...localWhatsAppSettings, 
+                          evolutionApiUrl: e.target.value 
+                        })}
+                        placeholder="https://evolution.seudominio.com"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        URL do servidor onde a Evolution API está instalada
+                      </p>
+                    </div>
+                    
+                    {/* Nome da Instância */}
+                    <div className="space-y-2">
+                      <Label htmlFor="evolutionInstance">Nome da Instância</Label>
+                      <Input
+                        id="evolutionInstance"
+                        value={localWhatsAppSettings.evolutionInstance}
+                        onChange={(e) => setLocalWhatsAppSettings({ 
+                          ...localWhatsAppSettings, 
+                          evolutionInstance: e.target.value 
+                        })}
+                        placeholder="chamados"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nome da instância do WhatsApp configurada na Evolution
+                      </p>
+                    </div>
+                    
+                    {/* API Key */}
+                    <div className="space-y-2">
+                      <Label htmlFor="evolutionApiKey">API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="evolutionApiKey"
+                          type={showApiKey ? 'text' : 'password'}
+                          value={localWhatsAppSettings.evolutionApiKey}
+                          onChange={(e) => setLocalWhatsAppSettings({ 
+                            ...localWhatsAppSettings, 
+                            evolutionApiKey: e.target.value 
+                          })}
+                          placeholder="••••••••"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Chave de autenticação configurada na Evolution API
+                      </p>
+                    </div>
+                    
+                    {/* Código do País */}
+                    <div className="space-y-2">
+                      <Label htmlFor="countryCode">Código do País Padrão</Label>
+                      <Input
+                        id="countryCode"
+                        value={localWhatsAppSettings.defaultCountryCode}
+                        onChange={(e) => setLocalWhatsAppSettings({ 
+                          ...localWhatsAppSettings, 
+                          defaultCountryCode: e.target.value 
+                        })}
+                        placeholder="55"
+                        className="w-32"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Será adicionado automaticamente se o número não tiver código do país
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  {/* Botões de ação */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        setWhatsAppTestStatus('testing');
+                        const result = await testWhatsAppConnection(localWhatsAppSettings);
+                        setWhatsAppTestStatus(result.success ? 'success' : 'error');
+                        setWhatsAppTestMessage(result.message);
+                      }}
+                      disabled={!localWhatsAppSettings.evolutionApiUrl || whatsAppTesting || whatsAppTestStatus === 'testing'}
+                    >
+                      {whatsAppTestStatus === 'testing' || whatsAppTesting ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : whatsAppTestStatus === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
+                      ) : whatsAppTestStatus === 'error' ? (
+                        <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                      ) : (
+                        <Wifi className="w-4 h-4 mr-2" />
+                      )}
+                      Testar Conexão
+                    </Button>
+                    
+                    <Button
+                      onClick={() => saveWhatsAppSettings(localWhatsAppSettings)}
+                      className="flex-1"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Salvar Configurações
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => setLocalWhatsAppSettings(whatsAppSettings)}
+                    >
+                      Restaurar
+                    </Button>
+                  </div>
+                  
+                  {/* Mensagem de resultado do teste */}
+                  {whatsAppTestMessage && (
+                    <Alert variant={whatsAppTestStatus === 'error' ? 'destructive' : 'default'}>
+                      {whatsAppTestStatus === 'success' ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <XCircle className="h-4 w-4" />
+                      )}
+                      <AlertDescription>{whatsAppTestMessage}</AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {/* Instruções */}
+                  <div className="bg-muted p-4 rounded-lg space-y-2">
+                    <p className="text-sm font-medium">Como configurar a Evolution API:</p>
+                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                      <li>Instale a Evolution API em um servidor (Docker ou manual)</li>
+                      <li>Crie uma instância e conecte escaneando o QR Code</li>
+                      <li>Copie a API Key e nome da instância para os campos acima</li>
+                      <li>Teste a conexão antes de salvar</li>
                     </ol>
                   </div>
                 </div>
