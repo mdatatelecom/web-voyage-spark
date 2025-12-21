@@ -30,6 +30,29 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'status', args: lowerText.replace('status ', '').trim() };
   }
   
+  // Check for details command
+  if (lowerText.startsWith('detalhes ') || lowerText.startsWith('ver ')) {
+    const args = lowerText.replace(/^(detalhes|ver)\s+/, '').trim();
+    return { command: 'details', args };
+  }
+  
+  // Check for close command
+  if (lowerText.startsWith('encerrar ') || lowerText.startsWith('fechar ')) {
+    const args = lowerText.replace(/^(encerrar|fechar)\s+/, '').trim();
+    return { command: 'close', args };
+  }
+  
+  // Check for reopen command
+  if (lowerText.startsWith('reabrir ')) {
+    return { command: 'reopen', args: lowerText.replace('reabrir ', '').trim() };
+  }
+  
+  // Check for priority command
+  if (lowerText.startsWith('prioridade ') || lowerText.startsWith('urgencia ')) {
+    const args = lowerText.replace(/^(prioridade|urgencia)\s+/, '').trim();
+    return { command: 'priority', args };
+  }
+  
   // Check for new ticket command
   if (lowerText.startsWith('novo:') || lowerText.startsWith('novo ')) {
     return { command: 'novo', args: text.replace(/^novo[:\s]/i, '').trim() };
@@ -121,6 +144,68 @@ const getMediaTypeLabel = (mediaType: string): string => {
     sticker: 'Figurinha'
   };
   return labels[mediaType] || 'Arquivo';
+};
+
+// Parse ticket number from args (accepts 00001 or #TKT-2025-00001)
+const parseTicketNumberFromArgs = (args: string): string | null => {
+  // Check if it's already a full ticket number
+  const fullMatch = args.match(/#?(TKT-\d{4}-\d{5})/i);
+  if (fullMatch) {
+    return fullMatch[1].toUpperCase();
+  }
+  
+  // Try to parse as a short number (just digits)
+  const shortNumber = args.replace(/\D/g, '');
+  if (shortNumber.length > 0) {
+    const year = new Date().getFullYear();
+    return `TKT-${year}-${shortNumber.padStart(5, '0')}`;
+  }
+  
+  return null;
+};
+
+// Parse priority from text
+const parsePriority = (text: string): string | null => {
+  const priorityMap: Record<string, string> = {
+    'baixa': 'low',
+    'media': 'medium',
+    'média': 'medium',
+    'alta': 'high',
+    'critica': 'critical',
+    'crítica': 'critical',
+    'urgente': 'critical',
+    'low': 'low',
+    'medium': 'medium',
+    'high': 'high',
+    'critical': 'critical'
+  };
+  
+  const lowerText = text.toLowerCase();
+  return priorityMap[lowerText] || null;
+};
+
+// Check if user has permission to manage a ticket
+const checkTicketPermission = async (
+  supabase: any,
+  ticket: any,
+  senderPhone: string
+): Promise<{ allowed: boolean; isOwner: boolean }> => {
+  const formattedPhone = formatPhoneForQuery(senderPhone);
+  
+  // Check if sender is the ticket creator (by phone)
+  if (ticket.contact_phone) {
+    const ticketPhone = formatPhoneForQuery(ticket.contact_phone);
+    if (formattedPhone.includes(ticketPhone) || ticketPhone.includes(formattedPhone)) {
+      return { allowed: true, isOwner: true };
+    }
+  }
+  
+  // Check if user has admin or technician role
+  // First, try to find user by phone in profiles or some user lookup
+  // For now, we'll allow based on phone match only
+  // You could extend this to check user_roles table if you have phone->user mapping
+  
+  return { allowed: false, isOwner: false };
 };
 
 // Helper to download and upload media to storage
@@ -402,28 +487,38 @@ serve(async (req) => {
       switch (command.command) {
         case 'help': {
           const helpMessage = `🤖 *Comandos Disponíveis*\n\n` +
-            `📋 *#TKT-XXXX-XXXXX* - Ver status de um chamado\n` +
-            `📋 *status XXXXX* - Ver status de um chamado\n` +
-            `➕ *novo: [título]* - Criar novo chamado\n` +
-            `📝 *meus chamados* - Listar seus chamados abertos\n` +
-            `❓ *ajuda* - Mostrar esta mensagem\n\n` +
-            `💡 *Dica:* Responda a uma notificação de chamado para adicionar um comentário!\n` +
-            `📎 Você também pode enviar imagens e documentos como anexos.`;
+            `📊 *Consultas*\n` +
+            `• *#TKT-XXXX-XXXXX* - Ver status rápido\n` +
+            `• *status 00001* - Ver status por número\n` +
+            `• *detalhes 00001* - Ver detalhes completos\n` +
+            `• *meus chamados* - Listar seus chamados\n\n` +
+            `➕ *Criar/Gerenciar*\n` +
+            `• *novo: [título]* - Criar novo chamado\n` +
+            `• *encerrar 00001* - Fechar chamado\n` +
+            `• *reabrir 00001* - Reabrir chamado\n` +
+            `• *prioridade 00001 alta* - Alterar prioridade\n\n` +
+            `💬 *Comentários*\n` +
+            `• Responda a uma notificação para comentar\n` +
+            `• Envie imagens/documentos como anexos\n\n` +
+            `📋 *Prioridades:* baixa, média, alta, crítica\n\n` +
+            `❓ *ajuda* - Mostrar este menu`;
           
           await sendResponse(helpMessage);
           break;
         }
 
         case 'status': {
-          // Try to find ticket by number
-          const searchNumber = command.args.replace(/\D/g, '').padStart(5, '0');
-          const year = new Date().getFullYear();
-          const fullTicketNumber = `TKT-${year}-${searchNumber}`;
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *status 00001*');
+            break;
+          }
           
           const { data: statusTicket } = await supabase
             .from('support_tickets')
             .select('*')
-            .eq('ticket_number', fullTicketNumber)
+            .eq('ticket_number', ticketNum)
             .maybeSingle();
 
           if (statusTicket) {
@@ -437,8 +532,339 @@ serve(async (req) => {
             
             await sendResponse(statusMessage);
           } else {
-            await sendResponse(`❌ Chamado ${fullTicketNumber} não encontrado.`);
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
           }
+          break;
+        }
+
+        case 'details': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *detalhes 00001*');
+            break;
+          }
+          
+          const { data: detailTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!detailTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Fetch related data
+          let buildingName = '';
+          let equipmentName = '';
+          
+          if (detailTicket.related_building_id) {
+            const { data: building } = await supabase
+              .from('buildings')
+              .select('name')
+              .eq('id', detailTicket.related_building_id)
+              .maybeSingle();
+            buildingName = building?.name || '';
+          }
+          
+          if (detailTicket.related_equipment_id) {
+            const { data: equipment } = await supabase
+              .from('equipment')
+              .select('name')
+              .eq('id', detailTicket.related_equipment_id)
+              .maybeSingle();
+            equipmentName = equipment?.name || '';
+          }
+
+          // Fetch last 3 comments
+          const { data: comments } = await supabase
+            .from('ticket_comments')
+            .select('*')
+            .eq('ticket_id', detailTicket.id)
+            .order('created_at', { ascending: false })
+            .limit(3);
+
+          let detailsMessage = `📋 *Detalhes do Chamado ${detailTicket.ticket_number}*\n\n`;
+          detailsMessage += `📝 *Título:* ${detailTicket.title}\n\n`;
+          detailsMessage += `📄 *Descrição:*\n${detailTicket.description || 'Sem descrição'}\n\n`;
+          detailsMessage += `${getStatusEmoji(detailTicket.status)} *Status:* ${getStatusLabel(detailTicket.status)}\n`;
+          detailsMessage += `${getPriorityEmoji(detailTicket.priority)} *Prioridade:* ${getPriorityLabel(detailTicket.priority)}\n`;
+          detailsMessage += `🏷️ *Categoria:* ${getCategoryLabel(detailTicket.category)}\n\n`;
+          
+          if (buildingName || equipmentName) {
+            detailsMessage += `📍 *Local:*\n`;
+            if (buildingName) detailsMessage += `   🏢 ${buildingName}\n`;
+            if (equipmentName) detailsMessage += `   🔧 ${equipmentName}\n`;
+            detailsMessage += `\n`;
+          }
+          
+          detailsMessage += `📅 *Criado em:* ${new Date(detailTicket.created_at!).toLocaleString('pt-BR')}\n`;
+          detailsMessage += `🔄 *Atualizado em:* ${new Date(detailTicket.updated_at!).toLocaleString('pt-BR')}\n`;
+          
+          if (detailTicket.due_date) {
+            detailsMessage += `⏰ *Prazo:* ${new Date(detailTicket.due_date).toLocaleDateString('pt-BR')}\n`;
+          }
+          
+          if (comments && comments.length > 0) {
+            detailsMessage += `\n💬 *Últimos Comentários:*\n`;
+            comments.reverse().forEach((c, i) => {
+              const author = c.whatsapp_sender_name || 'Sistema';
+              const date = new Date(c.created_at!).toLocaleString('pt-BR');
+              const text = c.comment.length > 50 ? c.comment.substring(0, 50) + '...' : c.comment;
+              detailsMessage += `\n${i + 1}. _${author}_ (${date}):\n   ${text}\n`;
+            });
+          } else {
+            detailsMessage += `\n💬 _Nenhum comentário ainda._`;
+          }
+          
+          await sendResponse(detailsMessage);
+          break;
+        }
+
+        case 'close': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *encerrar 00001*');
+            break;
+          }
+          
+          const { data: closeTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!closeTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Check permission
+          const { allowed, isOwner } = await checkTicketPermission(supabase, closeTicket, senderPhone);
+          
+          if (!allowed) {
+            await sendResponse(`⛔ Você não tem permissão para encerrar este chamado.\nApenas o criador do chamado pode encerrá-lo.`);
+            break;
+          }
+
+          if (closeTicket.status === 'closed') {
+            await sendResponse(`⚠️ Este chamado já está fechado.`);
+            break;
+          }
+
+          // Close the ticket
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              status: 'closed',
+              closed_at: new Date().toISOString()
+            })
+            .eq('id', closeTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error closing ticket:', updateError);
+            await sendResponse(`❌ Erro ao encerrar chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: closeTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Chamado encerrado via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          // Calculate duration
+          const createdAt = new Date(closeTicket.created_at!);
+          const closedAt = new Date();
+          const durationMs = closedAt.getTime() - createdAt.getTime();
+          const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
+          const durationHours = Math.floor((durationMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          
+          let durationText = '';
+          if (durationDays > 0) {
+            durationText = `${durationDays} dia(s) e ${durationHours} hora(s)`;
+          } else {
+            durationText = `${durationHours} hora(s)`;
+          }
+
+          await sendResponse(
+            `✅ *Chamado ${ticketNum} Encerrado*\n\n` +
+            `📋 ${closeTicket.title}\n` +
+            `⏱️ Tempo total: ${durationText}\n\n` +
+            `Obrigado por usar nosso sistema de suporte!`
+          );
+          break;
+        }
+
+        case 'reopen': {
+          const ticketNum = parseTicketNumberFromArgs(command.args);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Informe o número do chamado.\nExemplo: *reabrir 00001*');
+            break;
+          }
+          
+          const { data: reopenTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!reopenTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Check permission
+          const { allowed } = await checkTicketPermission(supabase, reopenTicket, senderPhone);
+          
+          if (!allowed) {
+            await sendResponse(`⛔ Você não tem permissão para reabrir este chamado.\nApenas o criador do chamado pode reabri-lo.`);
+            break;
+          }
+
+          if (reopenTicket.status === 'open' || reopenTicket.status === 'in_progress') {
+            await sendResponse(`⚠️ Este chamado já está aberto (${getStatusLabel(reopenTicket.status)}).`);
+            break;
+          }
+
+          // Reopen the ticket
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ 
+              status: 'open',
+              closed_at: null,
+              resolved_at: null
+            })
+            .eq('id', reopenTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error reopening ticket:', updateError);
+            await sendResponse(`❌ Erro ao reabrir chamado. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: reopenTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Chamado reaberto via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          await sendResponse(
+            `✅ *Chamado ${ticketNum} Reaberto*\n\n` +
+            `📋 ${reopenTicket.title}\n` +
+            `${getStatusEmoji('open')} Status: Aberto\n\n` +
+            `O chamado voltou para a fila de atendimento.`
+          );
+          break;
+        }
+
+        case 'priority': {
+          // Parse: "00001 alta" or "TKT-2025-00001 crítica"
+          const parts = command.args.split(/\s+/);
+          
+          if (parts.length < 2) {
+            await sendResponse(
+              `⚠️ Informe o número do chamado e a nova prioridade.\n` +
+              `Exemplo: *prioridade 00001 alta*\n\n` +
+              `📋 Prioridades: baixa, média, alta, crítica`
+            );
+            break;
+          }
+          
+          const ticketPart = parts.slice(0, -1).join(' ');
+          const priorityPart = parts[parts.length - 1];
+          
+          const ticketNum = parseTicketNumberFromArgs(ticketPart);
+          const newPriority = parsePriority(priorityPart);
+          
+          if (!ticketNum) {
+            await sendResponse('⚠️ Número do chamado inválido.\nExemplo: *prioridade 00001 alta*');
+            break;
+          }
+          
+          if (!newPriority) {
+            await sendResponse(
+              `⚠️ Prioridade inválida: "${priorityPart}"\n\n` +
+              `📋 Prioridades válidas: baixa, média, alta, crítica`
+            );
+            break;
+          }
+          
+          const { data: priorityTicket } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('ticket_number', ticketNum)
+            .maybeSingle();
+
+          if (!priorityTicket) {
+            await sendResponse(`❌ Chamado ${ticketNum} não encontrado.`);
+            break;
+          }
+
+          // Check permission
+          const { allowed } = await checkTicketPermission(supabase, priorityTicket, senderPhone);
+          
+          if (!allowed) {
+            await sendResponse(`⛔ Você não tem permissão para alterar este chamado.\nApenas o criador do chamado pode alterar a prioridade.`);
+            break;
+          }
+
+          if (priorityTicket.priority === newPriority) {
+            await sendResponse(`⚠️ O chamado já está com prioridade ${getPriorityLabel(newPriority)}.`);
+            break;
+          }
+
+          const oldPriority = priorityTicket.priority;
+
+          // Update priority
+          const { error: updateError } = await supabase
+            .from('support_tickets')
+            .update({ priority: newPriority })
+            .eq('id', priorityTicket.id);
+
+          if (updateError) {
+            console.error('❌ Error updating priority:', updateError);
+            await sendResponse(`❌ Erro ao alterar prioridade. Tente novamente.`);
+            break;
+          }
+
+          // Add system comment
+          await supabase
+            .from('ticket_comments')
+            .insert({
+              ticket_id: priorityTicket.id,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              comment: `Prioridade alterada de ${getPriorityLabel(oldPriority)} para ${getPriorityLabel(newPriority)} via WhatsApp por ${pushName}`,
+              is_internal: false,
+              source: 'whatsapp',
+              whatsapp_sender_name: pushName,
+              whatsapp_sender_phone: senderPhone
+            });
+
+          await sendResponse(
+            `✅ *Prioridade Alterada*\n\n` +
+            `📋 Chamado: ${ticketNum}\n` +
+            `${getPriorityEmoji(oldPriority)} Anterior: ${getPriorityLabel(oldPriority)}\n` +
+            `${getPriorityEmoji(newPriority)} Nova: ${getPriorityLabel(newPriority)}`
+          );
           break;
         }
 
@@ -471,7 +897,8 @@ serve(async (req) => {
               `📋 Número: *${newTicket.ticket_number}*\n` +
               `📝 Título: ${newTicket.title}\n` +
               `${getStatusEmoji('open')} Status: Aberto\n\n` +
-              `Acompanhe seu chamado pelo número acima.`;
+              `Acompanhe seu chamado pelo número acima.\n` +
+              `Use *detalhes ${newTicket.ticket_number.split('-')[2]}* para ver mais informações.`;
             
             await sendResponse(successMessage);
 
@@ -506,9 +933,9 @@ serve(async (req) => {
             userTickets.forEach((t, i) => {
               listMessage += `${i + 1}. *${t.ticket_number}*\n`;
               listMessage += `   📝 ${t.title}\n`;
-              listMessage += `   ${getStatusEmoji(t.status)} ${getStatusLabel(t.status)}\n\n`;
+              listMessage += `   ${getStatusEmoji(t.status)} ${getStatusLabel(t.status)} | ${getPriorityEmoji(t.priority)} ${getPriorityLabel(t.priority)}\n\n`;
             });
-            listMessage += `\n💡 Use *#${userTickets[0].ticket_number}* para ver detalhes.`;
+            listMessage += `\n💡 Use *detalhes ${userTickets[0].ticket_number.split('-')[2]}* para ver mais.`;
             
             await sendResponse(listMessage);
           }
