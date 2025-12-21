@@ -659,13 +659,15 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              url: webhookUrl,
-              enabled: true,
-              webhook_by_events: false,
-              events: [
-                "MESSAGES_UPSERT",
-                "MESSAGES_UPDATE"
-              ]
+              webhook: {
+                url: webhookUrl,
+                enabled: true,
+                webhookByEvents: false,
+                events: [
+                  "MESSAGES_UPSERT",
+                  "MESSAGES_UPDATE"
+                ]
+              }
             }),
           }
         );
