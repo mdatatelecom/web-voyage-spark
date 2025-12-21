@@ -32,6 +32,7 @@ export const useWhatsAppSettings = () => {
   const [settings, setSettings] = useState<WhatsAppSettings>(DEFAULT_WHATSAPP_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
   const [instances, setInstances] = useState<EvolutionInstance[]>([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [isCreatingInstance, setIsCreatingInstance] = useState(false);
@@ -423,6 +424,62 @@ export const useWhatsAppSettings = () => {
     }
   };
 
+  const sendTestMessage = async (
+    phone: string,
+    message?: string,
+    testSettings?: WhatsAppSettings
+  ): Promise<{ success: boolean; message: string }> => {
+    const settingsToUse = testSettings || settings;
+    
+    if (!phone) {
+      return { success: false, message: 'Número de telefone é obrigatório' };
+    }
+
+    if (!settingsToUse.evolutionApiUrl || !settingsToUse.evolutionApiKey || !settingsToUse.evolutionInstance) {
+      return { success: false, message: 'Configure URL, API Key e Instância primeiro' };
+    }
+
+    setIsSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'send-test',
+          phone: phone.replace(/\D/g, ''),
+          message: message || '✅ Teste de integração WhatsApp realizado com sucesso! - Sistema de Racks',
+          settings: settingsToUse,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Mensagem enviada',
+          description: data.message || 'Mensagem de teste enviada com sucesso!',
+        });
+        return { success: true, message: data.message || 'Mensagem enviada!' };
+      } else {
+        toast({
+          title: 'Erro ao enviar',
+          description: data?.message || 'Falha ao enviar mensagem de teste',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Falha ao enviar mensagem' };
+      }
+    } catch (error) {
+      console.error('Erro ao enviar mensagem de teste:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -431,6 +488,7 @@ export const useWhatsAppSettings = () => {
     settings,
     isLoading,
     isTesting,
+    isSendingTest,
     instances,
     isLoadingInstances,
     isCreatingInstance,
@@ -442,5 +500,6 @@ export const useWhatsAppSettings = () => {
     deleteInstance,
     logoutInstance,
     connectInstance,
+    sendTestMessage,
   };
 };
