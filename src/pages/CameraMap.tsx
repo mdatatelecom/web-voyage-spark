@@ -1,17 +1,22 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
+import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useCameras, type CameraData } from '@/hooks/useCameras';
 import { getConnectionTypeLabel } from '@/constants/cameraSpecs';
+import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
+import { useEquipment } from '@/hooks/useEquipment';
 
 const STATUS_CONFIG = {
   active: { label: 'Online', color: 'bg-green-500', icon: CheckCircle, textColor: 'text-green-600' },
@@ -22,21 +27,46 @@ const STATUS_CONFIG = {
 };
 
 export default function CameraMap() {
+  const navigate = useNavigate();
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>('');
   const [selectedFloorId, setSelectedFloorId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [manufacturerFilter, setManufacturerFilter] = useState<string>('all');
   const [selectedCamera, setSelectedCamera] = useState<CameraData | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [cameraToEdit, setCameraToEdit] = useState<CameraData | null>(null);
   
   const { buildings } = useBuildings();
   const { floors } = useFloors(selectedBuildingId);
-  const { data: cameras, isLoading } = useCameras(selectedBuildingId, selectedFloorId);
+  const { data: cameras, isLoading, refetch } = useCameras(selectedBuildingId, selectedFloorId);
+  const { updateEquipment, isUpdating } = useEquipment();
   
-  // Filter cameras by search term
-  const filteredCameras = cameras?.filter(cam =>
-    cam.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cam.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cam.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  // Fetch NVRs with channel information
+  const { data: nvrs } = useQuery({
+    queryKey: ['nvrs-with-channels'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('id, name, ip_address, notes, rack:racks(name, room:rooms(name, floor:floors(name, building:buildings(name))))')
+        .eq('type', 'nvr');
+      if (error) throw error;
+      return data;
+    }
+  });
+  
+  // Get unique manufacturers
+  const manufacturers = [...new Set(cameras?.map(c => c.manufacturer).filter(Boolean))] as string[];
+  
+  // Filter cameras
+  const filteredCameras = cameras?.filter(cam => {
+    const matchesSearch = cam.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cam.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cam.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || cam.equipment_status === statusFilter;
+    const matchesManufacturer = manufacturerFilter === 'all' || cam.manufacturer === manufacturerFilter;
+    return matchesSearch && matchesStatus && matchesManufacturer;
+  }) || [];
   
   // Group cameras by room
   const camerasByRoom = filteredCameras.reduce((acc, cam) => {
@@ -59,10 +89,7 @@ export default function CameraMap() {
     maintenance: filteredCameras.filter(c => c.equipment_status === 'staged').length,
   };
   
-  const getStatusConfig = (status: string | null) => {
-    return STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.planned;
-  };
-  
+  // Parse NVR notes for vacant channels
   const parseNotes = (notes: string | null) => {
     if (!notes) return {};
     try {
@@ -70,6 +97,54 @@ export default function CameraMap() {
     } catch {
       return {};
     }
+  };
+  
+  // Calculate vacant channels summary
+  const nvrChannelStats = nvrs?.map(nvr => {
+    const notes = parseNotes(nvr.notes);
+    return {
+      id: nvr.id,
+      name: nvr.name,
+      ip: nvr.ip_address,
+      location: nvr.rack?.room?.name || 'N/A',
+      totalChannels: notes.totalChannels || 16,
+      usedChannels: notes.usedChannels?.length || 0,
+      vacantChannels: notes.vacantChannels?.length || (notes.totalChannels || 16) - (notes.usedChannels?.length || 0),
+    };
+  }) || [];
+  
+  const totalVacantChannels = nvrChannelStats.reduce((sum, nvr) => sum + nvr.vacantChannels, 0);
+  
+  const getStatusConfig = (status: string | null) => {
+    return STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.planned;
+  };
+  
+  const handleEditCamera = (camera: CameraData) => {
+    setCameraToEdit(camera);
+    setSelectedCamera(null);
+    setEditDialogOpen(true);
+  };
+  
+  const handleSaveCamera = (updatedData: any) => {
+    if (!cameraToEdit) return;
+    updateEquipment({
+      id: cameraToEdit.id,
+      ...updatedData
+    }, {
+      onSuccess: () => {
+        setEditDialogOpen(false);
+        setCameraToEdit(null);
+        refetch();
+      }
+    });
+  };
+  
+  const clearFilters = () => {
+    setSelectedBuildingId('');
+    setSelectedFloorId('');
+    setSearchTerm('');
+    setStatusFilter('all');
+    setManufacturerFilter('all');
   };
   
   return (
@@ -86,7 +161,7 @@ export default function CameraMap() {
           </div>
           
           {/* Stats */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1 px-3 py-1">
               <Camera className="w-4 h-4" />
               {stats.total} Total
@@ -101,14 +176,20 @@ export default function CameraMap() {
                 {stats.offline} Offline
               </Badge>
             )}
+            {totalVacantChannels > 0 && (
+              <Badge variant="outline" className="gap-1 px-3 py-1 bg-orange-500/10 text-orange-600 border-orange-500/30">
+                <Hash className="w-4 h-4" />
+                {totalVacantChannels} Canais Vagos
+              </Badge>
+            )}
           </div>
         </div>
         
         {/* Filters */}
         <Card className="mb-6">
           <CardContent className="pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+              <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar câmera..."
@@ -124,7 +205,7 @@ export default function CameraMap() {
               }}>
                 <SelectTrigger>
                   <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Todos os prédios" />
+                  <SelectValue placeholder="Prédio" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os prédios</SelectItem>
@@ -141,7 +222,7 @@ export default function CameraMap() {
               >
                 <SelectTrigger>
                   <Layers className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Todos os andares" />
+                  <SelectValue placeholder="Andar" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os andares</SelectItem>
@@ -151,19 +232,91 @@ export default function CameraMap() {
                 </SelectContent>
               </Select>
               
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="active">Online</SelectItem>
+                  <SelectItem value="offline">Offline</SelectItem>
+                  <SelectItem value="staged">Manutenção</SelectItem>
+                  <SelectItem value="planned">Planejada</SelectItem>
+                </SelectContent>
+              </Select>
+              
               <Button 
                 variant="outline" 
-                onClick={() => {
-                  setSelectedBuildingId('');
-                  setSelectedFloorId('');
-                  setSearchTerm('');
-                }}
+                onClick={clearFilters}
+                className="gap-2"
               >
-                Limpar Filtros
+                <X className="w-4 h-4" />
+                Limpar
               </Button>
             </div>
+            
+            {/* Second row: manufacturer filter */}
+            {manufacturers.length > 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <span className="text-sm text-muted-foreground self-center">Fabricante:</span>
+                <Button 
+                  variant={manufacturerFilter === 'all' ? 'default' : 'outline'} 
+                  size="sm"
+                  onClick={() => setManufacturerFilter('all')}
+                >
+                  Todos
+                </Button>
+                {manufacturers.map(m => (
+                  <Button 
+                    key={m} 
+                    variant={manufacturerFilter === m ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => setManufacturerFilter(m)}
+                  >
+                    {m}
+                  </Button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
+        
+        {/* Vacant Channels Section */}
+        {nvrChannelStats.length > 0 && totalVacantChannels > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Server className="w-4 h-4" />
+                Canais Vagos por NVR
+                <Badge variant="secondary" className="ml-auto">
+                  {totalVacantChannels} canais disponíveis
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {nvrChannelStats.filter(nvr => nvr.vacantChannels > 0).map(nvr => (
+                  <div 
+                    key={nvr.id} 
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/equipment/${nvr.id}`)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{nvr.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{nvr.ip}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/30">
+                        {nvr.vacantChannels}/{nvr.totalChannels}
+                      </Badge>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         {/* Camera Grid by Room */}
         <ScrollArea className="flex-1">
@@ -313,6 +466,12 @@ export default function CameraMap() {
                         <p className="text-muted-foreground">Resolução</p>
                         <p className="font-medium">{notes.resolution?.toUpperCase() || '-'}</p>
                       </div>
+                      {selectedCamera.ip_address && (
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">IP</p>
+                          <p className="font-medium font-mono">{selectedCamera.ip_address}</p>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Location */}
@@ -347,11 +506,33 @@ export default function CameraMap() {
                       </div>
                     )}
                   </div>
+                  
+                  <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => handleEditCamera(selectedCamera)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Editar
+                    </Button>
+                    <Button onClick={() => navigate(`/equipment/${selectedCamera.id}`)}>
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Ver Detalhes
+                    </Button>
+                  </DialogFooter>
                 </>
               );
             })()}
           </DialogContent>
         </Dialog>
+        
+        {/* Edit Dialog */}
+        {cameraToEdit && (
+          <EquipmentEditDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            equipment={cameraToEdit}
+            onSave={handleSaveCamera}
+            isLoading={isUpdating}
+          />
+        )}
       </div>
     </AppLayout>
   );

@@ -4,8 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 export interface CameraData {
   id: string;
   name: string;
+  type: string;
   manufacturer: string | null;
   model: string | null;
+  ip_address: string | null;
   equipment_status: string | null;
   notes: string | null;
   rack_id: string;
@@ -38,8 +40,10 @@ export function useCameras(buildingId?: string, floorId?: string, roomId?: strin
         .select(`
           id,
           name,
+          type,
           manufacturer,
           model,
+          ip_address,
           equipment_status,
           notes,
           rack_id,
@@ -75,8 +79,10 @@ export function useCameras(buildingId?: string, floorId?: string, roomId?: strin
         return {
           id: item.id,
           name: item.name,
+          type: item.type,
           manufacturer: item.manufacturer,
           model: item.model,
+          ip_address: item.ip_address,
           equipment_status: item.equipment_status,
           notes: item.notes,
           rack_id: item.rack_id,
