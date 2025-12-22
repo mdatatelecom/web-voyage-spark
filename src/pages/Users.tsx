@@ -12,11 +12,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useUsers, UserRole } from '@/hooks/useUsers';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
 import { UserCreateDialog } from '@/components/users/UserCreateDialog';
 import { UserEditDialog } from '@/components/users/UserEditDialog';
-import { Plus, X, UserPlus, Pencil } from 'lucide-react';
+import { Plus, X, UserPlus, Pencil, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function Users() {
@@ -130,7 +131,15 @@ export default function Users() {
                     users.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
-                          {user.full_name || '-'}
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || user.email} />
+                              <AvatarFallback className="bg-muted">
+                                {user.full_name ? user.full_name[0].toUpperCase() : <User className="h-4 w-4" />}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{user.full_name || '-'}</span>
+                          </div>
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell className="text-muted-foreground">
