@@ -16,8 +16,9 @@ export const CAMERA_TYPES = [
   { value: 'dome', label: 'Dome', icon: '🔵', description: 'Teto/parede, discreta' },
   { value: 'bullet', label: 'Bullet', icon: '📷', description: 'Externa, longo alcance' },
   { value: 'turret', label: 'Turret', icon: '🎯', description: 'Híbrida dome/bullet' },
+  { value: 'eyeball', label: 'Eyeball', icon: '👁️', description: 'Compacta, ajustável' },
   { value: 'ptz', label: 'PTZ', icon: '🔄', description: 'Pan-Tilt-Zoom' },
-  { value: 'fisheye', label: 'Fisheye', icon: '👁️', description: '360° panorâmica' },
+  { value: 'fisheye', label: 'Fisheye', icon: '🔘', description: '360° panorâmica' },
 ] as const;
 
 export const POE_CLASSES = [
@@ -155,6 +156,20 @@ export const CAMERA_TEMPLATES: CameraTemplate[] = [
   { id: 'han_xnv8081r', manufacturer: 'Hanwha/Samsung', model: 'XNV-8081R', resolution: '8mp', codec: 'h265', cameraType: 'dome', poeClass: 'at', powerConsumption: 15, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
   { id: 'han_xnp9300rw', manufacturer: 'Hanwha/Samsung', model: 'XNP-9300RW', resolution: '4mp', codec: 'h265', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 60, hasIR: true, irRange: 200, hasAudio: true, hasSD: true, connectionType: 'ip' },
   { id: 'han_xnf8010rvm', manufacturer: 'Hanwha/Samsung', model: 'XNF-8010RVM', resolution: '5mp', codec: 'h265', cameraType: 'fisheye', poeClass: 'af', powerConsumption: 12, hasIR: true, irRange: 15, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  
+  // Dahua WizSense Series (AI integrado)
+  { id: 'dh_hfw2441ss', manufacturer: 'Dahua', model: 'IPC-HFW2441S-S WizSense', resolution: '4mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 5.1, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hdw2441ts', manufacturer: 'Dahua', model: 'IPC-HDW2441T-S WizSense', resolution: '4mp', codec: 'h265+', cameraType: 'eyeball', poeClass: 'af', powerConsumption: 5.1, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hfw2841sp', manufacturer: 'Dahua', model: 'IPC-HFW2841S-S WizSense', resolution: '8mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 6.5, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hfw3849t1', manufacturer: 'Dahua', model: 'IPC-HFW3849T1-ZAS-PV WizSense', resolution: '8mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 8.8, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hdw3849hp', manufacturer: 'Dahua', model: 'IPC-HDW3849HP-AS-PV WizSense', resolution: '8mp', codec: 'h265+', cameraType: 'eyeball', poeClass: 'af', powerConsumption: 8.8, hasIR: true, irRange: 40, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  
+  // Dahua WizMind Series (Deep Learning avançado)
+  { id: 'dh_hfw5449t1', manufacturer: 'Dahua', model: 'IPC-HFW5449T1-ASE-LED WizMind', resolution: '4mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 7.8, hasIR: false, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hdbw5449r', manufacturer: 'Dahua', model: 'IPC-HDBW5449R-ASE-LED WizMind', resolution: '4mp', codec: 'h265+', cameraType: 'dome', poeClass: 'af', powerConsumption: 7.8, hasIR: false, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hfw5849t1', manufacturer: 'Dahua', model: 'IPC-HFW5849T1-ASE-LED WizMind', resolution: '8mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 7.8, hasIR: false, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_hdbw5849r', manufacturer: 'Dahua', model: 'IPC-HDBW5849R-ASE-LED WizMind', resolution: '8mp', codec: 'h265+', cameraType: 'dome', poeClass: 'af', powerConsumption: 7.8, hasIR: false, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'dh_sd5a445gb', manufacturer: 'Dahua', model: 'SD5A445GB-HNR WizMind PTZ', resolution: '4mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 45, hasIR: true, irRange: 200, hasAudio: true, hasSD: true, connectionType: 'ip' },
 ];
 
 // Conventional camera templates (HD-TVI, HD-CVI, AHD, CVBS)
@@ -309,5 +324,73 @@ export const getPoeRecommendation = (
     minPortType: classInfo?.portType || 'rj45_poe',
     recommended: true,
     warning,
+  };
+};
+
+// ============= Switch Budget Validation =============
+
+export interface SwitchBudgetValidation {
+  isValid: boolean;
+  availableWatts: number;
+  requiredWatts: number;
+  remainingAfter: number;
+  usagePercentAfter: number;
+  warningLevel: 'ok' | 'low' | 'critical' | 'insufficient';
+  message: string;
+}
+
+export const validateSwitchBudget = (
+  availableWatts: number,
+  cameraPowerConsumption: number,
+  totalBudget: number
+): SwitchBudgetValidation => {
+  const remainingAfter = availableWatts - cameraPowerConsumption;
+  const usedAfter = totalBudget - remainingAfter;
+  const usagePercentAfter = (usedAfter / totalBudget) * 100;
+  
+  if (remainingAfter < 0) {
+    return {
+      isValid: false,
+      availableWatts,
+      requiredWatts: cameraPowerConsumption,
+      remainingAfter: 0,
+      usagePercentAfter: 100,
+      warningLevel: 'insufficient',
+      message: `Budget insuficiente: necessário ${cameraPowerConsumption}W, disponível ${availableWatts.toFixed(0)}W`,
+    };
+  }
+  
+  if (usagePercentAfter > 90) {
+    return {
+      isValid: true,
+      availableWatts,
+      requiredWatts: cameraPowerConsumption,
+      remainingAfter,
+      usagePercentAfter,
+      warningLevel: 'critical',
+      message: `Atenção: após conectar, restará apenas ${remainingAfter.toFixed(0)}W (${(100 - usagePercentAfter).toFixed(0)}% livre)`,
+    };
+  }
+  
+  if (usagePercentAfter > 75) {
+    return {
+      isValid: true,
+      availableWatts,
+      requiredWatts: cameraPowerConsumption,
+      remainingAfter,
+      usagePercentAfter,
+      warningLevel: 'low',
+      message: `Budget ficará em ${usagePercentAfter.toFixed(0)}% de uso após conexão`,
+    };
+  }
+  
+  return {
+    isValid: true,
+    availableWatts,
+    requiredWatts: cameraPowerConsumption,
+    remainingAfter,
+    usagePercentAfter,
+    warningLevel: 'ok',
+    message: `Budget OK: restará ${remainingAfter.toFixed(0)}W disponíveis`,
   };
 };

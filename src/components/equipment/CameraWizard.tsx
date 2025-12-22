@@ -34,10 +34,13 @@ import {
   getPoeRecommendation,
   canPortPowerCamera,
   getPoeMarginStatus,
+  validateSwitchBudget,
   type CameraTemplate,
   type AnalogCameraTemplate
 } from '@/constants/cameraSpecs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 interface CameraWizardProps {
   open: boolean;
@@ -944,13 +947,27 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                   </div>
                 ) : poeSuggestions && poeSuggestions.length > 0 ? (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {poeSuggestions.map(sw => (
+                    {poeSuggestions.map(sw => {
+                      const budgetValidation = validateSwitchBudget(
+                        sw.availableWatts,
+                        cameraData.powerConsumption,
+                        sw.poe_budget_watts
+                      );
+                      const currentUsagePercent = ((sw.poe_budget_watts - sw.availableWatts) / sw.poe_budget_watts) * 100;
+                      
+                      return (
                       <Card
                         key={sw.id}
-                        className={`cursor-pointer transition-all ${
-                          selectedSwitchId === sw.id ? 'ring-2 ring-primary' : 'hover:bg-accent/50'
-                        }`}
+                        className={cn(
+                          "cursor-pointer transition-all",
+                          selectedSwitchId === sw.id ? 'ring-2 ring-primary' : 'hover:bg-accent/50',
+                          !budgetValidation.isValid && 'opacity-60 cursor-not-allowed'
+                        )}
                         onClick={() => {
+                          if (!budgetValidation.isValid) {
+                            toast.error(budgetValidation.message);
+                            return;
+                          }
                           setSelectedSwitchId(sw.id);
                           setSelectedPortId('');
                         }}
@@ -964,12 +981,65 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                                 {sw.sameRoom && (
                                   <Badge variant="secondary" className="text-xs">Mesma Sala</Badge>
                                 )}
+                                {!budgetValidation.isValid && (
+                                  <Badge variant="destructive" className="text-xs">Insuficiente</Badge>
+                                )}
                               </div>
                               <p className="text-sm text-muted-foreground mt-1">
                                 📍 {sw.roomName} - {sw.rackName}
                               </p>
+                              
+                              {/* PoE Budget Visual Progress */}
+                              <div className="mt-3">
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-muted-foreground">Budget PoE</span>
+                                  <span className={cn(
+                                    budgetValidation.warningLevel === 'ok' && "text-green-600",
+                                    budgetValidation.warningLevel === 'low' && "text-yellow-600",
+                                    budgetValidation.warningLevel === 'critical' && "text-orange-600",
+                                    budgetValidation.warningLevel === 'insufficient' && "text-destructive"
+                                  )}>
+                                    {(sw.poe_budget_watts - sw.availableWatts).toFixed(0)}W / {sw.poe_budget_watts}W
+                                  </span>
+                                </div>
+                                <div className="relative">
+                                  <Progress 
+                                    value={currentUsagePercent} 
+                                    className={cn(
+                                      "h-2",
+                                      budgetValidation.warningLevel === 'ok' && "[&>div]:bg-green-500",
+                                      budgetValidation.warningLevel === 'low' && "[&>div]:bg-yellow-500",
+                                      budgetValidation.warningLevel === 'critical' && "[&>div]:bg-orange-500",
+                                      budgetValidation.warningLevel === 'insufficient' && "[&>div]:bg-destructive"
+                                    )}
+                                  />
+                                  {/* Projected usage indicator */}
+                                  {budgetValidation.isValid && (
+                                    <div 
+                                      className="absolute top-0 h-2 bg-primary/40 rounded-r-full transition-all"
+                                      style={{ 
+                                        left: `${currentUsagePercent}%`, 
+                                        width: `${(cameraData.powerConsumption / sw.poe_budget_watts) * 100}%` 
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                {budgetValidation.warningLevel !== 'ok' && (
+                                  <p className={cn(
+                                    "text-xs mt-1",
+                                    budgetValidation.warningLevel === 'insufficient' 
+                                      ? "text-destructive" 
+                                      : "text-yellow-600"
+                                  )}>
+                                    {budgetValidation.message}
+                                  </p>
+                                )}
+                              </div>
+                              
                               <div className="flex items-center gap-4 mt-2 text-sm">
-                                <span className="text-green-600">
+                                <span className={cn(
+                                  budgetValidation.isValid ? "text-green-600" : "text-destructive"
+                                )}>
                                   ⚡ {sw.availableWatts.toFixed(0)}W disponíveis
                                 </span>
                                 <span className="text-muted-foreground">
@@ -977,7 +1047,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                                 </span>
                               </div>
                             </div>
-                            {selectedSwitchId === sw.id && (
+                            {selectedSwitchId === sw.id && budgetValidation.isValid && (
                               <Check className="w-5 h-5 text-primary" />
                             )}
                           </div>
@@ -1034,7 +1104,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                           );})()}
                         </CardContent>
                       </Card>
-                    ))}
+                    );
+})}
                   </div>
                 ) : (
                   <div className="text-center py-8 border rounded-lg border-dashed">
