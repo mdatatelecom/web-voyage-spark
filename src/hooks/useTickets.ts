@@ -424,6 +424,32 @@ export const useTickets = () => {
             console.error('Error sending client assignment notification:', err);
           }
         }
+
+        // Send direct notification to assigned technician
+        if (updatedFields.assigned_to && updatedFields.technician_phone) {
+          const technicianMessage = `🔧 *Chamado Atribuído a Você!*\n\n` +
+            `📋 Chamado: *${data.ticket_number}*\n` +
+            `📝 Título: ${data.title}\n` +
+            `🏷️ Categoria: ${getCategoryLabel(data.category)}\n` +
+            `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n` +
+            `${data.contact_phone ? `📞 Contato: ${data.contact_phone}\n` : ''}` +
+            `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n` +
+            `⚡ Por favor, inicie o atendimento o mais breve possível!`;
+          
+          try {
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send',
+                phone: updatedFields.technician_phone,
+                message: technicianMessage,
+                ticketId: data.id,
+              },
+            });
+            console.log('✅ [UPDATE] Technician notified about assignment:', updatedFields.technician_phone);
+          } catch (err) {
+            console.error('Error sending technician assignment notification:', err);
+          }
+        }
       } // End of changes.length > 0 check
     },
     onError: (error) => {

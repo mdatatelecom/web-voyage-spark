@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,7 @@ import {
   ZoomIn,
   Trash2,
   UserCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -61,6 +63,7 @@ import { toast } from 'sonner';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
 import { useTechnicians } from '@/hooks/useTechnicians';
+import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
 import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
 import {
   TICKET_STATUSES,
@@ -73,6 +76,12 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // Image compression function
 const compressImage = async (file: File): Promise<File> => {
@@ -135,7 +144,8 @@ export default function TicketDetails() {
   const { ticket, comments, isLoading, commentsLoading, addComment, refetch } = useTicket(id!);
   const { updateTicket } = useTickets();
   const { sendTicketNotification, isEnabled: whatsAppEnabled } = useWhatsApp();
-  const { technicians } = useTechnicians();
+  const { technicians, refetch: refetchTechnicians } = useTechnicians();
+  const { fetchAndUpdateProfilePicture, isLoading: isLoadingProfilePicture } = useWhatsAppProfilePicture();
   
   const [newComment, setNewComment] = useState('');
   const [isInternalComment, setIsInternalComment] = useState(false);
@@ -288,10 +298,26 @@ export default function TicketDetails() {
     refetch();
   };
 
-  const getAssigneeName = () => {
+  const getAssignee = () => {
     if (!ticket?.assigned_to) return null;
-    const tech = technicians?.find(t => t.id === ticket.assigned_to);
+    return technicians?.find(t => t.id === ticket.assigned_to) || null;
+  };
+
+  const getAssigneeName = () => {
+    const tech = getAssignee();
     return tech?.full_name || 'Sem nome';
+  };
+
+  const handleUpdateTechnicianPhoto = async () => {
+    const tech = getAssignee();
+    if (!tech?.id || !tech?.phone) {
+      toast.error('Técnico não possui telefone cadastrado');
+      return;
+    }
+
+    await fetchAndUpdateProfilePicture(tech.id, tech.phone);
+    refetchTechnicians();
+    refetch();
   };
 
   const handleAddComment = async () => {
@@ -800,13 +826,49 @@ export default function TicketDetails() {
                 )}
 
                 {ticket.assigned_to && (
-                  <div className="flex items-center gap-3">
-                    <UserCheck className="h-4 w-4 text-muted-foreground" />
-                    <div>
+                  <div className="flex items-start gap-3">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button 
+                            onClick={handleUpdateTechnicianPhoto}
+                            disabled={isLoadingProfilePicture}
+                            className="relative group cursor-pointer"
+                          >
+                            <Avatar className="h-12 w-12 border-2 border-primary/20">
+                              <AvatarImage 
+                                src={getAssignee()?.avatar_url || undefined} 
+                                alt={getAssigneeName()} 
+                              />
+                              <AvatarFallback className="bg-primary/10">
+                                <UserCheck className="h-5 w-5 text-primary" />
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Overlay for update action */}
+                            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              {isLoadingProfilePicture ? (
+                                <Loader2 className="h-4 w-4 text-white animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Clique para atualizar foto do WhatsApp</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <div className="flex-1">
                       <div className="text-sm font-medium">Técnico Responsável</div>
                       <div className="text-sm text-muted-foreground">
                         {getAssigneeName()}
                       </div>
+                      {getAssignee()?.phone && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {getAssignee()?.phone}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
