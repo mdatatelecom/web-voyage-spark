@@ -22,7 +22,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function Users() {
   const queryClient = useQueryClient();
-  const { users, isLoading, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
+  const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -81,6 +81,17 @@ export default function Users() {
     return (
       <AppLayout>
         <div className="text-center py-12">Carregando...</div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <p className="text-destructive mb-2">Erro ao carregar usuários</p>
+          <p className="text-muted-foreground text-sm">{(error as Error).message}</p>
+        </div>
       </AppLayout>
     );
   }
