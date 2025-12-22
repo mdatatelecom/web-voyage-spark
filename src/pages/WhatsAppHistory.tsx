@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -92,8 +92,12 @@ const WhatsAppHistory = () => {
   });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [isLoadingPictures, setIsLoadingPictures] = useState(false);
 
   const { notifications, isLoading, error, refetch, stats } = useWhatsAppHistory(filters);
+  
+  // Track if we're fetching pictures in background
+  const picturesLoadedRef = React.useRef(false);
 
   const handleResend = async (id: string) => {
     setResendingId(id);
@@ -419,7 +423,9 @@ const WhatsAppHistory = () => {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                {(notification.contact_avatar_url || notification.group_picture_url) ? (
+                                {isLoadingPictures && !notification.contact_avatar_url && !notification.group_picture_url ? (
+                                  <Skeleton className="h-8 w-8 rounded-full" />
+                                ) : (notification.contact_avatar_url || notification.group_picture_url) ? (
                                   <AvatarImage 
                                     src={notification.contact_avatar_url || notification.group_picture_url || ''} 
                                     alt={notification.contact_name || notification.group_name || 'Avatar'}

@@ -32,6 +32,52 @@ export interface WhatsAppHistoryFilters {
   messageType?: 'all' | 'notification' | 'test' | 'alert' | 'manual';
 }
 
+// Cache constants
+const CACHE_KEY = 'whatsapp_profile_pictures_cache';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CacheEntry {
+  url: string | null;
+  timestamp: number;
+}
+
+// Helper to get cached picture
+const getCachedPicture = (phoneNumber: string): string | null => {
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+    const entry: CacheEntry | undefined = cache[phoneNumber];
+    if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+      return entry.url;
+    }
+  } catch {
+    // Ignore cache errors
+  }
+  return null;
+};
+
+// Helper to set cached picture
+const setCachedPicture = (phoneNumber: string, url: string | null) => {
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+    cache[phoneNumber] = { url, timestamp: Date.now() };
+    
+    // Limit cache size to 500 entries
+    const keys = Object.keys(cache);
+    if (keys.length > 500) {
+      const sorted = keys
+        .map(k => ({ key: k, ts: cache[k].timestamp }))
+        .sort((a, b) => a.ts - b.ts);
+      
+      // Remove oldest 100 entries
+      sorted.slice(0, 100).forEach(item => delete cache[item.key]);
+    }
+    
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore cache errors
+  }
+};
+
 // Helper to normalize phone number for matching
 const normalizePhone = (phone: string): string => {
   return phone.replace(/\D/g, '');
@@ -134,6 +180,10 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
               subject: g.subject,
               picture_url: g.picture_url,
             };
+            // Cache group pictures
+            if (g.picture_url) {
+              setCachedPicture(g.id, g.picture_url);
+            }
           });
         }
       }
@@ -142,18 +192,28 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
       let enrichedNotifications = rawNotifications.map(n => {
         if (n.phone_number.includes('@g.us')) {
           const group = groupsMap[n.phone_number];
+          // Try cache if not in database
+          const cachedPicture = !group?.picture_url ? getCachedPicture(n.phone_number) : null;
           return {
             ...n,
             group_name: group?.subject || null,
-            group_picture_url: group?.picture_url || null,
+            group_picture_url: group?.picture_url || cachedPicture || null,
           };
         } else {
           const normalizedPhone = normalizePhone(n.phone_number);
           const profile = profilesMap[normalizedPhone];
+          // Try cache if not in profile
+          const cachedPicture = !profile?.avatar_url ? getCachedPicture(normalizedPhone) : null;
+          
+          // If we have avatar from profile, cache it
+          if (profile?.avatar_url) {
+            setCachedPicture(normalizedPhone, profile.avatar_url);
+          }
+          
           return {
             ...n,
             contact_name: profile?.full_name || null,
-            contact_avatar_url: profile?.avatar_url || null,
+            contact_avatar_url: profile?.avatar_url || cachedPicture || null,
           };
         }
       });

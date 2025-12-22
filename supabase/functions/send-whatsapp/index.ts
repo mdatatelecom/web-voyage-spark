@@ -1236,27 +1236,78 @@ serve(async (req) => {
 
       console.log('Fetching group picture for:', groupId);
 
+      // Helper function to extract picture URL from various response formats
+      const extractPictureUrl = (data: Record<string, unknown>): string | null => {
+        const possibleFields = [
+          'profilePictureUrl',
+          'pictureUrl', 
+          'picture',
+          'imgUrl',
+          'profilePic',
+          'profilePicUrl',
+          'photo',
+          'avatar',
+          'imageUrl'
+        ];
+        
+        for (const field of possibleFields) {
+          if (data?.[field] && typeof data[field] === 'string') {
+            return data[field] as string;
+          }
+        }
+        return null;
+      };
+
+      let pictureUrl: string | null = null;
+
       try {
+        // Primary attempt: Use the same endpoint that works for contacts
+        // Evolution API uses /chat/fetchProfilePictureUrl for both contacts and groups
+        console.log('Trying primary endpoint: /chat/fetchProfilePictureUrl for group');
         const response = await fetch(
-          `${apiUrl}/group/profilePicture/${settings.evolutionInstance}`,
+          `${apiUrl}/chat/fetchProfilePictureUrl/${settings.evolutionInstance}`,
           {
             method: 'POST',
             headers: {
               'apikey': settings.evolutionApiKey,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ id: groupId }),
+            body: JSON.stringify({ number: groupId }),
           }
         );
 
         console.log('Group picture fetch response status:', response.status);
 
-        let pictureUrl: string | null = null;
-
         if (response.ok) {
           const data = await response.json();
           console.log('Group picture response:', JSON.stringify(data));
-          pictureUrl = data?.profilePictureUrl || data?.pictureUrl || data?.picture || null;
+          pictureUrl = extractPictureUrl(data);
+        }
+
+        // Fallback: Try /group/fetchGroupPictureUrl if primary failed
+        if (!pictureUrl) {
+          console.log('Primary endpoint returned null, trying fallback: /group/fetchGroupPictureUrl');
+          try {
+            const fallbackResponse = await fetch(
+              `${apiUrl}/group/fetchGroupPictureUrl/${settings.evolutionInstance}`,
+              {
+                method: 'POST',
+                headers: {
+                  'apikey': settings.evolutionApiKey,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ groupJid: groupId }),
+              }
+            );
+
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              console.log('Fallback group picture response:', JSON.stringify(fallbackData));
+              pictureUrl = extractPictureUrl(fallbackData);
+            }
+          } catch (fallbackError) {
+            console.warn('Fallback endpoint error:', fallbackError);
+          }
         }
 
         // Save to database if found
@@ -1271,6 +1322,8 @@ serve(async (req) => {
             .eq('id', groupId);
           
           console.log('Group picture saved to database for:', groupId);
+        } else {
+          console.log('INFO: No group picture available - group may have privacy settings enabled');
         }
 
         return new Response(
