@@ -1238,7 +1238,43 @@ serve(async (req) => {
       const formattedPhone = formatPhoneNumber(phone, settings.defaultCountryCode || '55');
       console.log('Fetching WhatsApp profile picture for:', formattedPhone);
 
+      // Helper function to extract profile picture URL from various response formats
+      const extractProfilePictureUrl = (data: Record<string, unknown>): string | null => {
+        // Check various possible field names
+        const possibleFields = [
+          'profilePictureUrl',
+          'pictureUrl', 
+          'picture',
+          'imgUrl',
+          'profilePic',
+          'profilePicUrl',
+          'photo',
+          'avatar',
+          'imageUrl'
+        ];
+        
+        for (const field of possibleFields) {
+          if (data?.[field] && typeof data[field] === 'string') {
+            return data[field] as string;
+          }
+        }
+        
+        // Check nested structures
+        if (data?.profile && typeof data.profile === 'object') {
+          const profile = data.profile as Record<string, unknown>;
+          for (const field of possibleFields) {
+            if (profile?.[field] && typeof profile[field] === 'string') {
+              return profile[field] as string;
+            }
+          }
+        }
+        
+        return null;
+      };
+
       try {
+        // First attempt: fetchProfilePictureUrl endpoint
+        console.log('Trying primary endpoint: /chat/fetchProfilePictureUrl');
         const response = await fetch(
           `${apiUrl}/chat/fetchProfilePictureUrl/${settings.evolutionInstance}`,
           {
@@ -1253,26 +1289,104 @@ serve(async (req) => {
           }
         );
 
-        console.log('Evolution API fetch-profile-picture response status:', response.status);
+        console.log('Primary endpoint response status:', response.status);
 
-        if (!response.ok) {
+        let profilePictureUrl: string | null = null;
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Primary endpoint full response:', JSON.stringify(data, null, 2));
+          profilePictureUrl = extractProfilePictureUrl(data);
+          console.log('Extracted URL from primary endpoint:', profilePictureUrl);
+        } else {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Evolution API fetch-profile-picture error:', errorData);
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              message: `Erro ao buscar foto: ${response.status}`,
-              profilePictureUrl: null
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          console.warn('Primary endpoint failed:', response.status, errorData);
         }
 
-        const data = await response.json();
-        console.log('Profile picture fetched successfully:', data);
+        // Second attempt: Try alternative endpoint if first one returned null
+        if (!profilePictureUrl) {
+          console.log('Primary endpoint returned null, trying alternative: /chat/fetchProfile');
+          
+          try {
+            const altResponse = await fetch(
+              `${apiUrl}/chat/fetchProfile/${settings.evolutionInstance}`,
+              {
+                method: 'POST',
+                headers: {
+                  'apikey': settings.evolutionApiKey,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  number: formattedPhone,
+                }),
+              }
+            );
 
-        // Evolution API returns profilePictureUrl or pictureUrl
-        const profilePictureUrl = data?.profilePictureUrl || data?.pictureUrl || data?.picture || null;
+            console.log('Alternative endpoint response status:', altResponse.status);
+
+            if (altResponse.ok) {
+              const altData = await altResponse.json();
+              console.log('Alternative endpoint full response:', JSON.stringify(altData, null, 2));
+              profilePictureUrl = extractProfilePictureUrl(altData);
+              console.log('Extracted URL from alternative endpoint:', profilePictureUrl);
+            } else {
+              const altErrorData = await altResponse.json().catch(() => ({}));
+              console.warn('Alternative endpoint failed:', altResponse.status, altErrorData);
+            }
+          } catch (altError) {
+            console.warn('Alternative endpoint error:', altError);
+          }
+        }
+
+        // Third attempt: Try findContacts endpoint as last resort
+        if (!profilePictureUrl) {
+          console.log('Alternative endpoint returned null, trying last resort: /chat/findContacts');
+          
+          try {
+            const contactsResponse = await fetch(
+              `${apiUrl}/chat/findContacts/${settings.evolutionInstance}`,
+              {
+                method: 'POST',
+                headers: {
+                  'apikey': settings.evolutionApiKey,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  where: {
+                    id: `${formattedPhone}@s.whatsapp.net`
+                  }
+                }),
+              }
+            );
+
+            console.log('FindContacts endpoint response status:', contactsResponse.status);
+
+            if (contactsResponse.ok) {
+              const contactsData = await contactsResponse.json();
+              console.log('FindContacts endpoint full response:', JSON.stringify(contactsData, null, 2));
+              
+              // findContacts returns an array
+              if (Array.isArray(contactsData) && contactsData.length > 0) {
+                profilePictureUrl = extractProfilePictureUrl(contactsData[0]);
+              } else if (contactsData && !Array.isArray(contactsData)) {
+                profilePictureUrl = extractProfilePictureUrl(contactsData);
+              }
+              console.log('Extracted URL from findContacts endpoint:', profilePictureUrl);
+            } else {
+              const contactsErrorData = await contactsResponse.json().catch(() => ({}));
+              console.warn('FindContacts endpoint failed:', contactsResponse.status, contactsErrorData);
+            }
+          } catch (contactsError) {
+            console.warn('FindContacts endpoint error:', contactsError);
+          }
+        }
+
+        // Log final result
+        if (profilePictureUrl) {
+          console.log('SUCCESS: Profile picture found:', profilePictureUrl);
+        } else {
+          console.log('INFO: No profile picture available - user may have privacy settings enabled');
+        }
 
         return new Response(
           JSON.stringify({ 
