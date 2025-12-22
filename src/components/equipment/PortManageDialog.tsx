@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
+import { Upload, X, MapPin } from 'lucide-react';
+
+interface PortNotesData {
+  location_image_url?: string;
+  location_description?: string;
+  [key: string]: any;
+}
 
 interface PortManageDialogProps {
   open: boolean;
@@ -33,15 +40,30 @@ interface PortManageDialogProps {
 
 export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: PortManageDialogProps) => {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Single port form
   const [name, setName] = useState(port?.name || '');
   const [portNumber, setPortNumber] = useState(port?.port_number?.toString() || '');
   const [portType, setPortType] = useState(port?.port_type || 'rj45');
   const [speed, setSpeed] = useState(port?.speed || '');
-  const [notes, setNotes] = useState(port?.notes || '');
+  const [notes, setNotes] = useState('');
   const [status, setStatus] = useState(port?.status || 'available');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [locationImageUrl, setLocationImageUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Parse existing notes to extract location data
+  const parseNotes = (notesStr: string | null | undefined): PortNotesData => {
+    if (!notesStr) return {};
+    try {
+      return typeof notesStr === 'string' ? JSON.parse(notesStr) : notesStr;
+    } catch {
+      return { location_description: notesStr };
+    }
+  };
 
   // Sync form state with port prop
   useEffect(() => {
@@ -50,8 +72,16 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
       setPortNumber(port.port_number?.toString() || '');
       setPortType(port.port_type || 'rj45');
       setSpeed(port.speed || '');
-      setNotes(port.notes || '');
       setStatus(port.status || 'available');
+      
+      const notesData = parseNotes(port.notes);
+      setLocationDescription(notesData.location_description || '');
+      setLocationImageUrl(notesData.location_image_url || '');
+      setImagePreview(notesData.location_image_url || null);
+      
+      // Keep other notes data in the notes field
+      const { location_image_url, location_description, ...otherNotes } = notesData;
+      setNotes(Object.keys(otherNotes).length > 0 ? JSON.stringify(otherNotes) : '');
     } else {
       setName('');
       setPortNumber('');
@@ -59,8 +89,56 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
       setSpeed('');
       setNotes('');
       setStatus('available');
+      setLocationDescription('');
+      setLocationImageUrl('');
+      setImagePreview(null);
     }
   }, [port, open]);
+
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `port-locations/${equipmentId}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('public')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('public')
+        .getPublicUrl(fileName);
+
+      setLocationImageUrl(urlData.publicUrl);
+      toast.success('Imagem enviada com sucesso!');
+    } catch (error: any) {
+      toast.error(`Erro ao enviar imagem: ${error.message}`);
+      setImagePreview(locationImageUrl || null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setLocationImageUrl('');
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Batch form
   const [prefix, setPrefix] = useState('');
@@ -75,6 +153,26 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   const handleSaveSingle = async () => {
     setLoading(true);
     try {
+      // Build notes JSON with location data
+      let existingNotesData: PortNotesData = {};
+      try {
+        if (notes) {
+          existingNotesData = JSON.parse(notes);
+        }
+      } catch {
+        // notes is plain text
+      }
+
+      const notesData: PortNotesData = {
+        ...existingNotesData,
+        location_image_url: locationImageUrl || undefined,
+        location_description: locationDescription || undefined,
+      };
+
+      const notesJson = Object.keys(notesData).some(k => notesData[k]) 
+        ? JSON.stringify(notesData) 
+        : null;
+
       if (port) {
         // Update existing port
         const { error } = await supabase
@@ -84,7 +182,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
             port_number: portNumber ? parseInt(portNumber) : null,
             port_type: portType,
             speed,
-            notes,
+            notes: notesJson,
             status,
           })
           .eq('id', port.id);
@@ -108,7 +206,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
             port_number: portNumber ? parseInt(portNumber) : null,
             port_type: portType,
             speed,
-            notes,
+            notes: notesJson,
             status,
           });
 
@@ -276,6 +374,70 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
               </Select>
             </div>
 
+            {/* Location Section */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin className="w-4 h-4" />
+                <Label className="text-sm font-semibold">Localização da Câmera</Label>
+              </div>
+              
+              {/* Location Description */}
+              <div className="space-y-2 mb-3">
+                <Label htmlFor="locationDescription">Descrição do Local</Label>
+                <Textarea
+                  id="locationDescription"
+                  placeholder="Ex: Portão de entrada principal..."
+                  value={locationDescription}
+                  onChange={(e) => setLocationDescription(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              {/* Location Image Upload */}
+              <div className="space-y-2">
+                <Label>Foto do Local</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+                
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={removeImage}
+                      type="button"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full h-20 border-dashed"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    type="button"
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <Upload className="w-5 h-5" />
+                      <span className="text-xs">{uploading ? 'Enviando...' : 'Clique para enviar foto'}</span>
+                    </div>
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>
               <Textarea
@@ -283,7 +445,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
                 placeholder="Notas adicionais..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={3}
+                rows={2}
               />
             </div>
 
