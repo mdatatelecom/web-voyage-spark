@@ -85,6 +85,7 @@ const buildTicketMessage = (
 
 export type Ticket = Tables<'support_tickets'> & {
   assignee_name?: string | null;
+  assignee_avatar_url?: string | null;
 };
 export type TicketInsert = TablesInsert<'support_tickets'>;
 export type TicketUpdate = TablesUpdate<'support_tickets'>;
@@ -108,18 +109,22 @@ export const useTickets = () => {
 
       if (error) throw error;
       
-      // Fetch assignee names for tickets that have assigned_to
+      // Fetch assignee names and avatars for tickets that have assigned_to
       const ticketsWithAssignees = await Promise.all(
         (data || []).map(async (ticket) => {
           if (ticket.assigned_to) {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('full_name')
+              .select('full_name, avatar_url')
               .eq('id', ticket.assigned_to)
               .maybeSingle();
-            return { ...ticket, assignee_name: profile?.full_name || null };
+            return { 
+              ...ticket, 
+              assignee_name: profile?.full_name || null,
+              assignee_avatar_url: profile?.avatar_url || null
+            };
           }
-          return { ...ticket, assignee_name: null };
+          return { ...ticket, assignee_name: null, assignee_avatar_url: null };
         })
       );
       
@@ -299,11 +304,31 @@ export const useTickets = () => {
         try {
           const { data: techProfile } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name, avatar_url')
             .eq('id', updatedFields.assigned_to)
             .maybeSingle();
           assignedTechName = techProfile?.full_name || 'Técnico';
           changes.push(`👨‍🔧 Técnico atribuído: *${assignedTechName}*.`);
+
+          // Auto-fetch WhatsApp profile picture if technician doesn't have avatar
+          if (!techProfile?.avatar_url && updatedFields.technician_phone) {
+            try {
+              console.log('📸 [UPDATE] Fetching WhatsApp profile picture for technician:', updatedFields.technician_phone);
+              const { data: pictureData } = await supabase.functions.invoke('send-whatsapp', {
+                body: { action: 'fetch-profile-picture', phone: updatedFields.technician_phone },
+              });
+              
+              if (pictureData?.profilePictureUrl) {
+                await supabase
+                  .from('profiles')
+                  .update({ avatar_url: pictureData.profilePictureUrl })
+                  .eq('id', updatedFields.assigned_to);
+                console.log('✅ [UPDATE] Technician avatar updated automatically');
+              }
+            } catch (avatarErr) {
+              console.error('Error fetching WhatsApp profile picture:', avatarErr);
+            }
+          }
         } catch {
           assignedTechName = 'Técnico';
           changes.push(`👨‍🔧 Técnico atribuído ao chamado.`);

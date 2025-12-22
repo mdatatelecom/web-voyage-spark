@@ -11,6 +11,7 @@ interface User {
   roles: UserRole[];
   full_name?: string;
   phone?: string;
+  avatar_url?: string;
 }
 
 export const useUsers = () => {
@@ -34,7 +35,7 @@ export const useUsers = () => {
       // Get profiles for all users
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, phone');
+        .select('id, full_name, phone, avatar_url');
 
       if (profilesError) throw profilesError;
 
@@ -50,6 +51,7 @@ export const useUsers = () => {
             .map((r) => r.role as UserRole),
           full_name: profile?.full_name || '',
           phone: profile?.phone || '',
+          avatar_url: profile?.avatar_url || '',
         };
       });
 

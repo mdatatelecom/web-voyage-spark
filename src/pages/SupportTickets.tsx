@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User, Calendar, BarChart3, Paperclip } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
@@ -320,9 +321,14 @@ export default function SupportTickets() {
                       </TableCell>
                       <TableCell>
                         {ticket.assignee_name ? (
-                          <div className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{ticket.assignee_name}</span>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={ticket.assignee_avatar_url || undefined} alt={ticket.assignee_name} />
+                              <AvatarFallback className="text-xs bg-muted">
+                                <UserIcon className="h-3 w-3" />
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">{ticket.assignee_name}</span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground italic text-sm">
