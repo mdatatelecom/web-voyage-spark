@@ -11,9 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
-import { User, RefreshCw, Loader2 } from 'lucide-react';
+import { User, RefreshCw, Loader2, Zap, Clock, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface UserEditDialogProps {
   open: boolean;
@@ -24,6 +27,7 @@ interface UserEditDialogProps {
     full_name?: string;
     phone?: string;
     avatar_url?: string;
+    avatar_updated_at?: string;
   } | null;
   onSave: (userId: string, data: { full_name: string; phone: string }) => Promise<void>;
 }
@@ -34,6 +38,7 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -41,8 +46,29 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
       setFullName(user.full_name || '');
       setPhone(user.phone || '');
       setAvatarUrl(user.avatar_url || '');
+      setAvatarUpdatedAt(user.avatar_updated_at || null);
     }
   }, [user]);
+
+  const getCacheStatus = () => {
+    if (!avatarUrl) return null;
+    if (!avatarUpdatedAt) return { inCache: false, label: 'Sem data de atualização' };
+    
+    const lastUpdate = new Date(avatarUpdatedAt);
+    const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursSinceUpdate < 24) {
+      return {
+        inCache: true,
+        label: `Em cache`,
+        timeAgo: formatDistanceToNow(lastUpdate, { locale: ptBR, addSuffix: true })
+      };
+    }
+    
+    return { inCache: false, label: 'Cache expirado' };
+  };
+
+  const cacheStatus = getCacheStatus();
 
   const handleSave = async () => {
     if (!user) return;
@@ -56,12 +82,13 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
     }
   };
 
-  const handleFetchWhatsAppPhoto = async () => {
+  const handleFetchWhatsAppPhoto = async (force: boolean = false) => {
     if (!user || !phone) return;
 
-    const newAvatarUrl = await fetchAndUpdateProfilePicture(user.id, phone);
+    const newAvatarUrl = await fetchAndUpdateProfilePicture(user.id, phone, force);
     if (newAvatarUrl) {
       setAvatarUrl(newAvatarUrl);
+      setAvatarUpdatedAt(new Date().toISOString());
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     }
   };
@@ -86,20 +113,50 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
               </AvatarFallback>
             </Avatar>
             
-            {phone && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleFetchWhatsAppPhoto}
-                disabled={isFetchingPhoto}
-              >
-                {isFetchingPhoto ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            {/* Cache Status Indicator */}
+            {cacheStatus && (
+              <div className="flex items-center justify-center">
+                {cacheStatus.inCache ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Clock className="h-3 w-3" />
+                    Atualizado {cacheStatus.timeAgo}
+                  </Badge>
                 ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300">
+                    <AlertCircle className="h-3 w-3" />
+                    {cacheStatus.label}
+                  </Badge>
                 )}
-                Atualizar Foto do WhatsApp
-              </Button>
+              </div>
+            )}
+
+            {phone && (
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFetchWhatsAppPhoto(false)}
+                  disabled={isFetchingPhoto}
+                >
+                  {isFetchingPhoto ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Atualizar Foto
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleFetchWhatsAppPhoto(true)}
+                  disabled={isFetchingPhoto}
+                  className="text-muted-foreground"
+                  title="Ignora o cache de 24h"
+                >
+                  <Zap className="h-4 w-4 mr-1" />
+                  Forçar
+                </Button>
+              </div>
             )}
             
             {!phone && (
