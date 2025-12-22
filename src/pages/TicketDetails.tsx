@@ -53,12 +53,14 @@ import {
   Loader2,
   ZoomIn,
   Trash2,
+  UserCheck,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTicket, useTickets } from '@/hooks/useTickets';
 import { useWhatsApp } from '@/hooks/useWhatsApp';
+import { useTechnicians } from '@/hooks/useTechnicians';
 import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
 import {
   TICKET_STATUSES,
@@ -133,6 +135,7 @@ export default function TicketDetails() {
   const { ticket, comments, isLoading, commentsLoading, addComment, refetch } = useTicket(id!);
   const { updateTicket } = useTickets();
   const { sendTicketNotification, isEnabled: whatsAppEnabled } = useWhatsApp();
+  const { technicians } = useTechnicians();
   
   const [newComment, setNewComment] = useState('');
   const [isInternalComment, setIsInternalComment] = useState(false);
@@ -268,6 +271,27 @@ export default function TicketDetails() {
   const handlePriorityChange = async (newPriority: string) => {
     if (!ticket) return;
     await updateTicket.mutateAsync({ id: ticket.id, priority: newPriority });
+  };
+
+  const handleAssigneeChange = async (userId: string) => {
+    if (!ticket) return;
+    
+    const assignedTo = userId === 'none' ? null : userId;
+    const selectedTechnician = technicians?.find(t => t.id === userId);
+    
+    await updateTicket.mutateAsync({ 
+      id: ticket.id, 
+      assigned_to: assignedTo,
+      technician_phone: selectedTechnician?.phone || null,
+    });
+    
+    refetch();
+  };
+
+  const getAssigneeName = () => {
+    if (!ticket?.assigned_to) return null;
+    const tech = technicians?.find(t => t.id === ticket.assigned_to);
+    return tech?.full_name || 'Sem nome';
   };
 
   const handleAddComment = async () => {
@@ -718,6 +742,28 @@ export default function TicketDetails() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    Atribuído a
+                  </label>
+                  <Select 
+                    value={ticket.assigned_to || 'none'} 
+                    onValueChange={handleAssigneeChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar técnico" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não atribuído</SelectItem>
+                      {technicians?.map((tech) => (
+                        <SelectItem key={tech.id} value={tech.id}>
+                          {tech.full_name || 'Sem nome'} ({tech.role === 'admin' ? 'Admin' : 'Técnico'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardContent>
             </Card>
 
@@ -748,6 +794,18 @@ export default function TicketDetails() {
                         {format(new Date(ticket.updated_at), "dd/MM/yyyy 'às' HH:mm", {
                           locale: ptBR,
                         })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {ticket.assigned_to && (
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">Técnico Responsável</div>
+                      <div className="text-sm text-muted-foreground">
+                        {getAssigneeName()}
                       </div>
                     </div>
                   </div>
