@@ -1225,6 +1225,76 @@ serve(async (req) => {
       }
     }
 
+    // Fetch WhatsApp profile picture
+    if (action === 'fetch-profile-picture') {
+      if (!phone) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Número de telefone é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      // Format phone number with country code
+      const formattedPhone = formatPhoneNumber(phone, settings.defaultCountryCode || '55');
+      console.log('Fetching WhatsApp profile picture for:', formattedPhone);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/chat/fetchProfilePictureUrl/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: formattedPhone,
+            }),
+          }
+        );
+
+        console.log('Evolution API fetch-profile-picture response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Evolution API fetch-profile-picture error:', errorData);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: `Erro ao buscar foto: ${response.status}`,
+              profilePictureUrl: null
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Profile picture fetched successfully:', data);
+
+        // Evolution API returns profilePictureUrl or pictureUrl
+        const profilePictureUrl = data?.profilePictureUrl || data?.pictureUrl || data?.picture || null;
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            profilePictureUrl 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Fetch profile picture error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `Erro de conexão: ${errorMessage}`,
+            profilePictureUrl: null
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: false, message: 'Ação inválida' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }

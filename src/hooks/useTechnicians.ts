@@ -6,10 +6,11 @@ export interface Technician {
   full_name: string | null;
   phone: string | null;
   role: string;
+  avatar_url: string | null;
 }
 
 export function useTechnicians() {
-  const { data: technicians, isLoading } = useQuery({
+  const { data: technicians, isLoading, refetch } = useQuery({
     queryKey: ['technicians'],
     queryFn: async () => {
       // Get users with admin or technician roles
@@ -27,10 +28,10 @@ export function useTechnicians() {
       // Get unique user IDs
       const userIds = [...new Set(userRoles.map(r => r.user_id))];
 
-      // Get profiles for these users
+      // Get profiles for these users including avatar_url
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, phone')
+        .select('id, full_name, phone, avatar_url')
         .in('id', userIds);
 
       if (profilesError) throw profilesError;
@@ -45,6 +46,7 @@ export function useTechnicians() {
           full_name: profile?.full_name || null,
           phone: profile?.phone || null,
           role: userRole?.role || 'technician',
+          avatar_url: profile?.avatar_url || null,
         };
       });
 
@@ -52,5 +54,5 @@ export function useTechnicians() {
     },
   });
 
-  return { technicians, isLoading };
+  return { technicians, isLoading, refetch };
 }
