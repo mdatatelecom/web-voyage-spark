@@ -17,9 +17,15 @@ interface User {
 export const useUsers = () => {
   const queryClient = useQueryClient();
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
+      // Ensure user is authenticated before calling admin function
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Usuário não autenticado');
+      }
+
       // Call edge function to get users list
       const { data: usersData, error: usersError } = await supabase.functions.invoke('admin-list-users');
 
@@ -172,6 +178,7 @@ export const useUsers = () => {
   return {
     users,
     isLoading,
+    error,
     accessLogs,
     logsLoading,
     assignRole: assignRoleMutation.mutate,
