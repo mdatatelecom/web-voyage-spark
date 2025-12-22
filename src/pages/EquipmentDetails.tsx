@@ -10,9 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PortManageDialog } from '@/components/equipment/PortManageDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
 import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
+import { NvrChannelGrid } from '@/components/equipment/NvrChannelGrid';
+import { PlanCameraDialog } from '@/components/equipment/PlanCameraDialog';
+import { PortLocationDialog } from '@/components/equipment/PortLocationDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Plus, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2, MapPin } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import {
   DropdownMenu,
@@ -35,6 +38,10 @@ export default function EquipmentDetails() {
   const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedPort, setSelectedPort] = useState<any>(null);
+  const [planCameraDialogOpen, setPlanCameraDialogOpen] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<number>(1);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [selectedPortForLocation, setSelectedPortForLocation] = useState<any>(null);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
@@ -381,6 +388,17 @@ export default function EquipmentDetails() {
           </Card>
 
           <div className="md:col-span-3 space-y-4">
+            {/* NVR Channel Grid - only for NVR equipment */}
+            {equipment?.type === 'nvr' && (
+              <NvrChannelGrid 
+                notes={equipment.notes} 
+                onPlanCamera={(channel) => {
+                  setSelectedChannel(channel);
+                  setPlanCameraDialogOpen(true);
+                }}
+              />
+            )}
+
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">
                 Portas do Equipamento ({filteredPorts.length})
@@ -512,6 +530,13 @@ export default function EquipmentDetails() {
                               setSelectedPort(port);
                               setPortDialogOpen(true);
                             }}>Editar Porta</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedPortForLocation(port);
+                              setLocationDialogOpen(true);
+                            }}>
+                              <MapPin className="w-4 h-4 mr-2" />
+                              Ver Localização
+                            </DropdownMenuItem>
                             <DropdownMenuItem>Alterar Status</DropdownMenuItem>
                             {port.status === 'in_use' && port.connection && (
                               <DropdownMenuItem
@@ -572,6 +597,24 @@ export default function EquipmentDetails() {
             isLoading={isUpdating}
           />
         )}
+        
+        {/* Plan Camera Dialog for NVR */}
+        {equipment?.type === 'nvr' && (
+          <PlanCameraDialog
+            open={planCameraDialogOpen}
+            onOpenChange={setPlanCameraDialogOpen}
+            nvrId={id!}
+            nvrName={equipment.name}
+            channel={selectedChannel}
+          />
+        )}
+
+        {/* Port Location Dialog */}
+        <PortLocationDialog
+          open={locationDialogOpen}
+          onOpenChange={setLocationDialogOpen}
+          port={selectedPortForLocation}
+        />
       </div>
     </AppLayout>
   );
