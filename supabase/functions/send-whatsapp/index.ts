@@ -1225,6 +1225,68 @@ serve(async (req) => {
       }
     }
 
+    // Fetch WhatsApp group profile picture
+    if (action === 'fetch-group-picture') {
+      if (!groupId) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'ID do grupo é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Fetching group picture for:', groupId);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/group/profilePicture/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: groupId }),
+          }
+        );
+
+        console.log('Group picture fetch response status:', response.status);
+
+        let pictureUrl: string | null = null;
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Group picture response:', JSON.stringify(data));
+          pictureUrl = data?.profilePictureUrl || data?.pictureUrl || data?.picture || null;
+        }
+
+        // Save to database if found
+        if (pictureUrl) {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          
+          await supabase
+            .from('whatsapp_groups')
+            .update({ picture_url: pictureUrl })
+            .eq('id', groupId);
+          
+          console.log('Group picture saved to database for:', groupId);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, pictureUrl }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Fetch group picture error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: errorMessage, pictureUrl: null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Fetch WhatsApp profile picture
     if (action === 'fetch-profile-picture') {
       if (!phone) {
