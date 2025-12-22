@@ -228,3 +228,86 @@ export const getConnectionTypeLabel = (connectionType: string): string => {
   const type = CAMERA_CONNECTION_TYPES.find(t => t.value === connectionType);
   return type?.label || connectionType;
 };
+
+// ============= PoE Calculation Functions =============
+
+// Calculate required PoE class based on power consumption
+export const getRequiredPoeClass = (powerConsumption: number): string => {
+  if (powerConsumption <= 15.4) return 'af';   // 802.3af - up to 15.4W
+  if (powerConsumption <= 30) return 'at';     // 802.3at - up to 30W
+  return 'bt';                                  // 802.3bt - up to 60W+
+};
+
+// Get minimum port type string for a given power consumption
+export const getMinimumPoePortType = (powerConsumption: number): string => {
+  const poeClass = getRequiredPoeClass(powerConsumption);
+  return getPoePortType(poeClass);
+};
+
+// Maximum watts per port type
+const PORT_MAX_WATTS: Record<string, number> = {
+  'rj45': 0,
+  'rj45_poe': 15.4,
+  'rj45_poe_plus': 30,
+  'rj45_poe_plus_plus': 60,
+};
+
+// Check if a port type can handle the camera's power requirement
+export const canPortPowerCamera = (
+  portType: string | null | undefined,
+  cameraPowerConsumption: number
+): boolean => {
+  if (!portType) return false;
+  const maxWatts = PORT_MAX_WATTS[portType] || 0;
+  return maxWatts >= cameraPowerConsumption;
+};
+
+// Get power margin status for visual indicators
+export type PoeMarginStatus = 'sufficient' | 'borderline' | 'insufficient';
+
+export const getPoeMarginStatus = (
+  portType: string | null | undefined,
+  cameraPowerConsumption: number
+): PoeMarginStatus => {
+  if (!portType) return 'insufficient';
+  const maxWatts = PORT_MAX_WATTS[portType] || 0;
+  if (maxWatts < cameraPowerConsumption) return 'insufficient';
+  const margin = (maxWatts - cameraPowerConsumption) / maxWatts;
+  return margin >= 0.2 ? 'sufficient' : 'borderline';
+};
+
+// PoE recommendation interface
+export interface PoeRecommendation {
+  minPoeClass: string;
+  minPoeClassLabel: string;
+  minPortWatts: number;
+  minPortType: string;
+  recommended: boolean;
+  warning?: string;
+}
+
+// Get complete PoE recommendation for a camera
+export const getPoeRecommendation = (
+  cameraTemplate: CameraTemplate | null,
+  customPowerConsumption?: number
+): PoeRecommendation => {
+  const power = customPowerConsumption ?? cameraTemplate?.powerConsumption ?? 12;
+  const minClass = getRequiredPoeClass(power);
+  const classInfo = POE_CLASSES.find(c => c.value === minClass);
+  
+  let warning: string | undefined;
+  if (power > 30) {
+    warning = 'Câmera PTZ requer switch com PoE++ (802.3bt) ou fonte externa de alta potência';
+  } else if (power > 15.4) {
+    warning = 'Câmera requer switch com PoE+ (802.3at) ou superior';
+  }
+  
+  return {
+    minPoeClass: minClass,
+    minPoeClassLabel: classInfo?.label || 'PoE',
+    minPortWatts: classInfo?.maxWatts || 15.4,
+    minPortType: classInfo?.portType || 'rj45_poe',
+    recommended: true,
+    warning,
+  };
+};
