@@ -993,6 +993,39 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          owner: string | null
+          picture_url: string | null
+          size: number | null
+          subject: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id: string
+          owner?: string | null
+          picture_url?: string | null
+          size?: number | null
+          subject: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          owner?: string | null
+          picture_url?: string | null
+          size?: number | null
+          subject?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_message_mapping: {
         Row: {
           created_at: string | null

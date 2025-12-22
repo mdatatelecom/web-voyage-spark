@@ -16,7 +16,9 @@ import {
   ChevronUp,
   AlertTriangle,
   TestTube,
-  Bell
+  Bell,
+  User,
+  Users
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -45,10 +47,39 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppHistory, useResendWhatsApp, WhatsAppHistoryFilters } from '@/hooks/useWhatsAppHistory';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+
+// Helper to format phone number for display
+const formatPhoneDisplay = (phone: string): string => {
+  // Remove non-digits
+  const digits = phone.replace(/\D/g, '');
+  
+  // Brazilian phone format: +55 11 97610-4665
+  if (digits.length === 13 && digits.startsWith('55')) {
+    const ddd = digits.slice(2, 4);
+    const part1 = digits.slice(4, 9);
+    const part2 = digits.slice(9);
+    return `(${ddd}) ${part1}-${part2}`;
+  }
+  if (digits.length === 12 && digits.startsWith('55')) {
+    const ddd = digits.slice(2, 4);
+    const part1 = digits.slice(4, 8);
+    const part2 = digits.slice(8);
+    return `(${ddd}) ${part1}-${part2}`;
+  }
+  if (digits.length === 11) {
+    const ddd = digits.slice(0, 2);
+    const part1 = digits.slice(2, 7);
+    const part2 = digits.slice(7);
+    return `(${ddd}) ${part1}-${part2}`;
+  }
+  
+  return phone;
+};
 
 const WhatsAppHistory = () => {
   const { toast } = useToast();
@@ -386,9 +417,33 @@ const WhatsAppHistory = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4 text-muted-foreground" />
-                              {notification.phone_number}
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                {(notification.contact_avatar_url || notification.group_picture_url) ? (
+                                  <AvatarImage 
+                                    src={notification.contact_avatar_url || notification.group_picture_url || ''} 
+                                    alt={notification.contact_name || notification.group_name || 'Avatar'}
+                                  />
+                                ) : null}
+                                <AvatarFallback className="bg-muted">
+                                  {notification.phone_number.includes('@g.us') ? (
+                                    <Users className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  {notification.group_name || notification.contact_name || 'Desconhecido'}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {notification.phone_number.includes('@g.us') 
+                                    ? 'Grupo WhatsApp' 
+                                    : formatPhoneDisplay(notification.phone_number)
+                                  }
+                                </span>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>

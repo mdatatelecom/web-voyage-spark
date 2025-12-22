@@ -9,6 +9,7 @@ export interface WhatsAppGroup {
   creation: number;
   owner: string;
   desc: string;
+  picture_url?: string;
 }
 
 export interface ListGroupsResult {
@@ -21,6 +22,26 @@ export const useWhatsAppGroups = () => {
   const { toast } = useToast();
   const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Save groups to database for caching
+  const saveGroupsToDatabase = async (groupList: WhatsAppGroup[]) => {
+    try {
+      for (const group of groupList) {
+        await supabase
+          .from('whatsapp_groups')
+          .upsert({
+            id: group.id,
+            subject: group.subject,
+            description: group.desc,
+            owner: group.owner,
+            size: group.size,
+            picture_url: group.picture_url || null,
+          }, { onConflict: 'id' });
+      }
+    } catch (error) {
+      console.error('Error saving groups to database:', error);
+    }
+  };
 
   const listGroups = async (
     apiUrl: string,
@@ -50,6 +71,8 @@ export const useWhatsAppGroups = () => {
 
       if (data?.success && Array.isArray(data.groups)) {
         setGroups(data.groups);
+        // Save groups to database for future reference
+        await saveGroupsToDatabase(data.groups);
         return { groups: data.groups, needsReconnect: false };
       } else {
         // Check if reconnection is needed
