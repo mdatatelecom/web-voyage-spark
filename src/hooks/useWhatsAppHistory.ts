@@ -16,6 +16,11 @@ export interface WhatsAppNotification {
     ticket_number: string;
     title: string;
   } | null;
+  // Contact/Group info
+  contact_name?: string | null;
+  contact_avatar_url?: string | null;
+  group_name?: string | null;
+  group_picture_url?: string | null;
 }
 
 export interface WhatsAppHistoryFilters {
@@ -26,6 +31,11 @@ export interface WhatsAppHistoryFilters {
   ticketId?: string;
   messageType?: 'all' | 'notification' | 'test' | 'alert' | 'manual';
 }
+
+// Helper to normalize phone number for matching
+const normalizePhone = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
 
 export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
   const { startDate, endDate, status, phoneSearch, ticketId, messageType } = filters;
@@ -82,7 +92,77 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as WhatsAppNotification[];
+
+      const rawNotifications = data as WhatsAppNotification[];
+
+      // Separate individual phones and groups
+      const individualPhones = rawNotifications
+        .filter(n => !n.phone_number.includes('@g.us'))
+        .map(n => normalizePhone(n.phone_number));
+      
+      const groupIds = rawNotifications
+        .filter(n => n.phone_number.includes('@g.us'))
+        .map(n => n.phone_number);
+
+      // Fetch profiles for individual contacts
+      let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+      if (individualPhones.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('phone, full_name, avatar_url')
+          .not('phone', 'is', null);
+        
+        if (profiles) {
+          profiles.forEach(p => {
+            if (p.phone) {
+              profilesMap[normalizePhone(p.phone)] = {
+                full_name: p.full_name,
+                avatar_url: p.avatar_url,
+              };
+            }
+          });
+        }
+      }
+
+      // Fetch groups from cache
+      let groupsMap: Record<string, { subject: string; picture_url: string | null }> = {};
+      if (groupIds.length > 0) {
+        const { data: groups } = await supabase
+          .from('whatsapp_groups')
+          .select('id, subject, picture_url')
+          .in('id', groupIds);
+        
+        if (groups) {
+          groups.forEach(g => {
+            groupsMap[g.id] = {
+              subject: g.subject,
+              picture_url: g.picture_url,
+            };
+          });
+        }
+      }
+
+      // Enrich notifications with contact/group info
+      const enrichedNotifications = rawNotifications.map(n => {
+        if (n.phone_number.includes('@g.us')) {
+          const group = groupsMap[n.phone_number];
+          return {
+            ...n,
+            group_name: group?.subject || null,
+            group_picture_url: group?.picture_url || null,
+          };
+        } else {
+          const normalizedPhone = normalizePhone(n.phone_number);
+          const profile = profilesMap[normalizedPhone];
+          return {
+            ...n,
+            contact_name: profile?.full_name || null,
+            contact_avatar_url: profile?.avatar_url || null,
+          };
+        }
+      });
+
+      return enrichedNotifications;
     },
   });
 
