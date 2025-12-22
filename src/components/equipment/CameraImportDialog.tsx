@@ -9,10 +9,42 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, FileSpreadsheet, Server, Camera, Hash, AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Server, Camera, Hash, AlertCircle, Check, Loader2, Download } from 'lucide-react';
 import { parseCSV, readCSVFile, CSVParseResult, inferCameraModel } from '@/lib/csv-parser';
 import { useCameraImport } from '@/hooks/useCameraImport';
 import { useRacks } from '@/hooks/useRacks';
+
+const downloadCsvTemplate = () => {
+  const headers = [
+    'CANAL',
+    'NVR Responsável', 
+    'IP da Câmera',
+    'Novo IP',
+    'Status',
+    'Localização / Descrição',
+    'Nova Localização',
+    'Observação'
+  ];
+  
+  const exampleRows = [
+    ['1', '10.3.30.10', '10.3.30.11', '', 'Cadastrado', 'Portão Entrada - VIP 1230B G5', '', ''],
+    ['2', '10.3.30.10', '', '', 'Vago', '', '', ''],
+    ['3', '10.3.30.10', '10.3.30.12', '', 'Cadastrado', 'Recepção - VIP Bullet 2MP', '', ''],
+    ['4', '10.3.30.10', '', '', 'Vago', '', '', 'Canal reservado'],
+    ['1', '10.3.30.20', '10.3.30.21', '', 'Cadastrado', 'Estacionamento - GS Camera 500', '', ''],
+    ['2', '10.3.30.20', '10.3.30.22', '', 'Cadastrado', 'Corredor A - Camera Dome', '', ''],
+  ];
+  
+  const csvContent = [headers, ...exampleRows]
+    .map(row => row.join(';'))
+    .join('\n');
+    
+  const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'template-cameras.csv';
+  link.click();
+};
 
 interface CameraImportDialogProps {
   open: boolean;
@@ -140,6 +172,15 @@ export function CameraImportDialog({ open, onOpenChange }: CameraImportDialogPro
               <p className="text-xs text-muted-foreground mt-4">
                 Formato esperado: CANAL;NVR;IP Câmera;Status;Localização
               </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={downloadCsvTemplate}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Baixar Template CSV
+              </Button>
             </div>
           )}
 
