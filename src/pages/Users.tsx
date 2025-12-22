@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useUsers, UserRole } from '@/hooks/useUsers';
+import { useUserRole } from '@/hooks/useUserRole';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
 import { UserCreateDialog } from '@/components/users/UserCreateDialog';
 import { UserEditDialog } from '@/components/users/UserEditDialog';
@@ -21,8 +23,10 @@ import { Plus, X, UserPlus, Pencil, User } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function Users() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
+  const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -76,6 +80,25 @@ export default function Users() {
   const handleSaveProfile = async (userId: string, data: { full_name: string; phone: string }) => {
     await updateProfile({ userId, data });
   };
+
+  // Verificação dupla de admin - redireciona se não for admin
+  useEffect(() => {
+    if (!roleLoading && !isAdmin) {
+      navigate('/dashboard');
+    }
+  }, [isAdmin, roleLoading, navigate]);
+
+  if (roleLoading) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">Verificando permissões...</div>
+      </AppLayout>
+    );
+  }
+
+  if (!isAdmin) {
+    return null; // Será redirecionado pelo useEffect
+  }
 
   if (isLoading) {
     return (

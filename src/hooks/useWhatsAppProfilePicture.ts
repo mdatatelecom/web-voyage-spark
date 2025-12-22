@@ -8,9 +8,39 @@ interface FetchProfilePictureResult {
   message?: string;
 }
 
+const CACHE_HOURS = 24;
+
 export function useWhatsAppProfilePicture() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  const shouldFetchPhoto = async (userId: string): Promise<boolean> => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_url, avatar_updated_at')
+        .eq('id', userId)
+        .maybeSingle();
+
+      // Se não tem foto, deve buscar
+      if (!profile?.avatar_url) return true;
+
+      // Se foto foi atualizada há menos de CACHE_HOURS, não buscar
+      if (profile.avatar_updated_at) {
+        const lastUpdate = new Date(profile.avatar_updated_at);
+        const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceUpdate < CACHE_HOURS) {
+          console.log(`Avatar em cache (atualizado há ${hoursSinceUpdate.toFixed(1)}h)`);
+          return false;
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Erro ao verificar cache de foto:', err);
+      return true; // Em caso de erro, tentar buscar
+    }
+  };
 
   const fetchProfilePicture = async (phone: string): Promise<string | null> => {
     if (!phone) {
@@ -50,10 +80,27 @@ export function useWhatsAppProfilePicture() {
     }
   };
 
-  const fetchAndUpdateProfilePicture = async (userId: string, phone: string): Promise<string | null> => {
+  const fetchAndUpdateProfilePicture = async (
+    userId: string, 
+    phone: string, 
+    force: boolean = false
+  ): Promise<string | null> => {
     if (!userId || !phone) {
       console.log('Missing userId or phone for profile picture update');
       return null;
+    }
+
+    // Verificar cache (a menos que force = true)
+    if (!force) {
+      const shouldFetch = await shouldFetchPhoto(userId);
+      if (!shouldFetch) {
+        toast({
+          title: 'Foto em cache',
+          description: 'A foto foi atualizada recentemente. Use forçar atualização se necessário.',
+          variant: 'default',
+        });
+        return null;
+      }
     }
 
     setIsLoading(true);
@@ -63,10 +110,13 @@ export function useWhatsAppProfilePicture() {
       const profilePictureUrl = await fetchProfilePicture(phone);
 
       if (profilePictureUrl) {
-        // Update the user's profile with the WhatsApp avatar
+        // Update the user's profile with the WhatsApp avatar and timestamp
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({ avatar_url: profilePictureUrl })
+          .update({ 
+            avatar_url: profilePictureUrl,
+            avatar_updated_at: new Date().toISOString()
+          })
           .eq('id', userId);
 
         if (updateError) {
@@ -110,6 +160,7 @@ export function useWhatsAppProfilePicture() {
   return {
     fetchProfilePicture,
     fetchAndUpdateProfilePicture,
+    shouldFetchPhoto,
     isLoading,
   };
 }
