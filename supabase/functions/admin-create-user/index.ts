@@ -101,6 +101,59 @@ Deno.serve(async (req) => {
 
     console.log('Role assigned successfully');
 
+    // Try to fetch WhatsApp profile picture if phone is provided
+    let avatarUrl = null;
+    if (phone) {
+      try {
+        console.log('Attempting to fetch WhatsApp profile picture for:', phone);
+        
+        const whatsappResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'fetch-profile-picture',
+              phone: phone,
+            }),
+          }
+        );
+
+        if (whatsappResponse.ok) {
+          const pictureData = await whatsappResponse.json();
+          
+          if (pictureData?.success && pictureData?.profilePictureUrl) {
+            avatarUrl = pictureData.profilePictureUrl;
+            
+            // Update profile with avatar
+            const { error: avatarError } = await supabaseAdmin
+              .from('profiles')
+              .update({ 
+                avatar_url: avatarUrl,
+                avatar_updated_at: new Date().toISOString()
+              })
+              .eq('id', newUser.user.id);
+
+            if (avatarError) {
+              console.error('Error updating avatar:', avatarError);
+            } else {
+              console.log('✅ WhatsApp avatar saved for new user');
+            }
+          } else {
+            console.log('No WhatsApp profile picture available');
+          }
+        } else {
+          console.log('WhatsApp function returned error:', whatsappResponse.status);
+        }
+      } catch (whatsappError) {
+        console.log('Could not fetch WhatsApp profile picture:', whatsappError);
+        // Don't throw - this is optional functionality
+      }
+    }
+
     // Log the action
     await supabaseAdmin.from('access_logs').insert({
       user_id: requestingUser.id,
@@ -108,7 +161,8 @@ Deno.serve(async (req) => {
       details: { 
         created_user_id: newUser.user.id, 
         email: email,
-        role: role 
+        role: role,
+        has_avatar: !!avatarUrl
       },
     });
 
@@ -119,6 +173,7 @@ Deno.serve(async (req) => {
           id: newUser.user.id,
           email: newUser.user.email,
           created_at: newUser.user.created_at,
+          avatar_url: avatarUrl,
         }
       }),
       {

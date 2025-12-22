@@ -732,6 +732,61 @@ export default function TicketDetails() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Card Proeminente do Técnico Responsável */}
+            {ticket.assigned_to && (
+              <Card className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border-primary/20 shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center text-center gap-4">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button 
+                            onClick={handleUpdateTechnicianPhoto}
+                            disabled={isLoadingProfilePicture}
+                            className="relative group cursor-pointer"
+                          >
+                            <Avatar className="h-24 w-24 border-4 border-primary/30 shadow-xl ring-4 ring-primary/10">
+                              <AvatarImage 
+                                src={getAssignee()?.avatar_url || undefined} 
+                                alt={getAssigneeName()} 
+                              />
+                              <AvatarFallback className="bg-primary/20 text-3xl font-bold">
+                                {getAssigneeName()[0]?.toUpperCase() || <UserCheck className="h-10 w-10 text-primary" />}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Overlay para atualização */}
+                            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              {isLoadingProfilePicture ? (
+                                <Loader2 className="h-6 w-6 text-white animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-6 w-6 text-white" />
+                              )}
+                            </div>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Atualizar foto do WhatsApp</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    
+                    <div className="space-y-1">
+                      <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                        Técnico Responsável
+                      </div>
+                      <div className="font-bold text-xl">{getAssigneeName()}</div>
+                      {getAssignee()?.phone && (
+                        <div className="text-sm text-muted-foreground flex items-center justify-center gap-1.5 mt-2">
+                          <Phone className="h-3.5 w-3.5" />
+                          {getAssignee()?.phone}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Actions */}
             <Card>
               <CardHeader>
