@@ -74,10 +74,6 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
         query = query.eq('status', status);
       }
 
-      if (phoneSearch) {
-        query = query.ilike('phone_number', `%${phoneSearch}%`);
-      }
-
       if (ticketId) {
         query = query.eq('ticket_id', ticketId);
       }
@@ -143,7 +139,7 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
       }
 
       // Enrich notifications with contact/group info
-      const enrichedNotifications = rawNotifications.map(n => {
+      let enrichedNotifications = rawNotifications.map(n => {
         if (n.phone_number.includes('@g.us')) {
           const group = groupsMap[n.phone_number];
           return {
@@ -161,6 +157,21 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
           };
         }
       });
+
+      // Apply name/phone search filter (local filtering for names)
+      if (phoneSearch) {
+        const searchTerm = phoneSearch.toLowerCase();
+        enrichedNotifications = enrichedNotifications.filter(n => {
+          // Search in phone number
+          const phoneMatch = n.phone_number.toLowerCase().includes(searchTerm);
+          // Search in contact name
+          const contactNameMatch = n.contact_name?.toLowerCase().includes(searchTerm);
+          // Search in group name
+          const groupNameMatch = n.group_name?.toLowerCase().includes(searchTerm);
+          
+          return phoneMatch || contactNameMatch || groupNameMatch;
+        });
+      }
 
       return enrichedNotifications;
     },
