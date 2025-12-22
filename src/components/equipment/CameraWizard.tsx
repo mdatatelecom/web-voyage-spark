@@ -31,9 +31,13 @@ import {
   getCameraTemplatesByManufacturer,
   getAnalogCameraTemplatesByManufacturer,
   getPoePortType,
+  getPoeRecommendation,
+  canPortPowerCamera,
+  getPoeMarginStatus,
   type CameraTemplate,
   type AnalogCameraTemplate
 } from '@/constants/cameraSpecs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CameraWizardProps {
   open: boolean;
@@ -892,14 +896,29 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         )}
         
         {/* Step 5: Power Source (IP cameras only) */}
-        {step === 5 && isIPCamera && (
+        {step === 5 && isIPCamera && (() => {
+          const poeRecommendation = getPoeRecommendation(selectedTemplate, cameraData.powerConsumption);
+          
+          return (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-4">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm">
-                Câmera requer {cameraData.powerConsumption}W ({getPoeClass(cameraData.powerConsumption)})
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Zap className="w-4 h-4" />
+                <span className="text-sm">
+                  Câmera requer {cameraData.powerConsumption}W
+                </span>
+              </div>
+              <Badge variant="outline" className="bg-primary/10">
+                Mínimo: {poeRecommendation.minPoeClassLabel} ({poeRecommendation.minPortWatts}W)
+              </Badge>
             </div>
+            
+            {poeRecommendation.warning && (
+              <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{poeRecommendation.warning}</AlertDescription>
+              </Alert>
+            )}
             
             {/* Power source selection */}
             <RadioGroup value={powerSource} onValueChange={setPowerSource} className="space-y-3">
@@ -963,26 +982,56 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                             )}
                           </div>
                           
-                          {selectedSwitchId === sw.id && (
+                          {selectedSwitchId === sw.id && (() => {
+                            // Filter ports that can power this camera
+                            const compatiblePorts = sw.availablePorts.filter(port => 
+                              canPortPowerCamera(port.port_type, cameraData.powerConsumption)
+                            );
+                            const incompatiblePorts = sw.availablePorts.filter(port => 
+                              !canPortPowerCamera(port.port_type, cameraData.powerConsumption)
+                            );
+                            
+                            return (
                             <div className="mt-4 pt-4 border-t">
                               <Label className="text-xs mb-2 block">Selecione a Porta:</Label>
-                              <div className="flex flex-wrap gap-2">
-                                {sw.availablePorts.map(port => (
-                                  <Button
-                                    key={port.id}
-                                    size="sm"
-                                    variant={selectedPortId === port.id ? 'default' : 'outline'}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedPortId(port.id);
-                                    }}
-                                  >
-                                    {port.name}
-                                  </Button>
-                                ))}
-                              </div>
+                              {compatiblePorts.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {compatiblePorts.map(port => {
+                                    const marginStatus = getPoeMarginStatus(port.port_type, cameraData.powerConsumption);
+                                    return (
+                                      <Button
+                                        key={port.id}
+                                        size="sm"
+                                        variant={selectedPortId === port.id ? 'default' : 'outline'}
+                                        className={selectedPortId !== port.id ? (
+                                          marginStatus === 'sufficient' 
+                                            ? 'border-green-500/50 hover:border-green-500' 
+                                            : 'border-yellow-500/50 hover:border-yellow-500'
+                                        ) : ''}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedPortId(port.id);
+                                        }}
+                                      >
+                                        {port.name}
+                                        {marginStatus === 'sufficient' && <span className="ml-1 text-green-500">✓</span>}
+                                        {marginStatus === 'borderline' && <span className="ml-1 text-yellow-500">⚠</span>}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-destructive">
+                                  Nenhuma porta com capacidade suficiente ({cameraData.powerConsumption}W)
+                                </p>
+                              )}
+                              {incompatiblePorts.length > 0 && compatiblePorts.length > 0 && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  {incompatiblePorts.length} porta(s) incompatível(is) ocultada(s)
+                                </p>
+                              )}
                             </div>
-                          )}
+                          );})()}
                         </CardContent>
                       </Card>
                     ))}
@@ -1096,7 +1145,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
               </div>
             )}
           </div>
-        )}
+        );})()}
         
         {/* Navigation */}
         <div className="flex justify-between pt-4 border-t">
