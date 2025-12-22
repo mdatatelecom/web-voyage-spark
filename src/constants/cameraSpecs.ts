@@ -32,6 +32,7 @@ export const CAMERA_MANUFACTURERS = [
   { id: 'intelbras', name: 'Intelbras', color: '#00a859', logo: '🟢' },
   { id: 'axis', name: 'Axis', color: '#ffcc00', logo: '🟡' },
   { id: 'hanwha', name: 'Hanwha/Samsung', color: '#1428a0', logo: '🔷' },
+  { id: 'giga', name: 'Giga Security', color: '#0066cc', logo: '🔷' },
   { id: 'other', name: 'Outro', color: '#6b7280', logo: '⚪' },
 ] as const;
 
@@ -93,11 +94,37 @@ export const CAMERA_TEMPLATES: CameraTemplate[] = [
   { id: 'dh_ipcsd5a425', manufacturer: 'Dahua', model: 'SD5A425XA-HNR', resolution: '4mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 45, hasIR: true, irRange: 150, hasAudio: true, hasSD: true, connectionType: 'ip' },
   { id: 'dh_ipchdbw3441', manufacturer: 'Dahua', model: 'IPC-HDBW3441E-AS', resolution: '4mp', codec: 'h265+', cameraType: 'dome', poeClass: 'af', powerConsumption: 7, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
   
-  // Intelbras IP
+  // Intelbras IP - Linha existente
   { id: 'int_vip3240ia', manufacturer: 'Intelbras', model: 'VIP 3240 IA', resolution: '2mp', codec: 'h265', cameraType: 'bullet', poeClass: 'af', powerConsumption: 8, hasIR: true, irRange: 40, hasAudio: false, hasSD: true, connectionType: 'ip' },
   { id: 'int_vip5450z', manufacturer: 'Intelbras', model: 'VIP 5450 Z', resolution: '4mp', codec: 'h265+', cameraType: 'dome', poeClass: 'af', powerConsumption: 10, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
   { id: 'int_vip5880bia', manufacturer: 'Intelbras', model: 'VIP 5880 B IA', resolution: '8mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'at', powerConsumption: 15, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
   { id: 'int_vip7280ia', manufacturer: 'Intelbras', model: 'VIP 7280 IA', resolution: '2mp', codec: 'h265', cameraType: 'dome', poeClass: 'af', powerConsumption: 8, hasIR: true, irRange: 30, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  
+  // Intelbras VIP - Entry Level G5
+  { id: 'int_vip1230bg5', manufacturer: 'Intelbras', model: 'VIP 1230 B G5', resolution: '2mp', codec: 'h265', cameraType: 'bullet', poeClass: 'af', powerConsumption: 8, hasIR: true, irRange: 30, hasAudio: false, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip1230dg5', manufacturer: 'Intelbras', model: 'VIP 1230 D G5', resolution: '2mp', codec: 'h265', cameraType: 'dome', poeClass: 'af', powerConsumption: 8, hasIR: true, irRange: 30, hasAudio: false, hasSD: true, connectionType: 'ip' },
+  
+  // Intelbras VIP - Starlight Series
+  { id: 'int_vip3230bsl', manufacturer: 'Intelbras', model: 'VIP 3230 B SL G3', resolution: '2mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 10, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip3430bsl', manufacturer: 'Intelbras', model: 'VIP 3430 B SL G2', resolution: '4mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 12, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip3830bia', manufacturer: 'Intelbras', model: 'VIP 3830 B IA', resolution: '8mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'at', powerConsumption: 14, hasIR: true, irRange: 50, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  
+  // Intelbras VIP - LPR (Leitura de Placas)
+  { id: 'int_vip5460lpria', manufacturer: 'Intelbras', model: 'VIP 5460 LPR IA', resolution: '4mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'at', powerConsumption: 15, hasIR: true, irRange: 60, hasAudio: false, hasSD: true, connectionType: 'ip' },
+  
+  // Intelbras VIPC - Cost Effective Series
+  { id: 'int_vipc1230bg2', manufacturer: 'Intelbras', model: 'VIPC 1230 B G2', resolution: '2mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 6, hasIR: true, irRange: 30, hasAudio: false, hasSD: false, connectionType: 'ip' },
+  { id: 'int_vipc1230dg2', manufacturer: 'Intelbras', model: 'VIPC 1230 D G2', resolution: '2mp', codec: 'h265+', cameraType: 'dome', poeClass: 'af', powerConsumption: 6, hasIR: true, irRange: 30, hasAudio: false, hasSD: false, connectionType: 'ip' },
+  { id: 'int_vipc1320bg2', manufacturer: 'Intelbras', model: 'VIPC 1320 B G2', resolution: '4mp', codec: 'h265+', cameraType: 'bullet', poeClass: 'af', powerConsumption: 7, hasIR: true, irRange: 30, hasAudio: false, hasSD: false, connectionType: 'ip' },
+  
+  // Intelbras PTZ / Speed Dome
+  { id: 'int_vip5215sd', manufacturer: 'Intelbras', model: 'VIP 5215 SD', resolution: '2mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'at', powerConsumption: 25, hasIR: true, irRange: 100, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip7225ptz', manufacturer: 'Intelbras', model: 'VIP 7225 PTZ FT', resolution: '2mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 50, hasIR: true, irRange: 150, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip5425sd', manufacturer: 'Intelbras', model: 'VIP 5425 SD Dual IA FT', resolution: '4mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 55, hasIR: true, irRange: 200, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  { id: 'int_vip9440ptz', manufacturer: 'Intelbras', model: 'VIP 9440 PTZ IA FT G2', resolution: '4mp', codec: 'h265+', cameraType: 'ptz', poeClass: 'bt', powerConsumption: 60, hasIR: true, irRange: 250, hasAudio: true, hasSD: true, connectionType: 'ip' },
+  
+  // Giga Security PTZ
+  { id: 'gs_gs500_2mp', manufacturer: 'Giga Security', model: 'GS500 PTZ 2MP', resolution: '2mp', codec: 'h265', cameraType: 'ptz', poeClass: 'at', powerConsumption: 24, hasIR: true, irRange: 100, hasAudio: true, hasSD: true, connectionType: 'ip' },
   
   // Axis IP
   { id: 'axis_p3245v', manufacturer: 'Axis', model: 'P3245-V', resolution: '2mp', codec: 'h265', cameraType: 'dome', poeClass: 'af', powerConsumption: 7, hasIR: false, hasAudio: true, hasSD: true, connectionType: 'ip' },
