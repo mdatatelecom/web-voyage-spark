@@ -12,6 +12,7 @@ interface User {
   full_name?: string;
   phone?: string;
   avatar_url?: string;
+  avatar_updated_at?: string;
 }
 
 export const useUsers = () => {
@@ -41,7 +42,7 @@ export const useUsers = () => {
       // Get profiles for all users
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, phone, avatar_url');
+        .select('id, full_name, phone, avatar_url, avatar_updated_at');
 
       if (profilesError) throw profilesError;
 
@@ -58,6 +59,7 @@ export const useUsers = () => {
           full_name: profile?.full_name || '',
           phone: profile?.phone || '',
           avatar_url: profile?.avatar_url || '',
+          avatar_updated_at: profile?.avatar_updated_at || undefined,
         };
       });
 

@@ -16,26 +16,72 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useUsers, UserRole } from '@/hooks/useUsers';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
 import { UserCreateDialog } from '@/components/users/UserCreateDialog';
 import { UserEditDialog } from '@/components/users/UserEditDialog';
-import { Plus, X, UserPlus, Pencil, User } from 'lucide-react';
+import { Plus, X, UserPlus, Pencil, User, Download, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export default function Users() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
+  const { fetchAndUpdateProfilePicture } = useWhatsAppProfilePicture();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isBatchFetching, setIsBatchFetching] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
     email: string;
     full_name?: string;
     phone?: string;
+    avatar_url?: string;
+    avatar_updated_at?: string;
   } | null>(null);
+
+  // Calculate users without avatar
+  const usersWithoutAvatar = users?.filter(u => !u.avatar_url && u.phone) || [];
+
+  const handleBatchFetchPhotos = async () => {
+    if (!users || usersWithoutAvatar.length === 0) {
+      toast.info('Todos os usuários com telefone já possuem foto');
+      return;
+    }
+    
+    setIsBatchFetching(true);
+    setBatchProgress({ current: 0, total: usersWithoutAvatar.length });
+    
+    let success = 0;
+    let failed = 0;
+    
+    for (let i = 0; i < usersWithoutAvatar.length; i++) {
+      const user = usersWithoutAvatar[i];
+      setBatchProgress({ current: i + 1, total: usersWithoutAvatar.length });
+      
+      try {
+        const result = await fetchAndUpdateProfilePicture(user.id, user.phone!, true);
+        if (result) success++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+      
+      // Delay entre requisições para não sobrecarregar a API
+      if (i < usersWithoutAvatar.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    
+    setIsBatchFetching(false);
+    queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    
+    toast.success(`Busca concluída: ${success} sucesso, ${failed} falhas`);
+  };
 
   const getRoleBadgeColor = (role: UserRole) => {
     const colors = {
@@ -130,6 +176,23 @@ export default function Users() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleBatchFetchPhotos}
+              disabled={isBatchFetching || usersWithoutAvatar.length === 0}
+            >
+              {isBatchFetching ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {batchProgress.current}/{batchProgress.total}
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Buscar Fotos ({usersWithoutAvatar.length})
+                </>
+              )}
+            </Button>
             <Button onClick={() => setCreateDialogOpen(true)}>
               <UserPlus className="w-4 h-4 mr-2" />
               Cadastrar Usuário
