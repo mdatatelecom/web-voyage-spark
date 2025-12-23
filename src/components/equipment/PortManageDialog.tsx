@@ -35,7 +35,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
 import { compressImage, formatBytes } from '@/lib/image-utils';
-import { Upload, X, MapPin } from 'lucide-react';
+import { Upload, X, MapPin, Camera, ImageIcon } from 'lucide-react';
 
 interface PortNotesData {
   location_image_url?: string;
@@ -51,8 +51,9 @@ interface PortManageDialogProps {
 }
 
 export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: PortManageDialogProps) => {
-  const queryClient = useQueryClient();
+const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(port ? 'single' : 'batch');
@@ -480,6 +481,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
                 {/* Location Image Upload */}
                 <div className="space-y-2">
                   <Label>Foto do Local</Label>
+                  {/* Hidden input for gallery/file picker */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -487,8 +489,24 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
                     onChange={handleImageUpload}
                     className="hidden"
                   />
+                  {/* Hidden input for camera capture (mobile) */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
                   
-                  {imagePreview ? (
+                  {uploading ? (
+                    <div className="flex items-center justify-center h-16 border border-dashed rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm text-muted-foreground">Enviando...</span>
+                      </div>
+                    </div>
+                  ) : imagePreview ? (
                     <div className="relative">
                       <img
                         src={imagePreview}
@@ -506,18 +524,33 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      variant="outline"
-                      className="w-full h-16 border-dashed"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      type="button"
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <Upload className="w-5 h-5" />
-                        <span className="text-xs">{uploading ? 'Enviando...' : 'Clique para enviar foto'}</span>
-                      </div>
-                    </Button>
+                    <div className="flex gap-2">
+                      {/* Button to take photo (opens camera on mobile) */}
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-16 border-dashed"
+                        onClick={() => cameraInputRef.current?.click()}
+                        type="button"
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <Camera className="w-5 h-5" />
+                          <span className="text-xs">Tirar Foto</span>
+                        </div>
+                      </Button>
+                      
+                      {/* Button to choose from gallery */}
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-16 border-dashed"
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <ImageIcon className="w-5 h-5" />
+                          <span className="text-xs">Galeria</span>
+                        </div>
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
