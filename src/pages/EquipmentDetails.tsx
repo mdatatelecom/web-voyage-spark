@@ -18,6 +18,7 @@ import { LocationGallery } from '@/components/equipment/LocationGallery';
 import { OrphanImagesCleanup } from '@/components/equipment/OrphanImagesCleanup';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import {
@@ -596,9 +597,27 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                   {paginatedPorts.map((port: any) => {
                     const portType = PORT_TYPES.find(pt => pt.value === port.port_type);
                     const PortIcon = portType?.icon;
+                    const portNotes = parseEquipmentNotes(port.notes);
+                    const hasLocationPhoto = !!extractLocationPhotoUrl(portNotes);
                     return (
                       <TableRow key={port.id}>
-                        <TableCell className="font-medium">{port.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {port.name}
+                            {hasLocationPhoto && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Camera className="w-4 h-4 text-green-500 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Foto de localização salva</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {PortIcon && <PortIcon className="w-4 h-4 text-muted-foreground" />}
