@@ -288,9 +288,6 @@ export default function CameraMap() {
                   <List className="w-4 h-4" />
                 </Button>
               </div>
-                <X className="w-4 h-4" />
-                Limpar
-              </Button>
             </div>
             
             {/* Second row: manufacturer filter */}
