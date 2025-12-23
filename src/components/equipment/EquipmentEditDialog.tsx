@@ -187,18 +187,22 @@ export function EquipmentEditDialog({
     
     if (isCamera) {
       // For cameras, store location data in notes as JSON
+      // Save BOTH key formats for maximum compatibility
       const existingNotes = parseNotesData(equipment.notes || null);
-      const notesData: EquipmentNotesData = {
+      const notesData: Record<string, any> = {
         ...existingNotes,
+        // Save in both formats for compatibility
         location_image_url: locationImageUrl || undefined,
+        locationPhotoUrl: locationImageUrl || undefined,
         location_description: locationDescription || undefined,
+        locationDescription: locationDescription || undefined,
         text: formData.notes || undefined,
       };
       
       // Clean up undefined values
       Object.keys(notesData).forEach(key => {
-        if (notesData[key as keyof EquipmentNotesData] === undefined) {
-          delete notesData[key as keyof EquipmentNotesData];
+        if (notesData[key] === undefined) {
+          delete notesData[key];
         }
       });
       

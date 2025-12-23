@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PortManageDialog } from '@/components/equipment/PortManageDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
 import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
@@ -15,7 +16,7 @@ import { PlanCameraDialog } from '@/components/equipment/PlanCameraDialog';
 import { PortLocationDialog } from '@/components/equipment/PortLocationDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Plus, MoreHorizontal, Trash2, MapPin } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import {
   DropdownMenu,
@@ -25,6 +26,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEquipment } from '@/hooks/useEquipment';
 import { PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, EQUIPMENT_STATUS_OPTIONS, AIRFLOW_OPTIONS } from '@/constants/equipmentTypes';
+
+// Parse equipment notes safely
+const parseEquipmentNotes = (notes: string | null): Record<string, any> => {
+  if (!notes) return {};
+  try {
+    return typeof notes === 'string' ? JSON.parse(notes) : notes;
+  } catch {
+    return {};
+  }
+};
+
+// Extract location photo URL from notes (supports multiple key formats)
+const extractLocationPhotoUrl = (notes: Record<string, any>): string | undefined => {
+  return notes.location_image_url || 
+         notes.locationPhotoUrl || 
+         notes.location_photo_url ||
+         notes.locationImageUrl ||
+         undefined;
+};
+
+// Extract location description from notes
+const extractLocationDescription = (notes: Record<string, any>): string | undefined => {
+  return notes.location_description || 
+         notes.locationDescription ||
+         undefined;
+};
 
 export default function EquipmentDetails() {
   const { id } = useParams();
@@ -42,6 +69,7 @@ export default function EquipmentDetails() {
   const [selectedChannel, setSelectedChannel] = useState<number>(1);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [selectedPortForLocation, setSelectedPortForLocation] = useState<any>(null);
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
@@ -388,6 +416,61 @@ export default function EquipmentDetails() {
           </Card>
 
           <div className="md:col-span-3 space-y-4">
+            {/* Camera Location Card - only for IP Cameras */}
+            {equipment?.type === 'ip_camera' && (() => {
+              const notes = parseEquipmentNotes(equipment.notes);
+              const locationPhotoUrl = extractLocationPhotoUrl(notes);
+              const locationDescription = extractLocationDescription(notes);
+              
+              if (!locationPhotoUrl && !locationDescription) return null;
+              
+              return (
+                <Card className="p-6">
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Localização da Câmera
+                  </h2>
+                  
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {locationPhotoUrl && (
+                      <div className="relative group">
+                        <img
+                          src={locationPhotoUrl}
+                          alt="Localização da câmera"
+                          className="w-full h-48 object-cover rounded-lg border cursor-pointer"
+                          onClick={() => setImageZoomOpen(true)}
+                        />
+                        <div 
+                          className="absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg cursor-pointer"
+                          onClick={() => setImageZoomOpen(true)}
+                        >
+                          <ZoomIn className="w-8 h-8" />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                      {locationDescription && (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Descrição do Local</p>
+                          <p className="text-sm">{locationDescription}</p>
+                        </div>
+                      )}
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/cameras/map?search=${encodeURIComponent(equipment.name)}`)}
+                      >
+                        <Camera className="w-4 h-4 mr-2" />
+                        Abrir no Mapa de Câmeras
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })()}
+
             {/* NVR Channel Grid - only for NVR equipment */}
             {equipment?.type === 'nvr' && (
               <NvrChannelGrid 
@@ -615,6 +698,31 @@ export default function EquipmentDetails() {
           onOpenChange={setLocationDialogOpen}
           port={selectedPortForLocation}
         />
+
+        {/* Camera Location Image Zoom Dialog */}
+        {equipment?.type === 'ip_camera' && (() => {
+          const notes = parseEquipmentNotes(equipment.notes);
+          const locationPhotoUrl = extractLocationPhotoUrl(notes);
+          if (!locationPhotoUrl) return null;
+          
+          return (
+            <Dialog open={imageZoomOpen} onOpenChange={setImageZoomOpen}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Localização de {equipment.name}
+                  </DialogTitle>
+                </DialogHeader>
+                <img
+                  src={locationPhotoUrl}
+                  alt="Localização da câmera"
+                  className="w-full max-h-[70vh] object-contain rounded-lg"
+                />
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
       </div>
     </AppLayout>
   );
