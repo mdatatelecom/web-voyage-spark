@@ -78,12 +78,28 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
       setActiveTab('single');
       
       const notesData = parseNotes(port.notes);
-      setLocationDescription(notesData.location_description || '');
-      setLocationImageUrl(notesData.location_image_url || '');
-      setImagePreview(notesData.location_image_url || null);
-      
+      const photoUrl =
+        notesData.location_image_url ||
+        notesData.locationPhotoUrl ||
+        notesData.location_photo_url ||
+        notesData.locationImageUrl ||
+        '';
+      const desc = notesData.location_description || notesData.locationDescription || '';
+
+      setLocationDescription(desc);
+      setLocationImageUrl(photoUrl);
+      setImagePreview(photoUrl || null);
+
       // Keep other notes data in the notes field
-      const { location_image_url, location_description, ...otherNotes } = notesData;
+      const {
+        location_image_url,
+        locationPhotoUrl,
+        location_photo_url,
+        locationImageUrl,
+        location_description,
+        locationDescription,
+        ...otherNotes
+      } = notesData;
       setNotes(Object.keys(otherNotes).length > 0 ? JSON.stringify(otherNotes) : '');
     } else {
       setName('');
@@ -169,8 +185,12 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
 
       const notesData: PortNotesData = {
         ...existingNotesData,
+        // Save in multiple key formats for compatibility across the app
         location_image_url: locationImageUrl || undefined,
+        locationPhotoUrl: locationImageUrl || undefined,
+        locationImageUrl: locationImageUrl || undefined,
         location_description: locationDescription || undefined,
+        locationDescription: locationDescription || undefined,
       };
 
       const notesJson = Object.keys(notesData).some(k => notesData[k]) 
@@ -282,7 +302,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   };
 
   const isSaveDisabled = () => {
-    if (loading) return true;
+    if (loading || uploading) return true;
     if (port || activeTab === 'single') {
       return !name;
     }
@@ -290,6 +310,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   };
 
   const getSaveButtonLabel = () => {
+    if (uploading) return 'Enviando imagem...';
     if (port) return 'Atualizar';
     if (activeTab === 'single') return 'Criar Porta';
     return `Criar ${quantity} Portas`;
