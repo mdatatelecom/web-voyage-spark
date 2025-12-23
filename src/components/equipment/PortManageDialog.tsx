@@ -307,7 +307,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
+        <ScrollArea className="flex-1 px-6" type="always">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full py-4">
             {!port && (
               <TabsList className="grid w-full grid-cols-2 mb-4">

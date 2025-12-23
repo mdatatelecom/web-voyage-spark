@@ -62,13 +62,13 @@ export default function EquipmentDetails() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const portsPerPage = 20;
-  const [portDialogOpen, setPortDialogOpen] = useState(false);
+const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedPort, setSelectedPort] = useState<any>(null);
+  const [selectedPortId, setSelectedPortId] = useState<string | null>(null);
   const [planCameraDialogOpen, setPlanCameraDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<number>(1);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
-  const [selectedPortForLocation, setSelectedPortForLocation] = useState<any>(null);
+  const [selectedPortIdForLocation, setSelectedPortIdForLocation] = useState<string | null>(null);
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
@@ -132,6 +132,17 @@ export default function EquipmentDetails() {
     },
     enabled: !!id
   });
+
+  // Derive selected ports from equipment data to always get updated data
+  const selectedPort = useMemo(() => {
+    if (!selectedPortId || !equipment?.ports) return null;
+    return equipment.ports.find((p: any) => p.id === selectedPortId) || null;
+  }, [selectedPortId, equipment?.ports]);
+  
+  const selectedPortForLocation = useMemo(() => {
+    if (!selectedPortIdForLocation || !equipment?.ports) return null;
+    return equipment.ports.find((p: any) => p.id === selectedPortIdForLocation) || null;
+  }, [selectedPortIdForLocation, equipment?.ports]);
 
   const filteredPorts = equipment?.ports?.filter((port: any) => {
     const matchesStatus = statusFilter === 'all' || port.status === statusFilter;
@@ -278,7 +289,7 @@ export default function EquipmentDetails() {
               </AlertDialogContent>
             </AlertDialog>
             <Button onClick={() => {
-              setSelectedPort(null);
+              setSelectedPortId(null);
               setPortDialogOpen(true);
             }}>
               <Plus className="w-4 h-4 mr-2" />
@@ -610,11 +621,11 @@ export default function EquipmentDetails() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => {
-                              setSelectedPort(port);
+                              setSelectedPortId(port.id);
                               setPortDialogOpen(true);
                             }}>Editar Porta</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => {
-                              setSelectedPortForLocation(port);
+                              setSelectedPortIdForLocation(port.id);
                               setLocationDialogOpen(true);
                             }}>
                               <MapPin className="w-4 h-4 mr-2" />
