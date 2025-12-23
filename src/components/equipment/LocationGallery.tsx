@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Search, ImageIcon, ChevronLeft, ChevronRight, X, ExternalLink, Camera } from 'lucide-react';
+import { Search, ImageIcon, ChevronLeft, ChevronRight, ExternalLink, Camera } from 'lucide-react';
 
 interface Port {
   id: string;
@@ -92,17 +92,42 @@ export const LocationGallery = ({ ports, onPortClick }: LocationGalleryProps) =>
 
   const selectedPort = selectedIndex !== null ? filteredPorts[selectedIndex] : null;
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (selectedIndex !== null && selectedIndex > 0) {
       setSelectedIndex(selectedIndex - 1);
     }
-  };
+  }, [selectedIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (selectedIndex !== null && selectedIndex < filteredPorts.length - 1) {
       setSelectedIndex(selectedIndex + 1);
     }
-  };
+  }, [selectedIndex, filteredPorts.length]);
+
+  const handleClose = useCallback(() => {
+    setSelectedIndex(null);
+  }, []);
+
+  // Keyboard navigation for fullscreen preview
+  useEffect(() => {
+    if (selectedIndex === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIndex, handlePrevious, handleNext, handleClose]);
 
   const handleImageError = (portId: string) => {
     setImageErrors(prev => new Set(prev).add(portId));
@@ -214,73 +239,100 @@ export const LocationGallery = ({ ports, onPortClick }: LocationGalleryProps) =>
         </div>
       )}
 
-      {/* Zoom Modal */}
-      <Dialog open={selectedIndex !== null} onOpenChange={(open) => !open && setSelectedIndex(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5" />
-                {selectedPort?.name}
+      {/* Fullscreen Preview Modal */}
+      <Dialog open={selectedIndex !== null} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent className="w-screen h-screen max-w-none max-h-none p-0 bg-black border-none rounded-none [&>button]:hidden">
+          {/* Header overlay */}
+          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Camera className="w-5 h-5 text-white" />
+                <span className="text-white font-medium">{selectedPort?.name}</span>
                 {selectedPort && (
-                  <Badge className={getStatusConfig(selectedPort.status).color}>
+                  <Badge className={`${getStatusConfig(selectedPort.status).color} text-white`}>
                     {getStatusConfig(selectedPort.status).label}
                   </Badge>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground font-normal">
+                <span className="text-white/80 text-sm">
                   {selectedIndex !== null ? selectedIndex + 1 : 0} / {filteredPorts.length}
                 </span>
                 {selectedPort?.imageUrl && (
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="text-white hover:bg-white/20"
                     onClick={() => window.open(selectedPort.imageUrl, '_blank')}
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-5 h-5" />
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20"
+                  onClick={handleClose}
+                >
+                  <span className="sr-only">Fechar</span>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Button>
               </div>
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="relative flex items-center justify-center bg-black/5 min-h-[400px]">
-            {/* Navigation buttons */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-2 z-10 bg-background/80 hover:bg-background"
-              onClick={handlePrevious}
-              disabled={selectedIndex === 0}
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-            
+            </div>
+          </div>
+
+          {/* Image container */}
+          <div className="w-full h-full flex items-center justify-center">
             {selectedPort && (
               <img
                 src={selectedPort.imageUrl}
                 alt={`Localização ${selectedPort.name}`}
-                className="max-w-full max-h-[60vh] object-contain"
+                className="max-w-full max-h-full object-contain select-none"
+                draggable={false}
               />
             )}
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 z-10 bg-background/80 hover:bg-background"
-              onClick={handleNext}
-              disabled={selectedIndex === filteredPorts.length - 1}
-            >
-              <ChevronRight className="w-6 h-6" />
-            </Button>
           </div>
+
+          {/* Navigation buttons */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 text-white disabled:opacity-30"
+            onClick={handlePrevious}
+            disabled={selectedIndex === 0}
+          >
+            <ChevronLeft className="w-8 h-8" />
+          </Button>
           
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 text-white disabled:opacity-30"
+            onClick={handleNext}
+            disabled={selectedIndex === filteredPorts.length - 1}
+          >
+            <ChevronRight className="w-8 h-8" />
+          </Button>
+
+          {/* Footer overlay with description */}
           {selectedPort?.description && (
-            <div className="p-4 border-t">
-              <p className="text-sm text-muted-foreground">{selectedPort.description}</p>
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10">
+              <p className="text-white/90 text-sm text-center max-w-2xl mx-auto">
+                {selectedPort.description}
+              </p>
             </div>
           )}
+
+          {/* Keyboard hints */}
+          <div className="absolute bottom-4 right-4 z-10 hidden md:flex items-center gap-2 text-white/50 text-xs">
+            <kbd className="px-2 py-1 bg-white/10 rounded">←</kbd>
+            <kbd className="px-2 py-1 bg-white/10 rounded">→</kbd>
+            <span>navegar</span>
+            <kbd className="px-2 py-1 bg-white/10 rounded ml-2">ESC</kbd>
+            <span>fechar</span>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

@@ -355,7 +355,7 @@ const queryClient = useQueryClient();
   return (
     <>
     <Dialog open={open} onOpenChange={handleDialogClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col p-0">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle>{port ? 'Editar Porta' : 'Adicionar Portas'}</DialogTitle>
           <DialogDescription>
@@ -365,7 +365,7 @@ const queryClient = useQueryClient();
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6" type="always">
+        <ScrollArea className="flex-1 min-h-0 px-6 overflow-y-auto" type="always" style={{ WebkitOverflowScrolling: 'touch' }}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full py-4">
             {!port && (
               <TabsList className="grid w-full grid-cols-2 mb-4">
