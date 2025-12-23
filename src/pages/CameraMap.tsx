@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useCameras, type CameraData } from '@/hooks/useCameras';
@@ -28,19 +29,33 @@ const STATUS_CONFIG = {
 
 export default function CameraMap() {
   const navigate = useNavigate();
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('');
-  const [selectedFloorId, setSelectedFloorId] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize state from URL params
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>(searchParams.get('buildingId') || '');
+  const [selectedFloorId, setSelectedFloorId] = useState<string>(searchParams.get('floorId') || '');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [manufacturerFilter, setManufacturerFilter] = useState<string>('all');
   const [selectedCamera, setSelectedCamera] = useState<CameraData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [cameraToEdit, setCameraToEdit] = useState<CameraData | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   const { buildings } = useBuildings();
   const { floors } = useFloors(selectedBuildingId);
   const { data: cameras, isLoading, refetch } = useCameras(selectedBuildingId, selectedFloorId);
   const { updateEquipment, isUpdating } = useEquipment();
+  
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedBuildingId) params.set('buildingId', selectedBuildingId);
+    if (selectedFloorId) params.set('floorId', selectedFloorId);
+    if (searchTerm) params.set('search', searchTerm);
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    setSearchParams(params, { replace: true });
+  }, [selectedBuildingId, selectedFloorId, searchTerm, statusFilter, setSearchParams]);
   
   // Fetch NVRs with channel information
   const { data: nvrs } = useQuery({
@@ -253,6 +268,29 @@ export default function CameraMap() {
                 <X className="w-4 h-4" />
                 Limpar
               </Button>
+              
+              {/* View Mode Toggle */}
+              <div className="flex border rounded-md">
+                <Button 
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                  className="rounded-r-none"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant={viewMode === 'list' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-l-none"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+                <X className="w-4 h-4" />
+                Limpar
+              </Button>
             </div>
             
             {/* Second row: manufacturer filter */}
@@ -334,7 +372,74 @@ export default function CameraMap() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {Object.values(camerasByRoom).map(({ room, cameras: roomCameras }) => (
+              {viewMode === 'list' ? (
+                /* List View */
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">Foto</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Fabricante</TableHead>
+                        <TableHead>IP</TableHead>
+                        <TableHead>Localização</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCameras.map(camera => {
+                        const statusConfig = getStatusConfig(camera.equipment_status);
+                        const StatusIcon = statusConfig.icon;
+                        return (
+                          <TableRow key={camera.id}>
+                            <TableCell>
+                              {camera.location_photo_url ? (
+                                <img 
+                                  src={camera.location_photo_url} 
+                                  alt={camera.name}
+                                  className="w-12 h-12 object-cover rounded"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                                  <Camera className="w-5 h-5 text-muted-foreground" />
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">{camera.name}</TableCell>
+                            <TableCell>
+                              <div className={`flex items-center gap-1.5 ${statusConfig.textColor}`}>
+                                <StatusIcon className="w-4 h-4" />
+                                {statusConfig.label}
+                              </div>
+                            </TableCell>
+                            <TableCell>{camera.manufacturer || '-'}</TableCell>
+                            <TableCell className="font-mono text-sm">{camera.ip_address || '-'}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {camera.rack.room.name} • {camera.rack.room.floor.name}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" onClick={() => setSelectedCamera(camera)}>
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleEditCamera(camera)}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => navigate(`/equipment/${camera.id}`)}>
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              ) : (
+                /* Grid View */
+                Object.values(camerasByRoom).map(({ room, cameras: roomCameras }) => (
                 <Card key={room.id}>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -404,7 +509,8 @@ export default function CameraMap() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              ))
+              )}
             </div>
           )}
         </ScrollArea>

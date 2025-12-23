@@ -28,8 +28,36 @@ export interface CameraData {
     };
   };
   location_photo_url?: string;
+  location_description?: string;
   connection_type?: string;
 }
+
+// Safely parse notes JSON with fallback
+const parseNotesData = (notesStr: string | null): Record<string, any> => {
+  if (!notesStr) return {};
+  try {
+    const parsed = typeof notesStr === 'string' ? JSON.parse(notesStr) : notesStr;
+    return parsed || {};
+  } catch {
+    return {};
+  }
+};
+
+// Extract location photo URL from notes (supports multiple key formats)
+const extractLocationPhotoUrl = (notes: Record<string, any>): string | undefined => {
+  return notes.location_image_url || 
+         notes.locationPhotoUrl || 
+         notes.location_photo_url ||
+         notes.locationImageUrl ||
+         undefined;
+};
+
+// Extract location description from notes
+const extractLocationDescription = (notes: Record<string, any>): string | undefined => {
+  return notes.location_description || 
+         notes.locationDescription ||
+         undefined;
+};
 
 export function useCameras(buildingId?: string, floorId?: string, roomId?: string) {
   return useQuery({
@@ -75,7 +103,7 @@ export function useCameras(buildingId?: string, floorId?: string, roomId?: strin
       
       // Transform nested data structure
       let cameras: CameraData[] = (data || []).map((item: any) => {
-        const notes = item.notes ? (typeof item.notes === 'string' ? JSON.parse(item.notes) : item.notes) : {};
+        const notes = parseNotesData(item.notes);
         return {
           id: item.id,
           name: item.name,
@@ -102,8 +130,9 @@ export function useCameras(buildingId?: string, floorId?: string, roomId?: strin
               },
             },
           },
-          location_photo_url: notes.locationPhotoUrl,
-          connection_type: notes.connectionType || 'ip',
+          location_photo_url: extractLocationPhotoUrl(notes),
+          location_description: extractLocationDescription(notes),
+          connection_type: notes.connectionType || notes.connection_type || 'ip',
         };
       });
       
@@ -166,7 +195,7 @@ export function useCamerasByRoom() {
       
       (data || []).forEach((item: any) => {
         const roomId = item.racks.rooms.id;
-        const notes = item.notes ? (typeof item.notes === 'string' ? JSON.parse(item.notes) : item.notes) : {};
+        const notes = parseNotesData(item.notes);
         
         if (!roomMap.has(roomId)) {
           roomMap.set(roomId, {
@@ -192,8 +221,9 @@ export function useCamerasByRoom() {
           manufacturer: item.manufacturer,
           model: item.model,
           equipment_status: item.equipment_status,
-          location_photo_url: notes.locationPhotoUrl,
-          connection_type: notes.connectionType || 'ip',
+          location_photo_url: extractLocationPhotoUrl(notes),
+          location_description: extractLocationDescription(notes),
+          connection_type: notes.connectionType || notes.connection_type || 'ip',
         });
       });
       
