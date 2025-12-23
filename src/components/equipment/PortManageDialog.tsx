@@ -7,6 +7,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +34,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { PORT_TYPES, PORT_TYPE_CATEGORIES } from '@/constants/equipmentTypes';
+import { compressImage, formatBytes } from '@/lib/image-utils';
 import { Upload, X, MapPin } from 'lucide-react';
 
 interface PortNotesData {
@@ -45,6 +56,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(port ? 'single' : 'batch');
+  const [showCloseWarning, setShowCloseWarning] = useState(false);
 
   // Single port form
   const [name, setName] = useState(port?.name || '');
@@ -115,26 +127,32 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
     }
   }, [port, open]);
 
-  // Handle image upload
+  // Handle image upload with compression
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `port-locations/${equipmentId}/${Date.now()}.${fileExt}`;
+      // Compress image before upload
+      const { file: compressedFile, originalSize, compressedSize } = await compressImage(file, {
+        maxWidth: 1920,
+        maxHeight: 1080,
+        quality: 0.8
+      });
+
+      // Preview with compressed file
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(compressedFile);
+
+      const fileName = `port-locations/${equipmentId}/${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('public')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, compressedFile, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -143,7 +161,9 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
         .getPublicUrl(fileName);
 
       setLocationImageUrl(urlData.publicUrl);
-      toast.success('Imagem enviada com sucesso!');
+      
+      const savedPercent = Math.round((1 - compressedSize / originalSize) * 100);
+      toast.success(`Imagem enviada! (${formatBytes(originalSize)} → ${formatBytes(compressedSize)}, -${savedPercent}%)`);
     } catch (error: any) {
       toast.error(`Erro ao enviar imagem: ${error.message}`);
       setImagePreview(locationImageUrl || null);
@@ -316,8 +336,24 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
     return `Criar ${quantity} Portas`;
   };
 
+  // Handle dialog close with upload warning
+  const handleDialogClose = (newOpen: boolean) => {
+    if (!newOpen && uploading) {
+      setShowCloseWarning(true);
+      return;
+    }
+    onOpenChange(newOpen);
+  };
+
+  const forceClose = () => {
+    setShowCloseWarning(false);
+    setUploading(false);
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={handleDialogClose}>
       <DialogContent className="max-w-lg max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b shrink-0">
           <DialogTitle>{port ? 'Editar Porta' : 'Adicionar Portas'}</DialogTitle>
@@ -589,7 +625,7 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
         </ScrollArea>
 
         <DialogFooter className="p-6 pt-4 border-t shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => handleDialogClose(false)}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={isSaveDisabled()}>
@@ -598,5 +634,26 @@ export const PortManageDialog = ({ open, onOpenChange, equipmentId, port }: Port
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Close Warning Dialog */}
+    <AlertDialog open={showCloseWarning} onOpenChange={setShowCloseWarning}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Upload em Andamento</AlertDialogTitle>
+          <AlertDialogDescription>
+            Uma imagem está sendo enviada. Se fechar agora, a imagem será perdida.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setShowCloseWarning(false)}>
+            Aguardar Upload
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={forceClose}>
+            Fechar Mesmo Assim
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };

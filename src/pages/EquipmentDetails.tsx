@@ -14,9 +14,11 @@ import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
 import { NvrChannelGrid } from '@/components/equipment/NvrChannelGrid';
 import { PlanCameraDialog } from '@/components/equipment/PlanCameraDialog';
 import { PortLocationDialog } from '@/components/equipment/PortLocationDialog';
+import { LocationGallery } from '@/components/equipment/LocationGallery';
+import { OrphanImagesCleanup } from '@/components/equipment/OrphanImagesCleanup';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import {
   DropdownMenu,
@@ -70,6 +72,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [selectedPortIdForLocation, setSelectedPortIdForLocation] = useState<string | null>(null);
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
+  const [orphanCleanupOpen, setOrphanCleanupOpen] = useState(false);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
@@ -295,6 +298,10 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Portas
             </Button>
+            <Button variant="outline" onClick={() => setOrphanCleanupOpen(true)}>
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Limpar Órfãs
+            </Button>
           </div>
         </div>
 
@@ -491,6 +498,11 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                   setPlanCameraDialogOpen(true);
                 }}
               />
+            )}
+
+            {/* Location Gallery */}
+            {equipment?.ports && equipment.ports.length > 0 && (
+              <LocationGallery ports={equipment.ports} />
             )}
 
             <Card className="p-6">
@@ -734,6 +746,12 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
             </Dialog>
           );
         })()}
+
+        {/* Orphan Images Cleanup Dialog */}
+        <OrphanImagesCleanup
+          open={orphanCleanupOpen}
+          onOpenChange={setOrphanCleanupOpen}
+        />
       </div>
     </AppLayout>
   );
