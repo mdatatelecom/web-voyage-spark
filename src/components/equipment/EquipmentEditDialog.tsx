@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Save, Info } from 'lucide-react';
 import { getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
 
@@ -109,26 +110,27 @@ export function EquipmentEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-xl max-h-[80vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle>Editar Equipamento</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
+        <ScrollArea className="flex-1 px-6">
+          <form id="equipment-edit-form" onSubmit={handleSubmit} className="space-y-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="equipment_status">Status</Label>
+              <div className="space-y-2">
+                <Label htmlFor="equipment_status">Status</Label>
               <Select 
                 value={formData.equipment_status} 
                 onValueChange={(v) => setFormData({ ...formData, equipment_status: v })}
@@ -315,16 +317,18 @@ export function EquipmentEditDialog({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              <Save className="w-4 h-4 mr-2" />
-              {isLoading ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        </form>
+          </form>
+        </ScrollArea>
+
+        <div className="flex justify-end gap-2 p-6 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="equipment-edit-form" disabled={isLoading}>
+            <Save className="w-4 h-4 mr-2" />
+            {isLoading ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

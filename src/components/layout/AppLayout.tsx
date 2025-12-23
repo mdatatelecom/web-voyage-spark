@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,6 +57,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Conexões', icon: Network, path: '/connections', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Mapa da Rede', icon: Waypoints, path: '/network-map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Mapa de Câmeras', icon: Camera, path: '/cameras/map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
+    { label: 'Relatório NVR', icon: BarChart3, path: '/nvr-report', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
     { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined, action: undefined },
     { label: 'Chamados', icon: Ticket, path: '/tickets', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
