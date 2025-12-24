@@ -1,61 +1,84 @@
 # ================================
-# Stage 1: Build
+# Stage 1: Dependencies
+# ================================
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Copiar apenas package files para cache de dependências
+COPY package*.json ./
+
+# Instalar todas as dependências
+RUN npm ci
+
+# ================================
+# Stage 2: Build
 # ================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Instalar dependências de build
-RUN apk add --no-cache python3 make g++
-
-# Copiar package files
+# Copiar dependências do stage anterior
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 
-# Instalar todas as dependências (incluindo dev)
-RUN npm ci
-
 # Copiar código fonte
-COPY . .
+COPY tsconfig.json ./
+COPY src ./src
 
 # Build do TypeScript
 RUN npm run build
 
+# Remover devDependencies após build
+RUN npm prune --production
+
 # ================================
-# Stage 2: Production
+# Stage 3: Production
 # ================================
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
 # Instalar apenas dependências de runtime necessárias para sharp
-RUN apk add --no-cache vips-dev
+RUN apk add --no-cache \
+    vips-dev \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
 
 # Criar usuário não-root
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+    adduser -S nodejs -u 1001 -G nodejs
 
-# Copiar package files
-COPY package*.json ./
+# Copiar package.json para referência
+COPY package.json ./
 
-# Instalar apenas dependências de produção
-RUN npm ci --only=production && npm cache clean --force
+# Copiar node_modules já prunados
+COPY --from=builder /app/node_modules ./node_modules
 
-# Copiar build do stage anterior
+# Copiar build
 COPY --from=builder /app/dist ./dist
 
-# Criar diretórios necessários
+# Criar diretórios necessários com permissões corretas
 RUN mkdir -p /app/uploads /app/logs && \
     chown -R nodejs:nodejs /app
 
 # Usar usuário não-root
 USER nodejs
 
+# Variáveis de ambiente padrão
+ENV NODE_ENV=production \
+    PORT=3001 \
+    HOST=0.0.0.0
+
 # Expor porta
-EXPOSE 3000
+EXPOSE 3001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
+# Usar dumb-init para gerenciar sinais corretamente
+ENTRYPOINT ["dumb-init", "--"]
 
 # Comando de inicialização
 CMD ["node", "dist/index.js"]
