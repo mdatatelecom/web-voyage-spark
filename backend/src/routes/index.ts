@@ -1,56 +1,56 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
-import { requireAdmin, requireTechnician } from '../middleware/role';
-
-import * as authController from '../controllers/auth.controller';
-import * as buildingsController from '../controllers/buildings.controller';
-import * as floorsController from '../controllers/floors.controller';
-import * as roomsController from '../controllers/rooms.controller';
-import * as racksController from '../controllers/racks.controller';
-import * as equipmentController from '../controllers/equipment.controller';
-import * as connectionsController from '../controllers/connections.controller';
-import * as ticketsController from '../controllers/tickets.controller';
-import * as alertsController from '../controllers/alerts.controller';
-import * as usersController from '../controllers/users.controller';
+import { requireRole, requireAdmin } from '../middleware/role';
+import { authController } from '../controllers/auth.controller';
+import { buildingsController } from '../controllers/buildings.controller';
+import { floorsController } from '../controllers/floors.controller';
+import { roomsController } from '../controllers/rooms.controller';
+import { racksController } from '../controllers/racks.controller';
+import { equipmentController } from '../controllers/equipment.controller';
+import { connectionsController } from '../controllers/connections.controller';
+import { alertsController } from '../controllers/alerts.controller';
+import { usersController } from '../controllers/users.controller';
+import { ticketsController } from '../controllers/tickets.controller';
+import { whatsAppController } from '../controllers/whatsapp.controller';
+import { webhookController } from '../controllers/webhook.controller';
 
 const router = Router();
 
-// Auth (público)
+const requireTechnician = requireRole(['admin', 'technician']);
+
+// Auth routes
 router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
-router.post('/auth/refresh', authController.refreshToken);
 router.post('/auth/logout', authMiddleware, authController.logout);
-router.get('/auth/me', authMiddleware, authController.getMe);
-router.post('/auth/change-password', authMiddleware, authController.changePassword);
+router.get('/auth/me', authMiddleware, authController.me);
+router.post('/auth/refresh', authController.refresh);
 
 // Buildings
 router.get('/buildings', authMiddleware, buildingsController.list);
-router.get('/buildings/hierarchy', authMiddleware, buildingsController.getHierarchy);
 router.get('/buildings/:id', authMiddleware, buildingsController.getById);
-router.post('/buildings', authMiddleware, requireAdmin, buildingsController.create);
-router.put('/buildings/:id', authMiddleware, requireAdmin, buildingsController.update);
+router.post('/buildings', authMiddleware, requireTechnician, buildingsController.create);
+router.put('/buildings/:id', authMiddleware, requireTechnician, buildingsController.update);
 router.delete('/buildings/:id', authMiddleware, requireAdmin, buildingsController.remove);
 
 // Floors
 router.get('/floors', authMiddleware, floorsController.list);
 router.get('/floors/:id', authMiddleware, floorsController.getById);
-router.post('/floors', authMiddleware, requireAdmin, floorsController.create);
-router.put('/floors/:id', authMiddleware, requireAdmin, floorsController.update);
+router.post('/floors', authMiddleware, requireTechnician, floorsController.create);
+router.put('/floors/:id', authMiddleware, requireTechnician, floorsController.update);
 router.delete('/floors/:id', authMiddleware, requireAdmin, floorsController.remove);
 
 // Rooms
 router.get('/rooms', authMiddleware, roomsController.list);
 router.get('/rooms/:id', authMiddleware, roomsController.getById);
-router.post('/rooms', authMiddleware, requireAdmin, roomsController.create);
-router.put('/rooms/:id', authMiddleware, requireAdmin, roomsController.update);
+router.post('/rooms', authMiddleware, requireTechnician, roomsController.create);
+router.put('/rooms/:id', authMiddleware, requireTechnician, roomsController.update);
 router.delete('/rooms/:id', authMiddleware, requireAdmin, roomsController.remove);
 
 // Racks
 router.get('/racks', authMiddleware, racksController.list);
 router.get('/racks/:id', authMiddleware, racksController.getById);
-router.get('/racks/:id/occupancy', authMiddleware, racksController.getOccupancy);
-router.post('/racks', authMiddleware, requireAdmin, racksController.create);
-router.put('/racks/:id', authMiddleware, requireAdmin, racksController.update);
+router.post('/racks', authMiddleware, requireTechnician, racksController.create);
+router.put('/racks/:id', authMiddleware, requireTechnician, racksController.update);
 router.delete('/racks/:id', authMiddleware, requireAdmin, racksController.remove);
 
 // Equipment
@@ -58,13 +58,11 @@ router.get('/equipment', authMiddleware, equipmentController.list);
 router.get('/equipment/:id', authMiddleware, equipmentController.getById);
 router.post('/equipment', authMiddleware, requireTechnician, equipmentController.create);
 router.put('/equipment/:id', authMiddleware, requireTechnician, equipmentController.update);
-router.delete('/equipment/:id', authMiddleware, requireTechnician, equipmentController.remove);
-router.post('/equipment/:id/ports', authMiddleware, requireTechnician, equipmentController.createPorts);
+router.delete('/equipment/:id', authMiddleware, requireAdmin, equipmentController.remove);
 
 // Connections
 router.get('/connections', authMiddleware, connectionsController.list);
 router.get('/connections/:id', authMiddleware, connectionsController.getById);
-router.get('/connections/code/:code', authMiddleware, connectionsController.getByCode);
 router.post('/connections', authMiddleware, requireTechnician, connectionsController.create);
 router.put('/connections/:id', authMiddleware, requireTechnician, connectionsController.update);
 router.delete('/connections/:id', authMiddleware, requireTechnician, connectionsController.remove);
@@ -94,5 +92,22 @@ router.post('/users', authMiddleware, requireAdmin, usersController.create);
 router.put('/users/:id', authMiddleware, usersController.update);
 router.put('/users/:id/roles', authMiddleware, requireAdmin, usersController.updateRoles);
 router.delete('/users/:id', authMiddleware, requireAdmin, usersController.remove);
+
+// WhatsApp
+router.get('/whatsapp/test', authMiddleware, whatsAppController.testConnection);
+router.get('/whatsapp/instances', authMiddleware, requireAdmin, whatsAppController.listInstances);
+router.post('/whatsapp/instances', authMiddleware, requireAdmin, whatsAppController.createInstance);
+router.delete('/whatsapp/instances/:name', authMiddleware, requireAdmin, whatsAppController.deleteInstance);
+router.post('/whatsapp/instances/:name/connect', authMiddleware, requireAdmin, whatsAppController.connectInstance);
+router.post('/whatsapp/instances/:name/logout', authMiddleware, requireAdmin, whatsAppController.logoutInstance);
+router.post('/whatsapp/instances/:name/webhook', authMiddleware, requireAdmin, whatsAppController.configureWebhook);
+router.post('/whatsapp/send', authMiddleware, whatsAppController.sendMessage);
+router.post('/whatsapp/send-group', authMiddleware, whatsAppController.sendToGroup);
+router.get('/whatsapp/groups', authMiddleware, whatsAppController.listGroups);
+router.post('/whatsapp/groups/sync', authMiddleware, whatsAppController.syncGroups);
+router.get('/whatsapp/profile-picture', authMiddleware, whatsAppController.getProfilePicture);
+
+// Webhook (público - Evolution API envia aqui)
+router.post('/webhook/whatsapp', webhookController.handleWebhook);
 
 export default router;
