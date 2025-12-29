@@ -318,12 +318,12 @@ export default function KnowledgeBase() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select value={categoryFilter || 'all'} onValueChange={(value) => setCategoryFilter(value === 'all' ? '' : value)}>
             <SelectTrigger className="w-full md:w-[200px]">
               <SelectValue placeholder="Todas categorias" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas categorias</SelectItem>
+              <SelectItem value="all">Todas categorias</SelectItem>
               {categories.map(cat => (
                 <SelectItem key={cat} value={cat}>
                   {CATEGORY_LABELS[cat] || cat}
