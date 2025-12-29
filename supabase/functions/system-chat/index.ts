@@ -34,6 +34,35 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get user ID from auth header
+    const authHeader = req.headers.get('Authorization');
+    let userId: string | null = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+    }
+
+    // Fetch conversation history for context
+    let conversationHistory: { role: string; content: string }[] = [];
+    if (userId && sessionId) {
+      const { data: history } = await supabase
+        .from('chat_messages')
+        .select('role, content')
+        .eq('user_id', userId)
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true })
+        .limit(10);
+      
+      if (history) {
+        conversationHistory = history.map(h => ({
+          role: h.role,
+          content: h.content
+        }));
+      }
+    }
+
     // Fetch knowledge base
     const { data: knowledge } = await supabase
       .from('system_knowledge')
@@ -92,7 +121,15 @@ INSTRUÇÕES:
 5. Seja amigável e profissional
 6. Use formatação Markdown quando apropriado (listas, negrito, código)
 7. Para instruções passo a passo, use listas numeradas
-8. Quando mencionar páginas/menus, indique o caminho de navegação (ex: "Configurações → Alertas")`;
+8. Quando mencionar páginas/menus, indique o caminho de navegação (ex: "Configurações → Alertas")
+9. Lembre-se do contexto da conversa anterior para dar respostas mais relevantes`;
+
+    // Build messages array with conversation history
+    const aiMessages = [
+      { role: "system", content: systemPrompt },
+      ...conversationHistory.map(h => ({ role: h.role, content: h.content })),
+      { role: "user", content: message }
+    ];
 
     // Call Lovable AI
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -103,10 +140,7 @@ INSTRUÇÕES:
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message }
-        ],
+        messages: aiMessages,
         stream: false,
       }),
     });
@@ -135,7 +169,7 @@ INSTRUÇÕES:
     const aiResponse = await response.json();
     const assistantMessage = aiResponse.choices?.[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
 
-    console.log(`Chat processed: "${message.substring(0, 50)}..." -> Response length: ${assistantMessage.length}`);
+    console.log(`Chat processed for user ${userId}: "${message.substring(0, 50)}..." -> Response length: ${assistantMessage.length}`);
 
     return new Response(
       JSON.stringify({ 

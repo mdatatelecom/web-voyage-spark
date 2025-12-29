@@ -38,6 +38,7 @@ import WhatsAppHistory from "./pages/WhatsAppHistory";
 import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
 import AuditReports from "./pages/AuditReports";
+import KnowledgeBase from "./pages/KnowledgeBase";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -305,6 +306,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <AuditReports />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/knowledge-base"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <KnowledgeBase />
                 </ProtectedRoute>
               } 
             />
