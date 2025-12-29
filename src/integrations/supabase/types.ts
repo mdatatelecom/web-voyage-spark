@@ -1248,6 +1248,11 @@ export type Database = {
         | "port_capacity"
         | "equipment_failure"
         | "poe_capacity"
+        | "nvr_full"
+        | "camera_unassigned"
+        | "connection_faulty"
+        | "connection_stale_testing"
+        | "equipment_no_ip"
       cable_type:
         | "utp_cat5e"
         | "utp_cat6"
@@ -1472,6 +1477,11 @@ export const Constants = {
         "port_capacity",
         "equipment_failure",
         "poe_capacity",
+        "nvr_full",
+        "camera_unassigned",
+        "connection_faulty",
+        "connection_stale_testing",
+        "equipment_no_ip",
       ],
       cable_type: [
         "utp_cat5e",

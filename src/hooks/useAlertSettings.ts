@@ -8,7 +8,13 @@ type AlertSettingKey =
   | 'port_warning_threshold' 
   | 'port_critical_threshold'
   | 'poe_warning_threshold'
-  | 'poe_critical_threshold';
+  | 'poe_critical_threshold'
+  | 'nvr_warning_threshold'
+  | 'nvr_critical_threshold'
+  | 'camera_orphan_alert_enabled'
+  | 'connection_faulty_alert_enabled'
+  | 'testing_max_days'
+  | 'equipment_no_ip_alert_enabled';
 
 interface AlertSetting {
   id: string;
@@ -60,6 +66,12 @@ export const useAlertSettings = () => {
         { key: 'port_critical_threshold', value: 95 },
         { key: 'poe_warning_threshold', value: 80 },
         { key: 'poe_critical_threshold', value: 90 },
+        { key: 'nvr_warning_threshold', value: 80 },
+        { key: 'nvr_critical_threshold', value: 100 },
+        { key: 'camera_orphan_alert_enabled', value: 1 },
+        { key: 'connection_faulty_alert_enabled', value: 1 },
+        { key: 'testing_max_days', value: 7 },
+        { key: 'equipment_no_ip_alert_enabled', value: 1 },
       ];
 
       for (const { key, value } of defaults) {

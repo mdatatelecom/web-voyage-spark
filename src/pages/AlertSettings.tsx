@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Settings, RotateCcw, Save } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Settings, RotateCcw, Save, Video, Camera, Cable, Network } from 'lucide-react';
 import { useAlertSettings } from '@/hooks/useAlertSettings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useState, useEffect } from 'react';
+import { Separator } from '@/components/ui/separator';
 
 export default function AlertSettings() {
   const { isAdmin } = useUserRole();
@@ -21,6 +23,13 @@ export default function AlertSettings() {
   const [portCritical, setPortCritical] = useState(95);
   const [poeWarning, setPoeWarning] = useState(80);
   const [poeCritical, setPoeCritical] = useState(90);
+  
+  const [nvrWarning, setNvrWarning] = useState(80);
+  const [nvrCritical, setNvrCritical] = useState(100);
+  const [cameraOrphanEnabled, setCameraOrphanEnabled] = useState(true);
+  const [connectionFaultyEnabled, setConnectionFaultyEnabled] = useState(true);
+  const [testingMaxDays, setTestingMaxDays] = useState(7);
+  const [equipmentNoIpEnabled, setEquipmentNoIpEnabled] = useState(true);
 
   useEffect(() => {
     if (settings) {
@@ -30,6 +39,13 @@ export default function AlertSettings() {
       setPortCritical(getSetting('port_critical_threshold')?.setting_value || 95);
       setPoeWarning(getSetting('poe_warning_threshold')?.setting_value || 80);
       setPoeCritical(getSetting('poe_critical_threshold')?.setting_value || 90);
+      
+      setNvrWarning(getSetting('nvr_warning_threshold')?.setting_value || 80);
+      setNvrCritical(getSetting('nvr_critical_threshold')?.setting_value || 100);
+      setCameraOrphanEnabled((getSetting('camera_orphan_alert_enabled')?.setting_value || 1) === 1);
+      setConnectionFaultyEnabled((getSetting('connection_faulty_alert_enabled')?.setting_value || 1) === 1);
+      setTestingMaxDays(getSetting('testing_max_days')?.setting_value || 7);
+      setEquipmentNoIpEnabled((getSetting('equipment_no_ip_alert_enabled')?.setting_value || 1) === 1);
     }
   }, [settings, getSetting]);
 
@@ -56,6 +72,13 @@ export default function AlertSettings() {
     updateSetting({ key: 'port_critical_threshold', value: portCritical });
     updateSetting({ key: 'poe_warning_threshold', value: poeWarning });
     updateSetting({ key: 'poe_critical_threshold', value: poeCritical });
+    
+    updateSetting({ key: 'nvr_warning_threshold', value: nvrWarning });
+    updateSetting({ key: 'nvr_critical_threshold', value: nvrCritical });
+    updateSetting({ key: 'camera_orphan_alert_enabled', value: cameraOrphanEnabled ? 1 : 0 });
+    updateSetting({ key: 'connection_faulty_alert_enabled', value: connectionFaultyEnabled ? 1 : 0 });
+    updateSetting({ key: 'testing_max_days', value: testingMaxDays });
+    updateSetting({ key: 'equipment_no_ip_alert_enabled', value: equipmentNoIpEnabled ? 1 : 0 });
   };
 
   const handleReset = () => {
@@ -80,7 +103,7 @@ export default function AlertSettings() {
               Configurações de Alertas
             </h1>
             <p className="text-muted-foreground">
-              Configure os limites para disparo de alertas de capacidade
+              Configure os limites para disparo de alertas de capacidade e auditoria
             </p>
           </div>
         </div>
@@ -88,120 +111,99 @@ export default function AlertSettings() {
         <Alert>
           <AlertTitle>Como funcionam os alertas?</AlertTitle>
           <AlertDescription>
-            O sistema verifica automaticamente a capacidade de racks e portas a cada 15 minutos. 
-            Quando os limites configurados são atingidos, alertas são criados e notificações em tempo real são enviadas.
+            O sistema verifica automaticamente a capacidade de racks, portas, PoE, NVR/DVR, câmeras e conexões periodicamente. 
+            Quando os limites configurados são atingidos, alertas são criados e notificações são enviadas.
           </AlertDescription>
         </Alert>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ocupação de Racks</CardTitle>
-              <CardDescription>
-                Configure os limites de ocupação para alertas de racks
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="rack-warning">
-                  Limite de Warning (%)
-                </Label>
-                <Input
-                  id="rack-warning"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={rackWarning}
-                  onChange={(e) => setRackWarning(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta de aviso será criado quando a ocupação atingir este valor
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="rack-critical">
-                  Limite de Critical (%)
-                </Label>
-                <Input
-                  id="rack-critical"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={rackCritical}
-                  onChange={(e) => setRackCritical(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta crítico será criado quando a ocupação atingir este valor
-                </p>
-              </div>
-
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-2">Preview</p>
-                <div className="space-y-1 text-xs">
-                  <p>• 0% - {rackWarning - 1}%: Sem alerta</p>
-                  <p className="text-yellow-600">• {rackWarning}% - {rackCritical - 1}%: Warning</p>
-                  <p className="text-red-600">• {rackCritical}% - 100%: Critical</p>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Alertas de Capacidade</h2>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Ocupação de Racks</CardTitle>
+                <CardDescription>
+                  Configure os limites de ocupação para alertas de racks
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rack-warning">Limite de Warning (%)</Label>
+                  <Input
+                    id="rack-warning"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={rackWarning}
+                    onChange={(e) => setRackWarning(Number(e.target.value))}
+                  />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="rack-critical">Limite de Critical (%)</Label>
+                  <Input
+                    id="rack-critical"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={rackCritical}
+                    onChange={(e) => setRackCritical(Number(e.target.value))}
+                  />
+                </div>
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-2">Preview</p>
+                  <div className="space-y-1 text-xs">
+                    <p>• 0% - {rackWarning - 1}%: Sem alerta</p>
+                    <p className="text-yellow-600">• {rackWarning}% - {rackCritical - 1}%: Warning</p>
+                    <p className="text-red-600">• {rackCritical}% - 100%: Critical</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Uso de Portas</CardTitle>
+                <CardDescription>
+                  Configure os limites de uso para alertas de portas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="port-warning">Limite de Warning (%)</Label>
+                  <Input
+                    id="port-warning"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={portWarning}
+                    onChange={(e) => setPortWarning(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="port-critical">Limite de Critical (%)</Label>
+                  <Input
+                    id="port-critical"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={portCritical}
+                    onChange={(e) => setPortCritical(Number(e.target.value))}
+                  />
+                </div>
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-2">Preview</p>
+                  <div className="space-y-1 text-xs">
+                    <p>• 0% - {portWarning - 1}%: Sem alerta</p>
+                    <p className="text-yellow-600">• {portWarning}% - {portCritical - 1}%: Warning</p>
+                    <p className="text-red-600">• {portCritical}% - 100%: Critical</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Uso de Portas</CardTitle>
-              <CardDescription>
-                Configure os limites de uso para alertas de portas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="port-warning">
-                  Limite de Warning (%)
-                </Label>
-                <Input
-                  id="port-warning"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={portWarning}
-                  onChange={(e) => setPortWarning(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta de aviso quando portas em uso atingirem este valor
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="port-critical">
-                  Limite de Critical (%)
-                </Label>
-                <Input
-                  id="port-critical"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={portCritical}
-                  onChange={(e) => setPortCritical(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta crítico quando portas em uso atingirem este valor
-                </p>
-              </div>
-
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-2">Preview</p>
-                <div className="space-y-1 text-xs">
-                  <p>• 0% - {portWarning - 1}%: Sem alerta</p>
-                  <p className="text-yellow-600">• {portWarning}% - {portCritical - 1}%: Warning</p>
-                  <p className="text-red-600">• {portCritical}% - 100%: Critical</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
             <CardHeader>
               <CardTitle>PoE Budget</CardTitle>
               <CardDescription>
@@ -209,40 +211,30 @@ export default function AlertSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="poe-warning">
-                  Limite de Warning (%)
-                </Label>
-                <Input
-                  id="poe-warning"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={poeWarning}
-                  onChange={(e) => setPoeWarning(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta de aviso quando consumo PoE atingir este valor
-                </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="poe-warning">Limite de Warning (%)</Label>
+                  <Input
+                    id="poe-warning"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={poeWarning}
+                    onChange={(e) => setPoeWarning(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="poe-critical">Limite de Critical (%)</Label>
+                  <Input
+                    id="poe-critical"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={poeCritical}
+                    onChange={(e) => setPoeCritical(Number(e.target.value))}
+                  />
+                </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="poe-critical">
-                  Limite de Critical (%)
-                </Label>
-                <Input
-                  id="poe-critical"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={poeCritical}
-                  onChange={(e) => setPoeCritical(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Alerta crítico quando consumo PoE atingir este valor
-                </p>
-              </div>
-
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm font-medium mb-2">Preview</p>
                 <div className="space-y-1 text-xs">
@@ -253,18 +245,154 @@ export default function AlertSettings() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Alertas de Auditoria</h2>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="w-5 h-5" />
+                  NVR/DVR - Canais
+                </CardTitle>
+                <CardDescription>
+                  Configure os limites de ocupação de canais para NVR e DVR
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nvr-warning">Limite de Warning (%)</Label>
+                  <Input
+                    id="nvr-warning"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={nvrWarning}
+                    onChange={(e) => setNvrWarning(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nvr-critical">Limite de Critical (%)</Label>
+                  <Input
+                    id="nvr-critical"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={nvrCritical}
+                    onChange={(e) => setNvrCritical(Number(e.target.value))}
+                  />
+                </div>
+                <div className="p-3 bg-muted rounded-lg text-xs">
+                  <p>Gera alerta quando canais de NVR/DVR atingem o limite configurado</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Camera className="w-5 h-5" />
+                  Câmeras sem NVR
+                </CardTitle>
+                <CardDescription>
+                  Alertar sobre câmeras IP não conectadas a NVR/DVR
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="camera-orphan">Habilitar alerta</Label>
+                  <Switch
+                    id="camera-orphan"
+                    checked={cameraOrphanEnabled}
+                    onCheckedChange={setCameraOrphanEnabled}
+                  />
+                </div>
+                <div className="p-3 bg-muted rounded-lg text-xs">
+                  <p>Quando habilitado, gera alerta de warning para cada câmera IP que não está conectada a um NVR ou DVR</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Cable className="w-5 h-5" />
+                  Conexões com Defeito
+                </CardTitle>
+                <CardDescription>
+                  Alertar sobre conexões marcadas como defeituosas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="connection-faulty">Habilitar alerta</Label>
+                  <Switch
+                    id="connection-faulty"
+                    checked={connectionFaultyEnabled}
+                    onCheckedChange={setConnectionFaultyEnabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="testing-days">Dias máximos em "Testing"</Label>
+                  <Input
+                    id="testing-days"
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={testingMaxDays}
+                    onChange={(e) => setTestingMaxDays(Number(e.target.value))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Alerta se conexão está em testing por mais dias que o configurado
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Network className="w-5 h-5" />
+                  Equipamentos sem IP
+                </CardTitle>
+                <CardDescription>
+                  Alertar sobre equipamentos de rede sem endereço IP
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="no-ip">Habilitar alerta</Label>
+                  <Switch
+                    id="no-ip"
+                    checked={equipmentNoIpEnabled}
+                    onCheckedChange={setEquipmentNoIpEnabled}
+                  />
+                </div>
+                <div className="p-3 bg-muted rounded-lg text-xs">
+                  <p>Gera alerta informativo para switches, routers, firewalls, servidores, NVRs e câmeras IP sem IP configurado</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <Separator />
 
         <Card>
           <CardHeader>
             <CardTitle>Verificação Automática</CardTitle>
             <CardDescription>
-              O sistema verifica automaticamente a capacidade a cada 15 minutos
+              O sistema verifica automaticamente todas as condições periodicamente
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              O Edge Function <code className="bg-muted px-1 py-0.5 rounded">check-capacity-alerts</code> é executado 
-              automaticamente para verificar as capacidades e criar alertas quando necessário.
+              A Edge Function <code className="bg-muted px-1 py-0.5 rounded">check-capacity-alerts</code> verifica 
+              capacidade de racks, portas, PoE, NVR/DVR, câmeras órfãs, conexões e equipamentos sem IP.
             </p>
             <Button
               variant="outline"
