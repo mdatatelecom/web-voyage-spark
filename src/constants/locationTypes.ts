@@ -13,6 +13,101 @@ export const BUILDING_TYPES = [
   { value: 'other', label: 'Outro', icon: Package, usesFloors: false },
 ];
 
+// Configuração de campos por tipo de edificação
+export interface BuildingFieldConfig {
+  showInternalCode: boolean;
+  showFullAddress: boolean;
+  showCoordinates: boolean;
+  showContact: boolean;
+  requiredFields: string[];
+  placeholders: {
+    name: string;
+    internalCode: string;
+    notes: string;
+  };
+}
+
+export const BUILDING_TYPE_FIELDS: Record<string, BuildingFieldConfig> = {
+  commercial_building: {
+    showInternalCode: true,
+    showFullAddress: true,
+    showCoordinates: true,
+    showContact: true,
+    requiredFields: ['name', 'address', 'city', 'state'],
+    placeholders: {
+      name: 'Ex: Edifício Central Tower',
+      internalCode: 'Ex: ED-001',
+      notes: 'Informações sobre andares, acessos, estacionamento...',
+    },
+  },
+  warehouse: {
+    showInternalCode: true,
+    showFullAddress: true,
+    showCoordinates: true,
+    showContact: true,
+    requiredFields: ['name', 'address'],
+    placeholders: {
+      name: 'Ex: Galpão Logístico A',
+      internalCode: 'Ex: GAL-001',
+      notes: 'Área total, setores, docas de carga...',
+    },
+  },
+  office: {
+    showInternalCode: true,
+    showFullAddress: true,
+    showCoordinates: false,
+    showContact: true,
+    requiredFields: ['name'],
+    placeholders: {
+      name: 'Ex: Escritório Regional Sul',
+      internalCode: 'Ex: ESC-001',
+      notes: 'Número de salas, horário de funcionamento...',
+    },
+  },
+  residence: {
+    showInternalCode: false,
+    showFullAddress: true,
+    showCoordinates: false,
+    showContact: true,
+    requiredFields: ['name'],
+    placeholders: {
+      name: 'Ex: Casa do Cliente X',
+      internalCode: '',
+      notes: 'Informações sobre acesso, contato local...',
+    },
+  },
+  condominium: {
+    showInternalCode: true,
+    showFullAddress: true,
+    showCoordinates: true,
+    showContact: true,
+    requiredFields: ['name', 'address', 'city', 'state'],
+    placeholders: {
+      name: 'Ex: Condomínio Empresarial Alpha',
+      internalCode: 'Ex: COND-001',
+      notes: 'Torres, blocos, portaria 24h, regras de acesso...',
+    },
+  },
+  other: {
+    showInternalCode: true,
+    showFullAddress: true,
+    showCoordinates: true,
+    showContact: true,
+    requiredFields: ['name'],
+    placeholders: {
+      name: 'Ex: Local de Instalação',
+      internalCode: 'Ex: LOC-001',
+      notes: 'Descrição do local e observações...',
+    },
+  },
+};
+
+// Função para obter configuração de campos
+export function getBuildingFieldConfig(buildingType: string | null | undefined): BuildingFieldConfig {
+  return BUILDING_TYPE_FIELDS[buildingType as keyof typeof BUILDING_TYPE_FIELDS] 
+    || BUILDING_TYPE_FIELDS.other;
+}
+
 // Mapeamento de terminologia por tipo de edificação
 export const LOCATION_TERMINOLOGY = {
   commercial_building: {
