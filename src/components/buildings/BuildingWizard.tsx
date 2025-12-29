@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,9 @@ import { useBuildings } from '@/hooks/useBuildings';
 import { useViaCEP } from '@/hooks/useViaCEP';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { BUILDING_TYPES, BRAZILIAN_STATES } from '@/constants/locationTypes';
-import { ChevronLeft, ChevronRight, Loader2, Navigation } from 'lucide-react';
+import { BUILDING_TYPES, BRAZILIAN_STATES, getBuildingFieldConfig } from '@/constants/locationTypes';
+import { ChevronLeft, ChevronRight, Loader2, Navigation, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface BuildingWizardProps {
   open: boolean;
@@ -35,12 +36,6 @@ interface BuildingFormData {
   notes?: string;
 }
 
-const STEPS = [
-  { id: 1, title: 'Básico', description: 'Informações principais' },
-  { id: 2, title: 'Localização', description: 'Endereço e coordenadas' },
-  { id: 3, title: 'Contato', description: 'Responsável e observações' },
-];
-
 export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizardProps) => {
   const [currentStep, setCurrentStep] = useState(1);
   const { createBuilding, updateBuilding, isCreating, isUpdating } = useBuildings();
@@ -49,6 +44,36 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
 
   const buildingType = watch('building_type');
   const state = watch('state');
+
+  // Configuração dinâmica de campos baseada no tipo de edificação
+  const fieldConfig = useMemo(() => getBuildingFieldConfig(buildingType), [buildingType]);
+
+  // Steps dinâmicos baseados no tipo de edificação
+  const steps = useMemo(() => {
+    const baseSteps = [
+      { id: 1, title: 'Tipo e Nome', description: 'Identificação' },
+    ];
+
+    if (fieldConfig.showFullAddress) {
+      baseSteps.push({ 
+        id: 2, 
+        title: 'Localização', 
+        description: fieldConfig.showCoordinates ? 'Endereço e GPS' : 'Endereço' 
+      });
+    }
+
+    if (fieldConfig.showContact) {
+      baseSteps.push({ 
+        id: baseSteps.length + 1, 
+        title: 'Contato', 
+        description: 'Responsável' 
+      });
+    }
+
+    return baseSteps;
+  }, [fieldConfig]);
+
+  const totalSteps = steps.length;
 
   const { data: building } = useQuery({
     queryKey: ['building', buildingId],
@@ -118,7 +143,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
   };
 
   const handleNext = () => {
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+    if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
   };
 
   const handlePrevious = () => {
@@ -128,10 +153,16 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
   const canGoNext = () => {
     if (currentStep === 1) {
       const name = watch('name');
-      return name && name.trim() !== '';
+      const type = watch('building_type');
+      return name && name.trim() !== '' && type && type.trim() !== '';
     }
     return true;
   };
+
+  // Determina qual step lógico está ativo baseado nos steps dinâmicos
+  const isLocationStep = fieldConfig.showFullAddress && currentStep === 2;
+  const isContactStep = (fieldConfig.showFullAddress && currentStep === 3) || (!fieldConfig.showFullAddress && currentStep === 2);
+  const isLastStep = currentStep === totalSteps;
 
   const handleCEPChange = async (cep: string) => {
     setValue('zip_code', cep);
@@ -169,16 +200,24 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
     );
   };
 
+  // Obtém o título do local baseado no tipo
+  const getLocationTitle = () => {
+    const type = BUILDING_TYPES.find(t => t.value === buildingType);
+    return type?.label || 'Local';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{buildingId ? 'Editar Prédio' : 'Novo Prédio'}</DialogTitle>
+          <DialogTitle>
+            {buildingId ? `Editar ${getLocationTitle()}` : `Novo ${getLocationTitle()}`}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-6">
-          {STEPS.map((step, index) => (
+          {steps.map((step, index) => (
             <div key={step.id} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
@@ -195,7 +234,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                   <div className="text-muted-foreground">{step.description}</div>
                 </div>
               </div>
-              {index < STEPS.length - 1 && (
+              {index < steps.length - 1 && (
                 <div
                   className={`h-0.5 flex-1 mx-2 transition-colors ${
                     currentStep > step.id ? 'bg-primary' : 'bg-muted'
@@ -207,32 +246,12 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Step 1: Básico */}
+          {/* Step 1: Tipo e Nome */}
           {currentStep === 1 && (
             <div className="space-y-4">
+              {/* Tipo de Edificação - PRIMEIRO para definir os campos */}
               <div className="space-y-2">
-                <Label htmlFor="name">Nome do Prédio *</Label>
-                <Input
-                  id="name"
-                  {...register('name', { required: 'Nome é obrigatório' })}
-                  placeholder="Ex: Edifício Central"
-                />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="internal_code">Código Interno</Label>
-                <Input
-                  id="internal_code"
-                  {...register('internal_code')}
-                  placeholder="Ex: ED-001"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="building_type">Tipo de Edificação</Label>
+                <Label htmlFor="building_type">Tipo de Edificação *</Label>
                 <Select value={buildingType} onValueChange={(value) => setValue('building_type', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
@@ -252,11 +271,50 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Alerta informativo sobre campos condicionais */}
+              {buildingType && (
+                <Alert className="bg-muted/50">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {buildingType === 'residence' && 'Formulário simplificado para residências.'}
+                    {buildingType === 'office' && 'Escritórios não requerem coordenadas GPS.'}
+                    {buildingType === 'warehouse' && 'Galpões usam setores ao invés de andares.'}
+                    {(buildingType === 'commercial_building' || buildingType === 'condominium') && 
+                      'Formulário completo com andares e coordenadas GPS.'}
+                    {buildingType === 'other' && 'Configure conforme necessário.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  {...register('name', { required: 'Nome é obrigatório' })}
+                  placeholder={fieldConfig.placeholders.name}
+                />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name.message}</p>
+                )}
+              </div>
+
+              {/* Código Interno - condicional */}
+              {fieldConfig.showInternalCode && (
+                <div className="space-y-2">
+                  <Label htmlFor="internal_code">Código Interno</Label>
+                  <Input
+                    id="internal_code"
+                    {...register('internal_code')}
+                    placeholder={fieldConfig.placeholders.internalCode}
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 2: Localização */}
-          {currentStep === 2 && (
+          {/* Step 2: Localização (se aplicável) */}
+          {isLocationStep && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="zip_code">CEP</Label>
@@ -278,7 +336,10 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Endereço Completo</Label>
+                <Label htmlFor="address">
+                  Endereço Completo
+                  {fieldConfig.requiredFields.includes('address') && ' *'}
+                </Label>
                 <Input
                   id="address"
                   {...register('address')}
@@ -288,7 +349,10 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">Cidade</Label>
+                  <Label htmlFor="city">
+                    Cidade
+                    {fieldConfig.requiredFields.includes('city') && ' *'}
+                  </Label>
                   <Input
                     id="city"
                     {...register('city')}
@@ -297,7 +361,10 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="state">Estado</Label>
+                  <Label htmlFor="state">
+                    Estado
+                    {fieldConfig.requiredFields.includes('state') && ' *'}
+                  </Label>
                   <Select value={state} onValueChange={(value) => setValue('state', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="UF" />
@@ -313,43 +380,46 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Coordenadas (opcional)</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGetCurrentLocation}
-                  >
-                    <Navigation className="mr-2 h-4 w-4" />
-                    Usar minha localização
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Input
-                      {...register('latitude')}
-                      type="number"
-                      step="0.00000001"
-                      placeholder="Latitude: -23.5505"
-                    />
+              {/* Coordenadas GPS - condicional */}
+              {fieldConfig.showCoordinates && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Coordenadas GPS (opcional)</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGetCurrentLocation}
+                    >
+                      <Navigation className="mr-2 h-4 w-4" />
+                      Usar minha localização
+                    </Button>
                   </div>
-                  <div>
-                    <Input
-                      {...register('longitude')}
-                      type="number"
-                      step="0.00000001"
-                      placeholder="Longitude: -46.6333"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Input
+                        {...register('latitude')}
+                        type="number"
+                        step="0.00000001"
+                        placeholder="Latitude: -23.5505"
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        {...register('longitude')}
+                        type="number"
+                        step="0.00000001"
+                        placeholder="Longitude: -46.6333"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* Step 3: Contato */}
-          {currentStep === 3 && (
+          {/* Step: Contato (último step quando aplicável) */}
+          {isContactStep && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="contact_name">Responsável / Contato</Label>
@@ -386,7 +456,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
                 <Textarea
                   id="notes"
                   {...register('notes')}
-                  placeholder="Informações adicionais sobre o prédio"
+                  placeholder={fieldConfig.placeholders.notes}
                   rows={4}
                 />
               </div>
@@ -405,7 +475,7 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
               Voltar
             </Button>
 
-            {currentStep < 3 ? (
+            {!isLastStep ? (
               <Button
                 type="button"
                 onClick={handleNext}
@@ -416,7 +486,14 @@ export const BuildingWizard = ({ open, onOpenChange, buildingId }: BuildingWizar
               </Button>
             ) : (
               <Button type="submit" disabled={isCreating || isUpdating}>
-                {buildingId ? 'Salvar' : 'Criar'}
+                {isCreating || isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  buildingId ? 'Salvar' : 'Criar'
+                )}
               </Button>
             )}
           </div>
