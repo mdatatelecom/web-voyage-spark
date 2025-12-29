@@ -22,7 +22,7 @@ export function SystemChatButton() {
           <Button
             onClick={toggle}
             size="icon"
-            className="fixed bottom-20 right-4 z-[60] h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 border-0"
+            className="fixed bottom-20 right-4 z-[60] h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 border-0 animate-pulse-subtle"
           >
             <Bot className="w-6 h-6 text-white" />
           </Button>
