@@ -2,7 +2,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-type AlertType = 'rack_capacity' | 'port_capacity' | 'equipment_failure';
+type AlertType = 
+  | 'rack_capacity' 
+  | 'port_capacity' 
+  | 'equipment_failure' 
+  | 'poe_capacity'
+  | 'nvr_full'
+  | 'camera_unassigned'
+  | 'connection_faulty'
+  | 'connection_stale_testing'
+  | 'equipment_no_ip';
+
 type AlertSeverity = 'info' | 'warning' | 'critical';
 type AlertStatus = 'active' | 'acknowledged' | 'resolved';
 
