@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Plus, Search, BookOpen, Edit, Trash2, Tag, Brain, FileText } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Search, BookOpen, Edit, Trash2, Tag, Brain, FileText, Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,8 +30,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useKnowledgeBase, KnowledgeTopic } from '@/hooks/useKnowledgeBase';
+import { useKnowledgeBase, KnowledgeTopic, KnowledgeInput } from '@/hooks/useKnowledgeBase';
 import { KnowledgeDialog } from '@/components/ai/KnowledgeDialog';
+import { ImportPreviewDialog } from '@/components/ai/ImportPreviewDialog';
+import { toast } from 'sonner';
 
 const CATEGORY_LABELS: Record<string, string> = {
   geral: 'Geral',
@@ -47,12 +50,24 @@ const CATEGORY_LABELS: Record<string, string> = {
   usuarios: 'Usuários',
 };
 
+interface ParsedTopic {
+  category: string;
+  topic: string;
+  content: string;
+  keywords: string[];
+  isValid: boolean;
+  errors: string[];
+}
+
 export default function KnowledgeBase() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<KnowledgeTopic | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [parsedTopics, setParsedTopics] = useState<ParsedTopic[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     topics,
@@ -61,9 +76,11 @@ export default function KnowledgeBase() {
     createTopic,
     updateTopic,
     deleteTopic,
+    bulkCreateTopics,
     isCreating,
     isUpdating,
     isDeleting,
+    isBulkCreating,
   } = useKnowledgeBase(
     categoryFilter || undefined,
     searchQuery || undefined
@@ -99,6 +116,112 @@ export default function KnowledgeBase() {
     }
   };
 
+  // Export to CSV
+  const handleExport = () => {
+    const dataToExport = topics?.map(t => ({
+      category: t.category,
+      topic: t.topic,
+      content: t.content,
+      keywords: t.keywords?.join('|') || ''
+    })) || [];
+
+    if (dataToExport.length === 0) {
+      toast.error('Nenhum tópico para exportar');
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+    
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `base-conhecimento-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success(`${dataToExport.length} tópicos exportados`);
+  };
+
+  // Import CSV
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const parsed = parseCSV(text);
+      setParsedTopics(parsed);
+      setImportPreviewOpen(true);
+    };
+    reader.readAsText(file);
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const parseCSV = (text: string): ParsedTopic[] => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+
+    // Detect delimiter
+    const firstLine = lines[0];
+    const delimiter = firstLine.includes(';') ? ';' : ',';
+    
+    const headers = firstLine.split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+    const categoryIdx = headers.findIndex(h => h === 'category' || h === 'categoria');
+    const topicIdx = headers.findIndex(h => h === 'topic' || h === 'topico' || h === 'tópico');
+    const contentIdx = headers.findIndex(h => h === 'content' || h === 'conteudo' || h === 'conteúdo');
+    const keywordsIdx = headers.findIndex(h => h === 'keywords' || h === 'palavras-chave' || h === 'palavraschave');
+
+    return lines.slice(1).map(line => {
+      const values = line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''));
+      const errors: string[] = [];
+
+      const category = categoryIdx >= 0 ? values[categoryIdx] || '' : '';
+      const topic = topicIdx >= 0 ? values[topicIdx] || '' : '';
+      const content = contentIdx >= 0 ? values[contentIdx] || '' : '';
+      const keywordsStr = keywordsIdx >= 0 ? values[keywordsIdx] || '' : '';
+      const keywords = keywordsStr ? keywordsStr.split('|').map(k => k.trim()).filter(Boolean) : [];
+
+      if (!category) errors.push('Categoria obrigatória');
+      if (!topic) errors.push('Tópico obrigatório');
+      if (!content) errors.push('Conteúdo obrigatório');
+
+      return {
+        category,
+        topic,
+        content,
+        keywords,
+        isValid: errors.length === 0,
+        errors,
+      };
+    });
+  };
+
+  const handleImportConfirm = () => {
+    const validTopics = parsedTopics.filter(t => t.isValid);
+    if (validTopics.length === 0) return;
+
+    const topicsToInsert: KnowledgeInput[] = validTopics.map(t => ({
+      category: t.category,
+      topic: t.topic,
+      content: t.content,
+      keywords: t.keywords,
+    }));
+
+    bulkCreateTopics(topicsToInsert, {
+      onSuccess: () => {
+        setImportPreviewOpen(false);
+        setParsedTopics([]);
+      },
+    });
+  };
+
   // Group topics by category
   const groupedTopics = topics?.reduce((acc, topic) => {
     if (!acc[topic.category]) {
@@ -125,10 +248,27 @@ export default function KnowledgeBase() {
               Gerencie os tópicos que o assistente IA utiliza para responder perguntas
             </p>
           </div>
-          <Button onClick={handleOpenCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Adicionar Tópico
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport} disabled={!topics?.length}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar CSV
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <Button onClick={handleOpenCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Tópico
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -321,6 +461,15 @@ export default function KnowledgeBase() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Preview Dialog */}
+      <ImportPreviewDialog
+        open={importPreviewOpen}
+        onOpenChange={setImportPreviewOpen}
+        parsedTopics={parsedTopics}
+        onConfirm={handleImportConfirm}
+        isLoading={isBulkCreating}
+      />
     </AppLayout>
   );
 }
