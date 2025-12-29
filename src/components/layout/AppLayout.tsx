@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,6 +67,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'CLI', icon: Terminal, path: '#cli', visible: isAdmin && !isNetworkViewer, badge: undefined, action: () => setTerminalOpen(true) },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
     { label: 'Meu Perfil', icon: User, path: '/profile', visible: true, badge: undefined },
+    { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
   ];
