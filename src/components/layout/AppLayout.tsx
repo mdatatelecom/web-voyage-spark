@@ -65,9 +65,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { label: 'Chamados', icon: Ticket, path: '/tickets', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
     { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'CLI', icon: Terminal, path: '#cli', visible: isAdmin && !isNetworkViewer, badge: undefined, action: () => setTerminalOpen(true) },
+    { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
     { label: 'Meu Perfil', icon: User, path: '/profile', visible: true, badge: undefined },
-    { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
     { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
   ];

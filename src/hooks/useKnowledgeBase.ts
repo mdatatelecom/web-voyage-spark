@@ -134,6 +134,31 @@ export function useKnowledgeBase(categoryFilter?: string, searchQuery?: string) 
     },
   });
 
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (topics: KnowledgeInput[]) => {
+      const { data, error } = await supabase
+        .from('system_knowledge')
+        .insert(topics.map(t => ({
+          category: t.category,
+          topic: t.topic,
+          content: t.content,
+          keywords: t.keywords || [],
+        })))
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-categories'] });
+      toast.success(`${data.length} tópicos importados com sucesso`);
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao importar tópicos: ${error.message}`);
+    },
+  });
+
   return {
     topics,
     isLoading,
@@ -143,8 +168,10 @@ export function useKnowledgeBase(categoryFilter?: string, searchQuery?: string) 
     createTopic: createMutation.mutate,
     updateTopic: updateMutation.mutate,
     deleteTopic: deleteMutation.mutate,
+    bulkCreateTopics: bulkCreateMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isBulkCreating: bulkCreateMutation.isPending,
   };
 }
