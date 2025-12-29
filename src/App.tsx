@@ -37,6 +37,7 @@ import TicketMetrics from "./pages/TicketMetrics";
 import WhatsAppHistory from "./pages/WhatsAppHistory";
 import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
+import AuditReports from "./pages/AuditReports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -296,6 +297,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <NvrReport />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/audit"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <AuditReports />
                 </ProtectedRoute>
               } 
             />
