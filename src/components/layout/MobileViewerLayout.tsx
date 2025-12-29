@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
 import { LogOut, QrCode, List } from 'lucide-react';
+import { SystemChatButton } from '@/components/ai/SystemChatButton';
 
 interface MobileViewerLayoutProps {
   children: ReactNode;
@@ -77,6 +78,8 @@ export const MobileViewerLayout = ({ children }: MobileViewerLayoutProps) => {
           </Button>
         </div>
       </nav>
+
+      <SystemChatButton />
     </div>
   );
 };
