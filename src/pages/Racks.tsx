@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Plus, Package, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, Eye, MapPin, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRacks } from '@/hooks/useRacks';
 import { useUserRole } from '@/hooks/useUserRole';
 import { RackDialog } from '@/components/racks/RackDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RackMiniVisualization } from '@/components/racks/RackMiniVisualization';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +21,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+// Get color class based on occupancy percentage
+const getOccupancyConfig = (percentage: number) => {
+  if (percentage < 50) return { 
+    color: 'bg-[hsl(var(--status-ok))]', 
+    textColor: 'text-[hsl(var(--status-ok))]',
+    icon: CheckCircle,
+    label: 'Disponível'
+  };
+  if (percentage < 80) return { 
+    color: 'bg-[hsl(var(--status-warning))]', 
+    textColor: 'text-[hsl(var(--status-warning))]',
+    icon: AlertTriangle,
+    label: 'Moderado'
+  };
+  return { 
+    color: 'bg-[hsl(var(--status-error))]', 
+    textColor: 'text-[hsl(var(--status-error))]',
+    icon: AlertCircle,
+    label: 'Crítico'
+  };
+};
 
 export default function Racks() {
   const { buildingId, floorId, roomId } = useParams();
@@ -44,12 +68,6 @@ export default function Racks() {
       deleteRack(deleteId);
       setDeleteId(null);
     }
-  };
-
-  const getOccupancyColor = (percentage: number) => {
-    if (percentage < 50) return 'text-green-600';
-    if (percentage < 80) return 'text-yellow-600';
-    return 'text-red-600';
   };
 
   return (
@@ -91,68 +109,114 @@ export default function Racks() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {racks?.map((rack) => (
-              <Card key={rack.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-base">{rack.name}</CardTitle>
-                    </div>
-                    {isAdmin && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(rack.id)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteId(rack.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            {racks?.map((rack) => {
+              const occupancyConfig = getOccupancyConfig(rack.occupancyPercentage);
+              const OccupancyIcon = occupancyConfig.icon;
+              
+              return (
+                <Card key={rack.id} className="hover:shadow-lg transition-all duration-200 group border-2 hover:border-primary/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-primary flex-shrink-0" />
+                          <CardTitle className="text-xl font-bold truncate">{rack.name}</CardTitle>
+                        </div>
+                        {/* Location path */}
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">
+                            {rack.room?.floor?.building?.name && (
+                              <>
+                                {rack.room.floor.building.name}
+                                {rack.room?.floor?.name && ` › ${rack.room.floor.name}`}
+                                {rack.room?.name && ` › ${rack.room.name}`}
+                              </>
+                            )}
+                            {!rack.room?.floor?.building?.name && rack.room?.name && rack.room.name}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Mini Visualization */}
-                  <div className="flex justify-center py-2">
-                    <RackMiniVisualization
-                      sizeU={rack.size_u}
-                      equipment={rack.equipment || []}
-                    />
-                  </div>
-
-                  {/* Stats */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tamanho</span>
-                      <span className="font-medium">{rack.size_u}U</span>
+                      {isAdmin && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(rack.id)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setDeleteId(rack.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Ocupação</span>
-                      <span className={`font-medium ${getOccupancyColor(rack.occupancyPercentage)}`}>
-                        {rack.occupiedUs}/{rack.size_u}U ({Math.round(rack.occupancyPercentage)}%)
-                      </span>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Mini Visualization */}
+                    <div className="flex justify-center py-2">
+                      <RackMiniVisualization
+                        sizeU={rack.size_u}
+                        equipment={rack.equipment || []}
+                      />
                     </div>
-                    <Progress value={rack.occupancyPercentage} className="h-2" />
-                  </div>
 
-                  <Button
-                    className="w-full"
-                    onClick={() => navigate(`/racks/${rack.id}`)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    Ver Detalhes
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    {/* Occupancy Stats with Tooltip */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="space-y-2 cursor-help">
+                            {/* Progress bar with dynamic color */}
+                            <div className="h-3 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className={cn("h-full transition-all duration-300", occupancyConfig.color)}
+                                style={{ width: `${rack.occupancyPercentage}%` }}
+                              />
+                            </div>
+                            
+                            {/* Stats row */}
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-1.5">
+                                <OccupancyIcon className={cn("h-4 w-4", occupancyConfig.textColor)} />
+                                <span className={cn("font-semibold", occupancyConfig.textColor)}>
+                                  {Math.round(rack.occupancyPercentage)}%
+                                </span>
+                              </div>
+                              <span className="text-muted-foreground font-mono text-xs">
+                                {rack.occupiedUs}U / {rack.size_u}U
+                              </span>
+                            </div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="font-medium">
+                          <div className="space-y-1">
+                            <p className="font-bold">{rack.occupiedUs}U ocupados | {rack.availableUs}U livres</p>
+                            <p className="text-xs text-muted-foreground">
+                              Capacidade: {rack.size_u}U total
+                            </p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <Button
+                      className="w-full"
+                      onClick={() => navigate(`/racks/${rack.id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Ver Detalhes
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
