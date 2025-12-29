@@ -15,6 +15,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
 import { TerminalDialog } from '@/components/cli/TerminalDialog';
+import { SystemChatButton } from '@/components/ai/SystemChatButton';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -222,6 +223,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
 
       {/* Terminal Dialog */}
       <TerminalDialog open={terminalOpen} onOpenChange={setTerminalOpen} />
+
+      {/* AI Chat Assistant */}
+      <SystemChatButton />
     </div>
   );
 };
