@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { SVGDefs } from './SVGDefs';
 import { EquipmentSVG } from './EquipmentSVG';
 import { useActivePortsByRack } from '@/hooks/useActivePortsByRack';
+import { CheckCircle, AlertTriangle, AlertCircle, Wrench, Activity } from 'lucide-react';
 
 interface Equipment {
   id: string;
@@ -49,6 +52,53 @@ const getTypeLabel = (type: string) => {
   return labels[type] || type;
 };
 
+// Status configuration
+const getStatusConfig = (status?: string) => {
+  switch(status) {
+    case 'active':
+      return { 
+        color: 'hsl(var(--status-ok))', 
+        label: 'Operacional', 
+        icon: CheckCircle,
+        variant: 'default' as const,
+        bgClass: 'bg-[hsl(var(--status-ok))]'
+      };
+    case 'warning':
+      return { 
+        color: 'hsl(var(--status-warning))', 
+        label: 'Atenção', 
+        icon: AlertTriangle,
+        variant: 'secondary' as const,
+        bgClass: 'bg-[hsl(var(--status-warning))]'
+      };
+    case 'offline':
+    case 'failed':
+      return { 
+        color: 'hsl(var(--status-error))', 
+        label: 'Offline', 
+        icon: AlertCircle,
+        variant: 'destructive' as const,
+        bgClass: 'bg-[hsl(var(--status-error))]'
+      };
+    case 'maintenance':
+      return { 
+        color: 'hsl(var(--status-info))', 
+        label: 'Manutenção', 
+        icon: Wrench,
+        variant: 'outline' as const,
+        bgClass: 'bg-[hsl(var(--status-info))]'
+      };
+    default:
+      return { 
+        color: 'hsl(var(--status-ok))', 
+        label: 'Operacional', 
+        icon: CheckCircle,
+        variant: 'default' as const,
+        bgClass: 'bg-[hsl(var(--status-ok))]'
+      };
+  }
+};
+
 // Helper to normalize equipment position range (handles inverted start/end)
 const getEquipmentRange = (eq: Equipment) => {
   const start = Math.min(eq.position_u_start, eq.position_u_end);
@@ -63,9 +113,10 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
   // Fetch active ports for this rack in realtime
   const { getActivePortIdsForEquipment } = useActivePortsByRack(rackId);
   
-  const width = 400;
-  const uHeight = 20;
+  const width = 420;
+  const uHeight = 22;
   const height = sizeU * uHeight;
+  const leftMargin = 50;
 
   // Filter equipment by current view
   const filteredEquipment = equipment.filter(eq => {
@@ -88,27 +139,46 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
   return (
     <div className="relative">
       {/* View Toggle */}
-      <div className="flex gap-2 mb-2">
+      <div className="flex gap-2 mb-3">
         <Button
           variant={view === 'front' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setView('front')}
+          className="gap-2"
         >
-          🔵 Frontal
+          <div className="w-2 h-2 rounded-full bg-blue-500" />
+          Frontal
         </Button>
         <Button
           variant={view === 'rear' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setView('rear')}
+          className="gap-2"
         >
-          🔴 Traseira
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          Traseira
         </Button>
       </div>
       
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="border-2 border-border rounded-lg">
+      <svg 
+        width={width} 
+        height={height} 
+        viewBox={`0 0 ${width} ${height}`} 
+        className="border-2 border-border rounded-lg shadow-sm bg-card"
+      >
         <SVGDefs />
-        {/* Background */}
-        <rect x="0" y="0" width={width} height={height} fill="hsl(var(--card))" />
+        
+        {/* Background with subtle gradient */}
+        <defs>
+          <linearGradient id="rackBg2d" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="hsl(var(--card))" />
+            <stop offset="100%" stopColor="hsl(var(--muted))" stopOpacity="0.5" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width={width} height={height} fill="url(#rackBg2d)" />
+        
+        {/* Left rail background */}
+        <rect x="0" y="0" width={leftMargin - 5} height={height} fill="hsl(var(--muted))" opacity="0.3" />
         
         {/* Render each U position */}
         {uPositions.map((u, index) => {
@@ -120,34 +190,47 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
           
           // Get active port IDs for this equipment
           const activePortIds = eq ? getActivePortIdsForEquipment(eq.id) : [];
+          const statusConfig = eq ? getStatusConfig(eq.equipment_status) : null;
 
           return (
             <g key={u}>
               {/* U divider line */}
               <line
-                x1="10"
+                x1={leftMargin - 5}
                 y1={y}
-                x2={width - 10}
+                x2={width - 5}
                 y2={y}
                 stroke="hsl(var(--border))"
                 strokeWidth="1"
+                opacity="0.5"
               />
               
-              {/* U number on the left */}
+              {/* U number on the left with better styling */}
+              <rect
+                x="2"
+                y={y + 2}
+                width={leftMargin - 10}
+                height={uHeight - 4}
+                fill={eq ? 'hsl(var(--primary))' : 'transparent'}
+                opacity={eq ? 0.1 : 0}
+                rx="2"
+              />
               <text
                 x="20"
-                y={y + 15}
+                y={y + uHeight / 2 + 4}
                 fill="hsl(var(--muted-foreground))"
-                fontSize="12"
-                fontFamily="monospace"
+                fontSize="11"
+                fontFamily="'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace"
+                textAnchor="middle"
+                fontWeight={eq ? "600" : "400"}
               >
                 U{u}
               </text>
 
               {/* Equipment block (only render on first U of equipment) */}
-              {isFirstUOfEquipment && eq && (
+              {isFirstUOfEquipment && eq && statusConfig && (
                 <TooltipProvider key={eq.id}>
-                  <Tooltip>
+                  <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
                       <g
                         onMouseEnter={() => setHoveredId(eq.id)}
@@ -157,9 +240,9 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
                       >
                         <EquipmentSVG
                           type={eq.type}
-                          x={60}
+                          x={leftMargin}
                           y={y}
-                          width={320}
+                          width={width - leftMargin - 10}
                           height={equipmentHeight}
                           name={eq.name}
                           manufacturer={eq.manufacturer}
@@ -169,23 +252,73 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
                         />
                       </g>
                     </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs">
-                      <div className="space-y-1">
-                        <p className="font-bold">{eq.name}</p>
-                        <p className="text-sm">Tipo: {getTypeLabel(eq.type)}</p>
-                        {eq.manufacturer && <p className="text-sm">Fabricante: {eq.manufacturer}</p>}
-                        {eq.model && <p className="text-sm">Modelo: {eq.model}</p>}
-                        {eq.ip_address && <p className="text-sm">IP: {eq.ip_address}</p>}
-                        {eq.hostname && <p className="text-sm">Hostname: {eq.hostname}</p>}
-                        <p className="text-sm">
-                          Posição: U{range?.start}-{range?.end} ({range?.height}U)
-                        </p>
-                        {activePortIds.length > 0 && (
-                          <p className="text-sm text-green-500">
-                            🔌 {activePortIds.length} porta(s) ativa(s)
-                          </p>
+                    <TooltipContent side="right" className="max-w-sm p-4 space-y-3">
+                      {/* Header with name and status */}
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-bold text-base">{eq.name}</p>
+                        <Badge 
+                          variant={statusConfig.variant}
+                          className="gap-1"
+                        >
+                          <statusConfig.icon className="h-3 w-3" />
+                          {statusConfig.label}
+                        </Badge>
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Details grid */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <span className="ml-1 font-medium">{getTypeLabel(eq.type)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Posição:</span>
+                          <span className="ml-1 font-medium font-mono">U{range?.start}-U{range?.end}</span>
+                        </div>
+                        {eq.manufacturer && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">Fabricante:</span>
+                            <span className="ml-1 font-medium">{eq.manufacturer}</span>
+                          </div>
+                        )}
+                        {eq.model && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">Modelo:</span>
+                            <span className="ml-1 font-medium">{eq.model}</span>
+                          </div>
+                        )}
+                        {eq.ip_address && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">IP:</span>
+                            <code className="ml-1 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                              {eq.ip_address}
+                            </code>
+                          </div>
+                        )}
+                        {eq.hostname && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">Hostname:</span>
+                            <code className="ml-1 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                              {eq.hostname}
+                            </code>
+                          </div>
                         )}
                       </div>
+                      
+                      {/* Active ports indicator */}
+                      {activePortIds.length > 0 && (
+                        <>
+                          <Separator />
+                          <div className="flex items-center gap-2 text-[hsl(var(--status-ok))]">
+                            <Activity className="h-4 w-4" />
+                            <span className="text-sm font-medium">
+                              {activePortIds.length} porta(s) ativa(s)
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -196,10 +329,15 @@ export const RackVisualization = ({ rackId, sizeU, equipment, onEquipmentClick }
       </svg>
 
       {equipment.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-muted-foreground text-center px-4">
-            Rack vazio. Adicione equipamentos para começar.
-          </p>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-center p-6 bg-card/80 backdrop-blur-sm rounded-lg border">
+            <p className="text-muted-foreground font-medium">
+              Rack vazio
+            </p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              Adicione equipamentos para começar
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -616,13 +616,14 @@ export function Rack3DVisualization({
   return (
     <div className="flex gap-4">
       {/* 3D Canvas */}
-      <div className="flex-1 h-[600px] bg-neutral-950 rounded-lg border relative">
+      <div className="flex-1 h-[600px] bg-[#1a1a2e] rounded-lg border relative overflow-hidden">
         {/* Controls Overlay */}
         <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
           <Button
             variant={xrayMode ? 'default' : 'outline'}
             size="sm"
             onClick={() => setXrayMode(!xrayMode)}
+            className="bg-background/80 backdrop-blur-sm"
           >
             {xrayMode ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
             Raio-X
@@ -632,18 +633,20 @@ export function Rack3DVisualization({
             size="sm"
             onClick={tourActive ? handleTourEnd : handleTourStart}
             disabled={equipment.length === 0}
+            className="bg-background/80 backdrop-blur-sm"
           >
             {tourActive ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
             Tour
           </Button>
           
           {/* Airflow Controls */}
-          <div className="flex flex-col gap-1 mt-2 pt-2 border-t">
+          <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-border/50">
             <p className="text-xs font-medium text-muted-foreground mb-1">Simulação</p>
             <Button
               variant={airflowMode === 'flow' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setAirflowMode(airflowMode === 'flow' ? 'off' : 'flow')}
+              className="bg-background/80 backdrop-blur-sm"
             >
               <Wind className="w-4 h-4 mr-2" />
               Airflow
@@ -652,6 +655,7 @@ export function Rack3DVisualization({
               variant={airflowMode === 'thermal' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setAirflowMode(airflowMode === 'thermal' ? 'off' : 'thermal')}
+              className="bg-background/80 backdrop-blur-sm"
             >
               <Flame className="w-4 h-4 mr-2" />
               Térmico
@@ -659,12 +663,13 @@ export function Rack3DVisualization({
           </div>
           
           {/* Annotations Controls */}
-          <div className="flex flex-col gap-1 mt-2 pt-2 border-t">
+          <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-border/50">
             <p className="text-xs font-medium text-muted-foreground mb-1">Anotações</p>
             <Button
               variant={showAnnotations ? 'default' : 'outline'}
               size="sm"
               onClick={() => setShowAnnotations(!showAnnotations)}
+              className="bg-background/80 backdrop-blur-sm"
             >
               <StickyNote className="w-4 h-4 mr-2" />
               {showAnnotations ? 'Ocultar' : 'Mostrar'}
@@ -676,6 +681,7 @@ export function Rack3DVisualization({
                 setEditingAnnotation(undefined);
                 setAnnotationDialogOpen(true);
               }}
+              className="bg-background/80 backdrop-blur-sm"
             >
               <Plus className="w-4 h-4 mr-2" />
               Nova
@@ -688,14 +694,17 @@ export function Rack3DVisualization({
           shadows
           gl={{ 
             toneMapping: THREE.ACESFilmicToneMapping, 
-            toneMappingExposure: 1.2
+            toneMappingExposure: 1.3
           }}
           onCreated={({ gl }) => {
             gl.shadowMap.type = THREE.PCFSoftShadowMap;
           }}
         >
-          {/* HDRI Environment */}
-          <Environment preset="warehouse" environmentIntensity={0.8} />
+          {/* Dark gray background instead of pure black */}
+          <color attach="background" args={['#1a1a2e']} />
+          
+          {/* HDRI Environment with slightly higher intensity */}
+          <Environment preset="warehouse" environmentIntensity={1.0} />
           
           {/* Soft Shadows */}
           <SoftShadows size={40} samples={16} focus={0.5} />
@@ -703,17 +712,17 @@ export function Rack3DVisualization({
           {/* Contact Shadows on floor */}
           <ContactShadows
             position={[0, -0.05, 0]}
-            opacity={0.4}
+            opacity={0.5}
             scale={10}
             blur={2}
             far={4}
           />
           
-          {/* Enhanced Lighting */}
-          <ambientLight intensity={xrayMode ? 0.3 : 0.2} />
+          {/* Enhanced Professional Lighting */}
+          {/* Key Light - Main frontal light */}
           <directionalLight
-            position={[5, 10, 5]}
-            intensity={xrayMode ? 0.8 : 0.6}
+            position={[5, 10, 8]}
+            intensity={xrayMode ? 1.0 : 0.8}
             castShadow
             shadow-mapSize={[2048, 2048]}
             shadow-camera-near={0.1}
@@ -722,9 +731,22 @@ export function Rack3DVisualization({
             shadow-camera-right={5}
             shadow-camera-top={5}
             shadow-camera-bottom={-5}
+            color="#ffffff"
           />
-          <pointLight position={[-3, 3, 3]} intensity={0.3} color="#ffffff" />
-          <pointLight position={[3, 3, -3]} intensity={0.3} color="#ffffff" />
+          
+          {/* Rim Light - Side light for contour */}
+          <directionalLight
+            position={[-5, 5, -5]}
+            intensity={0.5}
+            color="#94a3b8"
+          />
+          
+          {/* Fill Light - Ambient fill */}
+          <ambientLight intensity={xrayMode ? 0.4 : 0.25} />
+          
+          {/* Accent lights */}
+          <pointLight position={[-3, 3, 3]} intensity={0.35} color="#ffffff" />
+          <pointLight position={[3, 3, -3]} intensity={0.35} color="#e2e8f0" />
           
           {/* Rack */}
           <RackFrame sizeU={sizeU} />
