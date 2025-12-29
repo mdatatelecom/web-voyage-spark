@@ -62,7 +62,7 @@ export function SystemChatDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-background border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+    <div className="fixed bottom-36 right-4 z-50 w-[400px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-12rem)] bg-background border rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-primary/5">
         <div className="flex items-center gap-2">
@@ -140,7 +140,12 @@ export function SystemChatDialog({
             disabled={isLoading}
             className="flex-1"
           />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
+          <Button 
+            type="submit" 
+            size="icon" 
+            disabled={!input.trim() || isLoading}
+            className="bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
+          >
             <Send className="w-4 h-4" />
           </Button>
         </div>
