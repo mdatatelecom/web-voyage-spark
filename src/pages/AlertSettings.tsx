@@ -4,16 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Settings, RotateCcw, Save, Video, Camera, Cable, Network } from 'lucide-react';
+import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle } from 'lucide-react';
 import { useAlertSettings } from '@/hooks/useAlertSettings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 export default function AlertSettings() {
   const { isAdmin } = useUserRole();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { settings, isLoading, getSetting, updateSetting, isUpdating, resetToDefaults, isResetting } = useAlertSettings();
   
@@ -30,6 +34,9 @@ export default function AlertSettings() {
   const [connectionFaultyEnabled, setConnectionFaultyEnabled] = useState(true);
   const [testingMaxDays, setTestingMaxDays] = useState(7);
   const [equipmentNoIpEnabled, setEquipmentNoIpEnabled] = useState(true);
+  
+  const [whatsappResolvedEnabled, setWhatsappResolvedEnabled] = useState(false);
+  const [loadingNotifSettings, setLoadingNotifSettings] = useState(true);
 
   useEffect(() => {
     if (settings) {
@@ -48,6 +55,46 @@ export default function AlertSettings() {
       setEquipmentNoIpEnabled((getSetting('equipment_no_ip_alert_enabled')?.setting_value || 1) === 1);
     }
   }, [settings, getSetting]);
+
+  // Load notification settings for resolved alerts toggle
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('notification_settings')
+        .select('whatsapp_alert_resolved')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setWhatsappResolvedEnabled(data.whatsapp_alert_resolved ?? false);
+      }
+      setLoadingNotifSettings(false);
+    };
+
+    loadNotificationSettings();
+  }, [user]);
+
+  const handleWhatsappResolvedChange = async (checked: boolean) => {
+    if (!user) return;
+    
+    setWhatsappResolvedEnabled(checked);
+    
+    const { error } = await supabase
+      .from('notification_settings')
+      .upsert({
+        user_id: user.id,
+        whatsapp_alert_resolved: checked,
+      }, { onConflict: 'user_id' });
+
+    if (error) {
+      toast.error('Erro ao salvar preferência de notificação');
+      setWhatsappResolvedEnabled(!checked);
+    } else {
+      toast.success('Preferência de notificação atualizada');
+    }
+  };
 
   if (!isAdmin) {
     return (
@@ -382,17 +429,68 @@ export default function AlertSettings() {
 
         <Separator />
 
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Notificações WhatsApp</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Alertas Resolvidos
+              </CardTitle>
+              <CardDescription>
+                Receber notificação quando um alerta é automaticamente resolvido
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="whatsapp-resolved" className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    Notificar alertas resolvidos
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Envia mensagem WhatsApp quando um alerta é resolvido automaticamente
+                  </p>
+                </div>
+                <Switch
+                  id="whatsapp-resolved"
+                  checked={whatsappResolvedEnabled}
+                  onCheckedChange={handleWhatsappResolvedChange}
+                  disabled={loadingNotifSettings}
+                />
+              </div>
+              <div className="p-3 bg-muted rounded-lg text-xs">
+                <p className="font-medium mb-1">Auto-resolução acontece quando:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  <li>Ocupação de rack cai abaixo do limite de warning</li>
+                  <li>Uso de portas cai abaixo do limite de warning</li>
+                  <li>Consumo PoE cai abaixo do limite de warning</li>
+                  <li>Canais de NVR/DVR caem abaixo do limite</li>
+                  <li>Câmera é conectada a um NVR/DVR</li>
+                  <li>Conexão defeituosa é corrigida (status = active)</li>
+                  <li>Conexão em testing é ativada ou removida</li>
+                  <li>Equipamento recebe endereço IP</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
+
         <Card>
           <CardHeader>
             <CardTitle>Verificação Automática</CardTitle>
             <CardDescription>
-              O sistema verifica automaticamente todas as condições periodicamente
+              O sistema verifica automaticamente todas as condições a cada 15 minutos
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
               A Edge Function <code className="bg-muted px-1 py-0.5 rounded">check-capacity-alerts</code> verifica 
-              capacidade de racks, portas, PoE, NVR/DVR, câmeras órfãs, conexões e equipamentos sem IP.
+              capacidade de racks, portas, PoE, NVR/DVR, câmeras órfãs, conexões e equipamentos sem IP, 
+              além de auto-resolver alertas quando o problema é corrigido.
             </p>
             <Button
               variant="outline"

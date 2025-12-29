@@ -675,6 +675,271 @@ Deno.serve(async (req) => {
 
     console.log(`Created ${alertsCreated} alerts total`);
 
+    // =============== AUTO-RESOLVE ALERTS ===============
+    console.log('Checking for alerts that can be auto-resolved...');
+    let alertsResolved = 0;
+    const resolvedAlerts: { id: string; title: string; type: string }[] = [];
+
+    // 1. Resolve rack capacity alerts when occupancy drops below warning
+    const { data: activeRackAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'rack_capacity')
+      .eq('status', 'active');
+
+    for (const alert of activeRackAlerts || []) {
+      const rack = racks?.find(r => r.id === alert.related_entity_id);
+      if (rack) {
+        const occupiedUs = rack.equipment?.reduce((total: number, eq: any) => {
+          return total + (eq.position_u_end - eq.position_u_start + 1);
+        }, 0) || 0;
+        const occupancyPercentage = (occupiedUs / rack.size_u) * 100;
+        
+        if (occupancyPercentage < settings.rack_warning_threshold) {
+          const { error } = await supabaseClient
+            .from('alerts')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+            .eq('id', alert.id);
+          
+          if (!error) {
+            alertsResolved++;
+            resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+            console.log(`Auto-resolved rack alert: ${alert.title}`);
+          }
+        }
+      }
+    }
+
+    // 2. Resolve port capacity alerts when usage drops below warning
+    const { data: activePortAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'port_capacity')
+      .eq('status', 'active');
+
+    for (const alert of activePortAlerts || []) {
+      const eq = equipment?.find(e => e.id === alert.related_entity_id);
+      if (eq) {
+        const totalPorts = eq.ports?.length || 0;
+        const inUsePorts = eq.ports?.filter((p: any) => p.status === 'in_use').length || 0;
+        const usagePercentage = totalPorts > 0 ? (inUsePorts / totalPorts) * 100 : 0;
+        
+        if (usagePercentage < settings.port_warning_threshold) {
+          const { error } = await supabaseClient
+            .from('alerts')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+            .eq('id', alert.id);
+          
+          if (!error) {
+            alertsResolved++;
+            resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+            console.log(`Auto-resolved port alert: ${alert.title}`);
+          }
+        }
+      }
+    }
+
+    // 3. Resolve PoE capacity alerts when usage drops below warning
+    const { data: activePoeAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'poe_capacity')
+      .eq('status', 'active');
+
+    for (const alert of activePoeAlerts || []) {
+      const eq = poeEquipment?.find(e => e.id === alert.related_entity_id);
+      if (eq) {
+        const powerPerPort = eq.poe_power_per_port as Record<string, number> || {};
+        const usedWatts = Object.values(powerPerPort).reduce((sum: number, watts: number) => sum + (watts || 0), 0);
+        const usagePercentage = (usedWatts / eq.poe_budget_watts) * 100;
+        
+        if (usagePercentage < (settings.poe_warning_threshold || 80)) {
+          const { error } = await supabaseClient
+            .from('alerts')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+            .eq('id', alert.id);
+          
+          if (!error) {
+            alertsResolved++;
+            resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+            console.log(`Auto-resolved PoE alert: ${alert.title}`);
+          }
+        }
+      }
+    }
+
+    // 4. Resolve NVR capacity alerts when usage drops below warning
+    const { data: activeNvrAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'nvr_full')
+      .eq('status', 'active');
+
+    for (const alert of activeNvrAlerts || []) {
+      const nvr = nvrDvrEquipment?.find(e => e.id === alert.related_entity_id);
+      if (nvr) {
+        const totalChannels = nvr.ports?.length || 0;
+        const usedChannels = nvr.ports?.filter((p: any) => p.status === 'in_use').length || 0;
+        const usagePercentage = totalChannels > 0 ? (usedChannels / totalChannels) * 100 : 0;
+        
+        if (usagePercentage < (settings.nvr_warning_threshold || 80)) {
+          const { error } = await supabaseClient
+            .from('alerts')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+            .eq('id', alert.id);
+          
+          if (!error) {
+            alertsResolved++;
+            resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+            console.log(`Auto-resolved NVR alert: ${alert.title}`);
+          }
+        }
+      }
+    }
+
+    // 5. Resolve camera orphan alerts when camera is connected to NVR/DVR
+    const { data: activeCameraAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'camera_unassigned')
+      .eq('status', 'active');
+
+    const { data: allNvrDvrIds } = await supabaseClient
+      .from('equipment')
+      .select('id')
+      .in('type', ['nvr', 'dvr']);
+    const nvrDvrIdSet = new Set((allNvrDvrIds || []).map(e => e.id));
+
+    for (const alert of activeCameraAlerts || []) {
+      const { data: cameraPorts } = await supabaseClient
+        .from('ports')
+        .select('id')
+        .eq('equipment_id', alert.related_entity_id);
+
+      const cameraPortIds = (cameraPorts || []).map(p => p.id);
+      let hasNvrConnection = false;
+      
+      if (cameraPortIds.length > 0) {
+        const { data: portConnections } = await supabaseClient
+          .from('connections')
+          .select(`
+            port_a:ports!connections_port_a_id_fkey(equipment_id),
+            port_b:ports!connections_port_b_id_fkey(equipment_id)
+          `)
+          .or(`port_a_id.in.(${cameraPortIds.join(',')}),port_b_id.in.(${cameraPortIds.join(',')})`)
+          .eq('status', 'active');
+
+        for (const conn of portConnections || []) {
+          const portAEquipId = (conn.port_a as any)?.equipment_id;
+          const portBEquipId = (conn.port_b as any)?.equipment_id;
+          
+          if (nvrDvrIdSet.has(portAEquipId) || nvrDvrIdSet.has(portBEquipId)) {
+            hasNvrConnection = true;
+            break;
+          }
+        }
+      }
+
+      if (hasNvrConnection) {
+        const { error } = await supabaseClient
+          .from('alerts')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+          .eq('id', alert.id);
+        
+        if (!error) {
+          alertsResolved++;
+          resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+          console.log(`Auto-resolved camera orphan alert: ${alert.title}`);
+        }
+      }
+    }
+
+    // 6. Resolve faulty connection alerts when status changes to active
+    const { data: activeFaultyAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'connection_faulty')
+      .eq('status', 'active');
+
+    for (const alert of activeFaultyAlerts || []) {
+      const { data: conn } = await supabaseClient
+        .from('connections')
+        .select('status')
+        .eq('id', alert.related_entity_id)
+        .single();
+
+      if (conn && conn.status === 'active') {
+        const { error } = await supabaseClient
+          .from('alerts')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+          .eq('id', alert.id);
+        
+        if (!error) {
+          alertsResolved++;
+          resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+          console.log(`Auto-resolved faulty connection alert: ${alert.title}`);
+        }
+      }
+    }
+
+    // 7. Resolve stale testing connection alerts when status changes from testing
+    const { data: activeStaleAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'connection_stale_testing')
+      .eq('status', 'active');
+
+    for (const alert of activeStaleAlerts || []) {
+      const { data: conn } = await supabaseClient
+        .from('connections')
+        .select('status')
+        .eq('id', alert.related_entity_id)
+        .single();
+
+      if (conn && conn.status !== 'testing') {
+        const { error } = await supabaseClient
+          .from('alerts')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+          .eq('id', alert.id);
+        
+        if (!error) {
+          alertsResolved++;
+          resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+          console.log(`Auto-resolved stale testing alert: ${alert.title}`);
+        }
+      }
+    }
+
+    // 8. Resolve equipment no IP alerts when IP is configured
+    const { data: activeNoIpAlerts } = await supabaseClient
+      .from('alerts')
+      .select('id, related_entity_id, title, type')
+      .eq('type', 'equipment_no_ip')
+      .eq('status', 'active');
+
+    for (const alert of activeNoIpAlerts || []) {
+      const { data: eq } = await supabaseClient
+        .from('equipment')
+        .select('ip_address')
+        .eq('id', alert.related_entity_id)
+        .single();
+
+      if (eq && eq.ip_address && eq.ip_address.trim() !== '') {
+        const { error } = await supabaseClient
+          .from('alerts')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+          .eq('id', alert.id);
+        
+        if (!error) {
+          alertsResolved++;
+          resolvedAlerts.push({ id: alert.id, title: alert.title, type: alert.type });
+          console.log(`Auto-resolved no IP alert: ${alert.title}`);
+        }
+      }
+    }
+
+    console.log(`Auto-resolved ${alertsResolved} alerts`);
+
     // =============== SEND NOTIFICATIONS ===============
     const criticalAlerts = createdAlerts.filter(a => a.severity === 'critical');
     const warningAlerts = createdAlerts.filter(a => a.severity === 'warning');
@@ -792,6 +1057,54 @@ Deno.serve(async (req) => {
                     console.error(`Failed to send WhatsApp to ${whatsappPhone}:`, whatsappError);
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // =============== SEND WHATSAPP FOR RESOLVED ALERTS ===============
+    if (resolvedAlerts.length > 0) {
+      console.log(`Sending WhatsApp notifications for ${resolvedAlerts.length} resolved alerts`);
+
+      const { data: adminRolesResolved } = await supabaseClient
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (adminRolesResolved && adminRolesResolved.length > 0) {
+        const adminIdsResolved = adminRolesResolved.map(r => r.user_id);
+
+        for (const adminId of adminIdsResolved) {
+          const { data: notifSettings } = await supabaseClient
+            .from('notification_settings')
+            .select('*')
+            .eq('user_id', adminId)
+            .single();
+
+          const whatsappEnabled = (notifSettings as any)?.whatsapp_enabled ?? false;
+          const whatsappPhone = (notifSettings as any)?.whatsapp_phone;
+          const whatsappAlertResolved = (notifSettings as any)?.whatsapp_alert_resolved ?? false;
+
+          if (whatsappEnabled && whatsappPhone && whatsappAlertResolved) {
+            for (const alert of resolvedAlerts) {
+              try {
+                const message = `✅ *ALERTA RESOLVIDO*\n\n` +
+                  `*${alert.title}*\n\n` +
+                  `O problema foi corrigido automaticamente.\n` +
+                  `Tipo: ${alert.type}`;
+
+                await supabaseClient.functions.invoke('send-whatsapp', {
+                  body: {
+                    action: 'send',
+                    phone: whatsappPhone,
+                    message,
+                  },
+                });
+                console.log(`WhatsApp sent to ${whatsappPhone} for resolved alert: ${alert.title}`);
+              } catch (whatsappError) {
+                console.error(`Failed to send WhatsApp for resolved alert:`, whatsappError);
               }
             }
           }
