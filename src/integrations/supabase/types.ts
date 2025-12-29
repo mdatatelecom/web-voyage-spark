@@ -470,6 +470,7 @@ export type Database = {
           updated_at: string
           user_id: string
           whatsapp_alert_critical: boolean | null
+          whatsapp_alert_resolved: boolean | null
           whatsapp_alert_warning: boolean | null
           whatsapp_enabled: boolean | null
           whatsapp_phone: string | null
@@ -485,6 +486,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           whatsapp_alert_critical?: boolean | null
+          whatsapp_alert_resolved?: boolean | null
           whatsapp_alert_warning?: boolean | null
           whatsapp_enabled?: boolean | null
           whatsapp_phone?: string | null
@@ -500,6 +502,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           whatsapp_alert_critical?: boolean | null
+          whatsapp_alert_resolved?: boolean | null
           whatsapp_alert_warning?: boolean | null
           whatsapp_enabled?: boolean | null
           whatsapp_phone?: string | null
