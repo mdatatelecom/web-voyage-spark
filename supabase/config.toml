@@ -20,3 +20,12 @@ verify_jwt = true
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.send-alert-email]
+verify_jwt = true
+
+[functions.check-capacity-alerts]
+verify_jwt = false
+
+[functions.system-chat]
+verify_jwt = true
