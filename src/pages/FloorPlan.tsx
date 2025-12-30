@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { getTerminology } from '@/constants/locationTypes';
 import { Badge } from '@/components/ui/badge';
 import { 
   Upload, 
@@ -52,7 +53,7 @@ export default function FloorPlan() {
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Fetch floor info
+  // Fetch floor info with building type for terminology
   const { data: floor } = useQuery({
     queryKey: ['floor', floorId],
     queryFn: async () => {
@@ -61,7 +62,7 @@ export default function FloorPlan() {
         .from('floors')
         .select(`
           *,
-          building:buildings(id, name)
+          building:buildings(id, name, building_type)
         `)
         .eq('id', floorId)
         .single();
@@ -70,6 +71,9 @@ export default function FloorPlan() {
     },
     enabled: !!floorId,
   });
+
+  // Get terminology based on building type
+  const terminology = getTerminology(floor?.building?.building_type);
 
   const { activeFloorPlan, floorPlans, isLoading, deleteFloorPlan } = useFloorPlans(floorId);
   const { 
@@ -123,7 +127,7 @@ export default function FloorPlan() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold">
-                {floor?.name || 'Planta Baixa'}
+                {terminology.planTitle}: {floor?.name || ''}
               </h1>
               <p className="text-sm text-muted-foreground">
                 {floor?.building?.name} • {positions?.length || 0} equipamentos posicionados
