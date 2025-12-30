@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,16 +16,21 @@ import {
   Eye,
   ArrowLeft,
   FileImage,
-  RefreshCw
+  RefreshCw,
+  GitCompare,
+  Cable,
+  CableIcon
 } from 'lucide-react';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions } from '@/hooks/useEquipmentPositions';
 import { useUserRole } from '@/hooks/useUserRole';
-import { FloorPlanViewer } from '@/components/floorplan/FloorPlanViewer';
+import { FloorPlanViewer, FloorPlanViewerRef } from '@/components/floorplan/FloorPlanViewer';
 import { FloorPlanUpload } from '@/components/floorplan/FloorPlanUpload';
 import { AddEquipmentDialog } from '@/components/floorplan/AddEquipmentDialog';
 import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
 import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
+import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanButton';
+import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
@@ -45,6 +50,8 @@ export default function FloorPlan() {
   const navigate = useNavigate();
   const { isAdmin, isTechnician } = useUserRole();
   const canEdit = isAdmin || isTechnician;
+  
+  const viewerRef = useRef<FloorPlanViewerRef>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('view');
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -54,6 +61,8 @@ export default function FloorPlan() {
   const [focusedPositionId, setFocusedPositionId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [showConnections, setShowConnections] = useState(true);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
 
   // Fetch floor info with building type for terminology
   const { data: floor } = useQuery({
@@ -185,6 +194,48 @@ export default function FloorPlan() {
               />
             )}
 
+            {/* Compare Button (only if 2+ versions) */}
+            {floorPlans && floorPlans.length >= 2 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setComparisonOpen(true)}
+                  >
+                    <GitCompare className="mr-2 h-4 w-4" />
+                    Comparar
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Comparar versões lado a lado</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Export Button */}
+            {currentPlan && (
+              <ExportFloorPlanButton
+                stageRef={{ current: viewerRef.current?.getStage() }}
+                floorName={floor?.name || 'planta'}
+                buildingName={floor?.building?.name}
+              />
+            )}
+
+            {/* Toggle Connections */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={showConnections ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setShowConnections(!showConnections)}
+                >
+                  <Cable className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {showConnections ? 'Ocultar conexões' : 'Mostrar conexões'}
+              </TooltipContent>
+            </Tooltip>
+
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
               {getModeButton('view', <Eye className="h-4 w-4" />, 'Visualizar')}
@@ -227,6 +278,7 @@ export default function FloorPlan() {
             ) : (
               <>
                 <FloorPlanViewer
+                  ref={viewerRef}
                   floorPlan={currentPlan}
                   positions={positions || []}
                   selectedId={selectedPositionId}
@@ -236,6 +288,7 @@ export default function FloorPlan() {
                   onAddClick={viewMode === 'add' ? handleAddClick : undefined}
                   editable={viewMode === 'edit'}
                   addMode={viewMode === 'add'}
+                  showConnections={showConnections}
                 />
 
                 {/* Mode indicator */}
@@ -253,6 +306,16 @@ export default function FloorPlan() {
                           Arraste para reposicionar
                         </>
                       )}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Connection indicator */}
+                {showConnections && (
+                  <div className="absolute top-4 right-4">
+                    <Badge variant="outline" className="gap-1 bg-background/80">
+                      <Cable className="h-3 w-3" />
+                      Conexões visíveis
                     </Badge>
                   </div>
                 )}
@@ -317,6 +380,17 @@ export default function FloorPlan() {
           onOpenChange={setAddDialogOpen}
           floorPlanId={currentPlan.id}
           clickPosition={clickPosition}
+        />
+      )}
+
+      {/* Comparison Dialog */}
+      {floorPlans && floorPlans.length >= 2 && (
+        <FloorPlanComparison
+          open={comparisonOpen}
+          onOpenChange={setComparisonOpen}
+          floorPlans={floorPlans}
+          initialLeftId={floorPlans[0]?.id}
+          initialRightId={floorPlans[1]?.id}
         />
       )}
 

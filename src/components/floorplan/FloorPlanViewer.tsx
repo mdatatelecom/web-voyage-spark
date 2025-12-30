@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
 import useImage from 'use-image';
 import { EquipmentMarker } from './EquipmentMarker';
+import { ConnectionLines } from './ConnectionLines';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlan } from '@/hooks/useFloorPlans';
+import { useFloorPlanConnections } from '@/hooks/useFloorPlanConnections';
 
 interface FloorPlanViewerProps {
   floorPlan: FloorPlan;
@@ -15,9 +17,14 @@ interface FloorPlanViewerProps {
   onAddClick?: (x: number, y: number) => void;
   editable?: boolean;
   addMode?: boolean;
+  showConnections?: boolean;
 }
 
-export function FloorPlanViewer({
+export interface FloorPlanViewerRef {
+  getStage: () => any;
+}
+
+export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
   floorPlan,
   positions,
   selectedId,
@@ -27,8 +34,10 @@ export function FloorPlanViewer({
   onAddClick,
   editable = false,
   addMode = false,
-}: FloorPlanViewerProps) {
+  showConnections = true,
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -36,6 +45,14 @@ export function FloorPlanViewer({
   const [isAnimating, setIsAnimating] = useState(false);
   
   const [image] = useImage(floorPlan.file_url, 'anonymous');
+  
+  // Fetch connections between positioned equipment
+  const { data: connections } = useFloorPlanConnections(positions);
+
+  // Expose stage ref to parent
+  useImperativeHandle(ref, () => ({
+    getStage: () => stageRef.current,
+  }));
 
   // Calculate stage dimensions based on container
   useEffect(() => {
@@ -185,6 +202,7 @@ export function FloorPlanViewer({
       className={`w-full h-full bg-muted/30 ${addMode ? 'cursor-crosshair' : 'cursor-grab'}`}
     >
       <Stage
+        ref={stageRef}
         width={dimensions.width}
         height={dimensions.height}
         scaleX={scale}
@@ -222,6 +240,17 @@ export function FloorPlanViewer({
             />
           )}
           
+          {/* Connection Lines (rendered behind markers) */}
+          {showConnections && connections && connections.length > 0 && (
+            <ConnectionLines
+              connections={connections}
+              positions={positions}
+              stageWidth={dimensions.width}
+              stageHeight={dimensions.height}
+              imageBounds={imageDims}
+            />
+          )}
+          
           {/* Equipment Markers */}
           {positions.map(pos => (
             <EquipmentMarker
@@ -255,4 +284,4 @@ export function FloorPlanViewer({
       </Stage>
     </div>
   );
-}
+});
