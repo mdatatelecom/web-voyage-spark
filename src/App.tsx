@@ -39,6 +39,7 @@ import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
 import AuditReports from "./pages/AuditReports";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import FloorPlan from "./pages/FloorPlan";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -314,6 +315,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <KnowledgeBase />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/buildings/:buildingId/floors/:floorId/plan"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <FloorPlan />
                 </ProtectedRoute>
               } 
             />

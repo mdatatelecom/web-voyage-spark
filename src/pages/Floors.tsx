@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Plus, Layers, DoorOpen, Edit, Trash2 } from 'lucide-react';
+import { Plus, Layers, DoorOpen, Edit, Trash2, Map } from 'lucide-react';
 import { useFloors } from '@/hooks/useFloors';
 import { useUserRole } from '@/hooks/useUserRole';
 import { FloorDialog } from '@/components/floors/FloorDialog';
@@ -143,12 +143,22 @@ export default function Floors() {
                     </div>
                     <Badge>{floor.rooms?.[0]?.count || 0}</Badge>
                   </div>
-                  <Button
-                    className="w-full"
-                    onClick={() => navigate(`/buildings/${buildingId}/floors/${floor.id}/rooms`)}
-                  >
-                    {terminology.viewRooms}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => navigate(`/buildings/${buildingId}/floors/${floor.id}/plan`)}
+                    >
+                      <Map className="mr-2 h-4 w-4" />
+                      Planta
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => navigate(`/buildings/${buildingId}/floors/${floor.id}/rooms`)}
+                    >
+                      {terminology.viewRooms}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

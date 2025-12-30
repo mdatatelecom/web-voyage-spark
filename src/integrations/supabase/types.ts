@@ -396,6 +396,134 @@ export type Database = {
           },
         ]
       }
+      equipment_positions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          custom_label: string | null
+          equipment_id: string
+          floor_plan_id: string
+          icon_size: string | null
+          id: string
+          position_x: number
+          position_y: number
+          rotation: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          custom_label?: string | null
+          equipment_id: string
+          floor_plan_id: string
+          icon_size?: string | null
+          id?: string
+          position_x: number
+          position_y: number
+          rotation?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          custom_label?: string | null
+          equipment_id?: string
+          floor_plan_id?: string
+          icon_size?: string | null
+          id?: string
+          position_x?: number
+          position_y?: number
+          rotation?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_positions_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_positions_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_a_id"]
+          },
+          {
+            foreignKeyName: "equipment_positions_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_b_id"]
+          },
+          {
+            foreignKeyName: "equipment_positions_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_port_availability"
+            referencedColumns: ["equipment_id"]
+          },
+          {
+            foreignKeyName: "equipment_positions_floor_plan_id_fkey"
+            columns: ["floor_plan_id"]
+            isOneToOne: false
+            referencedRelation: "floor_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      floor_plans: {
+        Row: {
+          created_at: string | null
+          file_type: string
+          file_url: string
+          floor_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+          original_height: number | null
+          original_width: number | null
+          updated_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_type: string
+          file_url: string
+          floor_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          original_height?: number | null
+          original_width?: number | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_type?: string
+          file_url?: string
+          floor_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          original_height?: number | null
+          original_width?: number | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "floor_plans_floor_id_fkey"
+            columns: ["floor_id"]
+            isOneToOne: false
+            referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       floors: {
         Row: {
           area_sqm: number | null
