@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // Prevent stale optimized-deps cache from bundling an incompatible react-konva build
+  optimizeDeps: {
+    exclude: ["react-konva"],
+    force: true,
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
