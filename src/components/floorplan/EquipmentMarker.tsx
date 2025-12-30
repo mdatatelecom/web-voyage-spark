@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Circle, Group, Text } from 'react-konva';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 
@@ -8,6 +8,7 @@ interface EquipmentMarkerProps {
   stageHeight: number;
   isSelected: boolean;
   isDragging: boolean;
+  isFocused?: boolean;
   editable: boolean;
   onSelect: () => void;
   onDragStart: () => void;
@@ -52,6 +53,7 @@ function EquipmentMarkerComponent({
   stageHeight,
   isSelected,
   isDragging,
+  isFocused = false,
   editable,
   onSelect,
   onDragStart,
@@ -72,6 +74,39 @@ function EquipmentMarkerComponent({
   const displayLabel = position.custom_label || equipment?.name || 'Equipamento';
   const displayIp = equipment?.ip_address || '';
 
+  // Pulsating animation for focus ring
+  const [pulseOpacity, setPulseOpacity] = useState(0.8);
+  const [pulseRadius, setPulseRadius] = useState(size + 12);
+
+  useEffect(() => {
+    if (!isFocused) return;
+
+    let animationFrame: number;
+    let startTime: number;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      
+      // Pulse animation over 1 second
+      const progress = (elapsed % 1000) / 1000;
+      const pulse = Math.sin(progress * Math.PI * 2);
+      
+      setPulseOpacity(0.4 + pulse * 0.4);
+      setPulseRadius(size + 12 + pulse * 6);
+      
+      animationFrame = requestAnimationFrame(animate);
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [isFocused, size]);
+
   return (
     <Group
       x={x}
@@ -90,8 +125,22 @@ function EquipmentMarkerComponent({
       }}
       rotation={position.rotation}
     >
+      {/* Pulsating focus ring */}
+      {isFocused && (
+        <Circle
+          radius={pulseRadius}
+          fill="transparent"
+          stroke="#fbbf24"
+          strokeWidth={3}
+          opacity={pulseOpacity}
+          shadowColor="#fbbf24"
+          shadowBlur={15}
+          shadowOpacity={0.6}
+        />
+      )}
+
       {/* Outer glow when selected */}
-      {isSelected && (
+      {isSelected && !isFocused && (
         <Circle
           radius={size + 8}
           fill="transparent"
@@ -106,8 +155,8 @@ function EquipmentMarkerComponent({
       <Circle
         radius={size}
         fill={config.color}
-        stroke={isDragging ? '#ffffff' : statusColor}
-        strokeWidth={isDragging ? 3 : 2}
+        stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : statusColor}
+        strokeWidth={isDragging ? 3 : isFocused ? 3 : 2}
         shadowColor="#000000"
         shadowBlur={isDragging ? 10 : 5}
         shadowOpacity={0.3}
