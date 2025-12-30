@@ -9,7 +9,10 @@ import { BuildingWizard } from '@/components/buildings/BuildingWizard';
 import { BuildingFilters } from '@/components/buildings/BuildingFilters';
 import { BuildingCard } from '@/components/buildings/BuildingCard';
 import { BuildingHierarchyTree } from '@/components/buildings/BuildingHierarchyTree';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { usesFloors, getTerminology } from '@/constants/locationTypes';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +32,7 @@ export default function Buildings() {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'tree'>('cards');
+  const [isNavigatingToPlan, setIsNavigatingToPlan] = useState(false);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +74,54 @@ export default function Buildings() {
     setState('all');
     setCity('');
     setInternalCode('');
+  };
+
+  const handleViewPlan = async (buildingId: string) => {
+    if (isNavigatingToPlan) return;
+    
+    setIsNavigatingToPlan(true);
+    
+    try {
+      // Check if the building has any floors/sectors
+      const { data: floors, error: floorsError } = await supabase
+        .from('floors')
+        .select('id, name')
+        .eq('building_id', buildingId)
+        .order('floor_number')
+        .limit(1);
+
+      if (floorsError) throw floorsError;
+
+      if (floors && floors.length > 0) {
+        // Navigate to the first floor's plan
+        navigate(`/buildings/${buildingId}/floors/${floors[0].id}/plan`);
+      } else {
+        // Get building info for the terminology
+        const building = buildings?.find(b => b.id === buildingId);
+        const terminology = getTerminology(building?.building_type);
+        
+        // Create a default sector
+        const { data: newFloor, error: createError } = await supabase
+          .from('floors')
+          .insert({
+            building_id: buildingId,
+            name: `${terminology.level.singular} Principal`,
+            floor_number: 1
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+
+        toast.success(`${terminology.level.singular} criado automaticamente`);
+        navigate(`/buildings/${buildingId}/floors/${newFloor.id}/plan`);
+      }
+    } catch (error) {
+      console.error('Error navigating to plan:', error);
+      toast.error('Erro ao acessar planta');
+    } finally {
+      setIsNavigatingToPlan(false);
+    }
   };
 
   return (
@@ -135,6 +187,7 @@ export default function Buildings() {
                 onView={(id) => navigate(`/buildings/${id}/floors`)}
                 onEdit={handleEdit}
                 onDelete={(id) => setDeleteId(id)}
+                onViewPlan={handleViewPlan}
               />
             ))}
           </div>

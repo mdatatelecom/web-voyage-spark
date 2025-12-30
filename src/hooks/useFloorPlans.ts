@@ -141,6 +141,24 @@ export const useFloorPlans = (floorId?: string) => {
     },
   });
 
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { error } = await supabase
+        .from('floor_plans')
+        .update({ name })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['floor_plans'] });
+      toast.success('Planta renomeada com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao renomear planta: ${error.message}`);
+    },
+  });
+
   return {
     floorPlans,
     activeFloorPlan,
@@ -148,6 +166,7 @@ export const useFloorPlans = (floorId?: string) => {
     uploadFloorPlan: uploadMutation.mutate,
     deleteFloorPlan: deleteMutation.mutate,
     setActiveFloorPlan: setActiveMutation.mutate,
+    renameFloorPlan: (id: string, name: string) => renameMutation.mutate({ id, name }),
     isUploading: uploadMutation.isPending,
     isDeleting: deleteMutation.isPending,
   };

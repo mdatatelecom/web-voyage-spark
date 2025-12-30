@@ -1,8 +1,8 @@
-import { Building2, MapPin, Layers, Edit, Trash2, DoorOpen, Server } from 'lucide-react';
+import { Building2, MapPin, Layers, Edit, Trash2, DoorOpen, Server, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BUILDING_TYPES, getTerminology } from '@/constants/locationTypes';
+import { BUILDING_TYPES, getTerminology, usesFloors } from '@/constants/locationTypes';
 
 interface BuildingCardProps {
   building: {
@@ -21,6 +21,7 @@ interface BuildingCardProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onViewPlan?: (id: string) => void;
 }
 
 export function BuildingCard({
@@ -29,10 +30,12 @@ export function BuildingCard({
   onView,
   onEdit,
   onDelete,
+  onViewPlan,
 }: BuildingCardProps) {
   const buildingTypeInfo = BUILDING_TYPES.find((t) => t.value === building.building_type);
   const Icon = buildingTypeInfo?.icon || Building2;
   const terminology = getTerminology(building.building_type);
+  const isSimpleBuilding = !usesFloors(building.building_type);
 
   const floorCount = building.floors?.[0]?.count || 0;
   const roomCount = building.rooms?.[0]?.count || 0;
@@ -122,10 +125,20 @@ export function BuildingCard({
         </div>
       </CardContent>
 
-      <CardFooter className="pt-3 border-t">
+      <CardFooter className="pt-3 border-t gap-2">
+        {isSimpleBuilding && onViewPlan && (
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => onViewPlan(building.id)}
+          >
+            <FileImage className="mr-2 h-4 w-4" />
+            Ver Planta
+          </Button>
+        )}
         <Button
           variant="outline"
-          className="w-full"
+          className="flex-1"
           onClick={() => onView(building.id)}
         >
           Ver Detalhes →

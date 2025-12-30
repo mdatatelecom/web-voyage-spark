@@ -9,6 +9,7 @@ interface FloorPlanViewerProps {
   floorPlan: FloorPlan;
   positions: EquipmentPosition[];
   selectedId: string | null;
+  focusedId?: string | null;
   onSelect: (id: string | null) => void;
   onPositionChange?: (id: string, x: number, y: number) => void;
   onAddClick?: (x: number, y: number) => void;
@@ -20,6 +21,7 @@ export function FloorPlanViewer({
   floorPlan,
   positions,
   selectedId,
+  focusedId,
   onSelect,
   onPositionChange,
   onAddClick,
@@ -31,6 +33,7 @@ export function FloorPlanViewer({
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
   
   const [image] = useImage(floorPlan.file_url, 'anonymous');
 
@@ -79,8 +82,56 @@ export function FloorPlanViewer({
 
   const imageDims = getImageDimensions();
 
+  // Center on focused equipment with animation
+  useEffect(() => {
+    if (!focusedId || isAnimating) return;
+
+    const focusedPosition = positions.find(p => p.id === focusedId);
+    if (!focusedPosition) return;
+
+    // Calculate the actual position of the equipment on the stage
+    const posX = imageDims.x + focusedPosition.position_x * imageDims.width;
+    const posY = imageDims.y + focusedPosition.position_y * imageDims.height;
+
+    // Target scale and position to center the equipment
+    const targetScale = 1.8;
+    const targetX = dimensions.width / 2 - posX * targetScale;
+    const targetY = dimensions.height / 2 - posY * targetScale;
+
+    // Animate to target
+    setIsAnimating(true);
+    const startScale = scale;
+    const startX = position.x;
+    const startY = position.y;
+    const duration = 500; // ms
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function (ease-out-cubic)
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      setScale(startScale + (targetScale - startScale) * eased);
+      setPosition({
+        x: startX + (targetX - startX) * eased,
+        y: startY + (targetY - startY) * eased,
+      });
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setIsAnimating(false);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [focusedId]);
+
   // Handle zoom
   const handleWheel = (e: any) => {
+    if (isAnimating) return;
     e.evt.preventDefault();
     
     const scaleBy = 1.1;
@@ -140,7 +191,7 @@ export function FloorPlanViewer({
         scaleY={scale}
         x={position.x}
         y={position.y}
-        draggable={!addMode}
+        draggable={!addMode && !isAnimating}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
@@ -184,6 +235,7 @@ export function FloorPlanViewer({
               stageWidth={dimensions.width}
               stageHeight={dimensions.height}
               isSelected={selectedId === pos.id}
+              isFocused={focusedId === pos.id}
               isDragging={draggingId === pos.id}
               editable={editable}
               onSelect={() => onSelect(pos.id)}

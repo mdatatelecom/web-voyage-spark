@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +16,6 @@ import {
   Eye,
   ArrowLeft,
   FileImage,
-  Trash2,
   RefreshCw
 } from 'lucide-react';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
@@ -26,6 +25,7 @@ import { FloorPlanViewer } from '@/components/floorplan/FloorPlanViewer';
 import { FloorPlanUpload } from '@/components/floorplan/FloorPlanUpload';
 import { AddEquipmentDialog } from '@/components/floorplan/AddEquipmentDialog';
 import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
+import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
@@ -51,7 +51,9 @@ export default function FloorPlan() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+  const [focusedPositionId, setFocusedPositionId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   // Fetch floor info with building type for terminology
   const { data: floor } = useQuery({
@@ -75,13 +77,33 @@ export default function FloorPlan() {
   // Get terminology based on building type
   const terminology = getTerminology(floor?.building?.building_type);
 
-  const { activeFloorPlan, floorPlans, isLoading, deleteFloorPlan } = useFloorPlans(floorId);
+  const { 
+    activeFloorPlan, 
+    floorPlans, 
+    isLoading, 
+    deleteFloorPlan, 
+    setActiveFloorPlan,
+    renameFloorPlan 
+  } = useFloorPlans(floorId);
+
+  // Determine which plan to show
+  const currentPlan = selectedPlanId 
+    ? floorPlans?.find(p => p.id === selectedPlanId) || activeFloorPlan
+    : activeFloorPlan;
+
   const { 
     positions, 
     updatePosition, 
     deletePosition,
     isLoading: positionsLoading 
-  } = useEquipmentPositions(activeFloorPlan?.id);
+  } = useEquipmentPositions(currentPlan?.id);
+
+  // Update selectedPlanId when activeFloorPlan changes
+  useEffect(() => {
+    if (activeFloorPlan && !selectedPlanId) {
+      setSelectedPlanId(activeFloorPlan.id);
+    }
+  }, [activeFloorPlan, selectedPlanId]);
 
   const handleAddClick = (x: number, y: number) => {
     setClickPosition({ x, y });
@@ -98,6 +120,21 @@ export default function FloorPlan() {
       setSelectedPositionId(null);
       setDeleteConfirmOpen(false);
     }
+  };
+
+  // Handle equipment selection from sidebar - focus and center
+  const handleEquipmentSelect = (id: string | null) => {
+    setSelectedPositionId(id);
+    if (id) {
+      setFocusedPositionId(id);
+      // Clear focus after 3 seconds
+      setTimeout(() => setFocusedPositionId(null), 3000);
+    }
+  };
+
+  const handlePlanSelect = (planId: string) => {
+    setSelectedPlanId(planId);
+    setActiveFloorPlan(planId);
   };
 
   const getModeButton = (mode: ViewMode, icon: React.ReactNode, label: string) => (
@@ -136,6 +173,18 @@ export default function FloorPlan() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Plan Version Selector */}
+            {floorPlans && floorPlans.length > 0 && currentPlan && (
+              <PlanVersionSelector
+                floorPlans={floorPlans}
+                activeId={currentPlan.id}
+                onSelect={handlePlanSelect}
+                onDelete={canEdit ? deleteFloorPlan : undefined}
+                onRename={canEdit ? renameFloorPlan : undefined}
+                canEdit={canEdit}
+              />
+            )}
+
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
               {getModeButton('view', <Eye className="h-4 w-4" />, 'Visualizar')}
@@ -163,7 +212,7 @@ export default function FloorPlan() {
               <div className="flex items-center justify-center h-full">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : !activeFloorPlan ? (
+            ) : !currentPlan ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <FileImage className="h-16 w-16 mb-4" />
                 <p className="text-lg font-medium">Nenhuma planta cadastrada</p>
@@ -178,9 +227,10 @@ export default function FloorPlan() {
             ) : (
               <>
                 <FloorPlanViewer
-                  floorPlan={activeFloorPlan}
+                  floorPlan={currentPlan}
                   positions={positions || []}
                   selectedId={selectedPositionId}
+                  focusedId={focusedPositionId}
                   onSelect={setSelectedPositionId}
                   onPositionChange={viewMode === 'edit' ? handlePositionChange : undefined}
                   onAddClick={viewMode === 'add' ? handleAddClick : undefined}
@@ -239,11 +289,11 @@ export default function FloorPlan() {
           </div>
 
           {/* Sidebar */}
-          {activeFloorPlan && positions && (
+          {currentPlan && positions && (
             <EquipmentSidebar
               positions={positions}
               selectedId={selectedPositionId}
-              onSelect={setSelectedPositionId}
+              onSelect={handleEquipmentSelect}
               onDelete={(id) => {
                 setSelectedPositionId(id);
                 setDeleteConfirmOpen(true);
@@ -261,11 +311,11 @@ export default function FloorPlan() {
         onOpenChange={setUploadOpen}
       />
 
-      {activeFloorPlan && (
+      {currentPlan && (
         <AddEquipmentDialog
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
-          floorPlanId={activeFloorPlan.id}
+          floorPlanId={currentPlan.id}
           clickPosition={clickPosition}
         />
       )}
