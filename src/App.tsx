@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -39,8 +40,9 @@ import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
 import AuditReports from "./pages/AuditReports";
 import KnowledgeBase from "./pages/KnowledgeBase";
-import FloorPlan from "./pages/FloorPlan";
 import NotFound from "./pages/NotFound";
+
+const FloorPlan = lazy(() => import("./pages/FloorPlan"));
 
 const queryClient = new QueryClient();
 
@@ -322,7 +324,9 @@ const App = () => (
               path="/buildings/:buildingId/floors/:floorId/plan"
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
-                  <FloorPlan />
+                  <Suspense fallback={<Navigate to="/dashboard" replace />}>
+                    <FloorPlan />
+                  </Suspense>
                 </ProtectedRoute>
               } 
             />
