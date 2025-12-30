@@ -118,6 +118,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum andar cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro andar',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta do Andar',
+    planTitle: 'Planta do Andar',
   },
   condominium: {
     level: { singular: 'Andar', plural: 'Andares' },
@@ -127,6 +129,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum andar cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro andar',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta do Andar',
+    planTitle: 'Planta do Andar',
   },
   warehouse: {
     level: { singular: 'Setor', plural: 'Setores' },
@@ -136,6 +140,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum setor cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro setor',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta do Setor',
+    planTitle: 'Planta do Setor',
   },
   office: {
     level: { singular: 'Setor', plural: 'Setores' },
@@ -145,6 +151,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum setor cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro setor',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta do Setor',
+    planTitle: 'Planta do Setor',
   },
   residence: {
     level: { singular: 'Setor', plural: 'Setores' },
@@ -154,6 +162,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum setor cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro setor',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta',
+    planTitle: 'Planta',
   },
   other: {
     level: { singular: 'Setor', plural: 'Setores' },
@@ -163,6 +173,8 @@ export const LOCATION_TERMINOLOGY = {
     noLevels: 'Nenhum setor cadastrado',
     addFirstLevel: 'Comece adicionando o primeiro setor',
     viewRooms: 'Ver Salas',
+    planButton: 'Planta do Setor',
+    planTitle: 'Planta do Setor',
   },
 };
 

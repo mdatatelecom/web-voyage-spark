@@ -150,7 +150,7 @@ export default function Floors() {
                       onClick={() => navigate(`/buildings/${buildingId}/floors/${floor.id}/plan`)}
                     >
                       <Map className="mr-2 h-4 w-4" />
-                      Planta
+                      {terminology.planButton}
                     </Button>
                     <Button
                       className="flex-1"
@@ -179,7 +179,7 @@ export default function Floors() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este andar? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir este {terminology.level.singular.toLowerCase()}? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
