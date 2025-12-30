@@ -138,6 +138,7 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['equipment_positions'] });
+      toast.success('Posição atualizada!');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao atualizar posição: ${error.message}`);

@@ -9,15 +9,55 @@ export interface PdfConversionResult {
   height: number;
 }
 
-export async function convertPdfToImage(file: File, scale: number = 2): Promise<PdfConversionResult> {
+export interface PdfPageInfo {
+  pageCount: number;
+  previews: string[];
+}
+
+export async function getPdfPageCount(file: File): Promise<number> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  return pdf.numPages;
+}
+
+export async function getPdfPagePreviews(file: File, maxPages: number = 10): Promise<PdfPageInfo> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pageCount = pdf.numPages;
+  const previews: string[] = [];
+  
+  const pagesToPreview = Math.min(pageCount, maxPages);
+  
+  for (let i = 1; i <= pagesToPreview; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 0.3 }); // Small preview
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    if (!context) continue;
+    
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+    }).promise;
+    
+    previews.push(canvas.toDataURL('image/png', 0.6));
+  }
+  
+  return { pageCount, previews };
+}
+
+export async function convertPdfPageToImage(file: File, pageNumber: number, scale: number = 2): Promise<PdfConversionResult> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
-  // Get first page
-  const page = await pdf.getPage(1);
+  const page = await pdf.getPage(pageNumber);
   const viewport = page.getViewport({ scale });
   
-  // Create canvas
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   
@@ -28,13 +68,11 @@ export async function convertPdfToImage(file: File, scale: number = 2): Promise<
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   
-  // Render page to canvas
   await page.render({
     canvasContext: context,
     viewport: viewport,
   }).promise;
   
-  // Convert canvas to blob
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -52,6 +90,10 @@ export async function convertPdfToImage(file: File, scale: number = 2): Promise<
       0.95
     );
   });
+}
+
+export async function convertPdfToImage(file: File, scale: number = 2): Promise<PdfConversionResult> {
+  return convertPdfPageToImage(file, 1, scale);
 }
 
 export function isPdfFile(file: File): boolean {
