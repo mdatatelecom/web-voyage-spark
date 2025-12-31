@@ -73,13 +73,19 @@ const StylePreview = ({ style }: { style: string }) => {
       );
     default:
       return (
-        <div className={cn(baseClass, "border-primary bg-primary/20")}>
-          <div className="w-8 h-2 bg-primary/60 rounded-sm mb-0.5" />
-          <div className="w-8 h-2 bg-primary rounded-sm mb-0.5" />
-          <div className="w-8 h-2 bg-primary/80 rounded-sm mb-0.5" />
-          <div className="w-full flex justify-center gap-0.5 mt-1">
-            <div className="w-1 h-1 bg-green-500 rounded-full" />
-            <div className="w-1 h-1 bg-amber-500 rounded-full" />
+        <div className="w-12 h-12 rounded-full border-2 border-blue-500 bg-white flex items-center justify-center">
+          <div className="w-6 h-8 flex flex-col justify-between items-center">
+            <div className="w-full flex justify-between">
+              <div className="w-0.5 h-8 bg-blue-500 rounded-sm" />
+              <div className="flex flex-col justify-around h-8 flex-1 px-0.5">
+                <div className="w-full h-0.5 bg-blue-500 rounded-sm" />
+                <div className="w-full h-0.5 bg-blue-500 rounded-sm" />
+                <div className="w-full h-0.5 bg-blue-500 rounded-sm" />
+                <div className="w-full h-0.5 bg-blue-500 rounded-sm" />
+                <div className="w-full h-0.5 bg-blue-500 rounded-sm" />
+              </div>
+              <div className="w-0.5 h-8 bg-blue-500 rounded-sm" />
+            </div>
           </div>
         </div>
       );

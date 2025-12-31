@@ -256,102 +256,93 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
         fontStyle="bold"
       />
       
-      {/* Main rack frame - outer */}
-      <Rect
-        x={-width / 2}
-        y={-height / 2}
-        width={width}
-        height={height}
-        fill={frameColor}
-        stroke={isSelected ? '#3b82f6' : '#0f172a'}
-        strokeWidth={strokeWidth * 2}
-        cornerRadius={6 / currentZoom}
-      />
-      
-      {/* Inner frame */}
-      <Rect
-        x={-width / 2 + 4 / currentZoom}
-        y={-height / 2 + 4 / currentZoom}
-        width={width - 8 / currentZoom}
-        height={height - 8 / currentZoom}
-        fill={innerFrameColor}
-        cornerRadius={4 / currentZoom}
-      />
-      
-      {/* Server/Equipment modules (3 units - styled like image) */}
-      {[0, 1, 2].map((i) => {
-        const moduleY = -height / 2 + 12 / currentZoom + i * (serverHeight + 4 / currentZoom);
-        const moduleX = -serverWidth / 2;
+      {/* Circular rack icon */}
+      {(() => {
+        const radius = Math.min(width, height) / 2;
+        const rackInnerWidth = radius * 0.6;
+        const rackInnerHeight = radius * 1.2;
+        const shelfCount = 5;
+        const shelfSpacing = rackInnerHeight / (shelfCount + 1);
+        const railWidth = 3 / currentZoom;
         
         return (
-          <Group key={`server-${i}`}>
-            {/* Server chassis with silver gradient effect */}
-            <Rect
-              x={moduleX}
-              y={moduleY}
-              width={serverWidth}
-              height={serverHeight - 4 / currentZoom}
-              fill="#94a3b8"
-              stroke="#64748b"
-              strokeWidth={1 / currentZoom}
-              cornerRadius={2 / currentZoom}
-            />
-            
-            {/* Server top highlight (3D effect) */}
-            <Rect
-              x={moduleX}
-              y={moduleY}
-              width={serverWidth}
-              height={4 / currentZoom}
-              fill="#cbd5e1"
-              cornerRadius={[2 / currentZoom, 2 / currentZoom, 0, 0]}
-            />
-            
-            {/* LEDs on left side */}
+          <Group>
+            {/* Outer circle border */}
             <Circle
-              x={moduleX + 8 / currentZoom}
-              y={moduleY + serverHeight / 2 - 2 / currentZoom}
-              radius={2.5 / currentZoom}
-              fill="#22c55e"
-              shadowColor="#22c55e"
-              shadowBlur={4 / currentZoom}
-              shadowOpacity={0.8}
+              x={0}
+              y={0}
+              radius={radius}
+              fill="transparent"
+              stroke={isSelected ? '#2563eb' : '#3b82f6'}
+              strokeWidth={3 / currentZoom}
             />
+            
+            {/* Inner circle with white background */}
             <Circle
-              x={moduleX + 8 / currentZoom}
-              y={moduleY + serverHeight / 2 + 4 / currentZoom}
-              radius={2 / currentZoom}
-              fill={i === 1 ? '#eab308' : '#64748b'}
+              x={0}
+              y={0}
+              radius={radius - 4 / currentZoom}
+              fill={isSelected ? '#eff6ff' : '#ffffff'}
+              stroke={isSelected ? '#3b82f6' : '#60a5fa'}
+              strokeWidth={1.5 / currentZoom}
             />
             
-            {/* Ventilation slots (center) */}
-            {[0, 1, 2, 3, 4].map((j) => (
-              <Rect
-                key={`vent-${i}-${j}`}
-                x={moduleX + serverWidth / 3 + j * 6 / currentZoom}
-                y={moduleY + 6 / currentZoom}
-                width={4 / currentZoom}
-                height={serverHeight - 14 / currentZoom}
-                fill="#1e293b"
-                cornerRadius={1 / currentZoom}
-              />
-            ))}
-            
-            {/* Display panel on right */}
+            {/* Left vertical rail */}
             <Rect
-              x={moduleX + serverWidth - 20 / currentZoom}
-              y={moduleY + 6 / currentZoom}
-              width={14 / currentZoom}
-              height={serverHeight - 14 / currentZoom}
-              fill="#3b82f6"
-              cornerRadius={2 / currentZoom}
-              shadowColor="#3b82f6"
-              shadowBlur={3 / currentZoom}
-              shadowOpacity={0.5}
+              x={-rackInnerWidth / 2}
+              y={-rackInnerHeight / 2}
+              width={railWidth}
+              height={rackInnerHeight}
+              fill={isSelected ? '#2563eb' : '#3b82f6'}
+              cornerRadius={1 / currentZoom}
             />
+            
+            {/* Right vertical rail */}
+            <Rect
+              x={rackInnerWidth / 2 - railWidth}
+              y={-rackInnerHeight / 2}
+              width={railWidth}
+              height={rackInnerHeight}
+              fill={isSelected ? '#2563eb' : '#3b82f6'}
+              cornerRadius={1 / currentZoom}
+            />
+            
+            {/* Horizontal shelves with indicators */}
+            {[...Array(shelfCount)].map((_, i) => {
+              const shelfY = -rackInnerHeight / 2 + shelfSpacing * (i + 1);
+              const shelfHeight = 4 / currentZoom;
+              
+              return (
+                <Group key={`shelf-${i}`}>
+                  {/* Shelf bar */}
+                  <Rect
+                    x={-rackInnerWidth / 2 + railWidth}
+                    y={shelfY - shelfHeight / 2}
+                    width={rackInnerWidth - railWidth * 2}
+                    height={shelfHeight}
+                    fill={isSelected ? '#2563eb' : '#3b82f6'}
+                    cornerRadius={1 / currentZoom}
+                  />
+                  
+                  {/* LED indicators on shelf */}
+                  {[0, 1, 2].map((j) => {
+                    const indicatorX = -rackInnerWidth / 4 + j * (rackInnerWidth / 4);
+                    return (
+                      <Circle
+                        key={`led-${i}-${j}`}
+                        x={indicatorX}
+                        y={shelfY}
+                        radius={1.5 / currentZoom}
+                        fill={isSelected ? '#93c5fd' : '#60a5fa'}
+                      />
+                    );
+                  })}
+                </Group>
+              );
+            })}
           </Group>
         );
-      })}
+      })()}
       
       {/* Occupancy bar background */}
       <Rect
