@@ -34,7 +34,8 @@ import {
   Undo2,
   Save,
   History,
-  Trash2 as TrashIcon
+  Trash2 as TrashIcon,
+  Settings2
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
@@ -51,6 +52,8 @@ import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison'
 import { ICON_OPTIONS, EQUIPMENT_TYPE_LABELS } from '@/components/floorplan/equipment-icons';
 import { useMeasurements, MeasurementPoint, Measurement } from '@/hooks/useMeasurements';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ScaleConfigDialog } from '@/components/floorplan/ScaleConfigDialog';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -116,12 +119,28 @@ export default function FloorPlan() {
   const [gridSize, setGridSize] = useState(20);
   const [snapToGrid, setSnapToGrid] = useState(false);
   
-  // Measurement states
+// Measurement states
   const [measureMode, setMeasureMode] = useState(false);
-  const [measureScale, setMeasureScale] = useState(100);
   const [currentZoom, setCurrentZoom] = useState(1);
   const [measurePoints, setMeasurePoints] = useState<MeasurementPoint[]>([]);
   const [isPolygonClosed, setIsPolygonClosed] = useState(false);
+  
+  // Scale configuration (architectural scale)
+  const [scaleRatio, setScaleRatio] = useState(100); // 1:100
+  const [pixelsPerCm, setPixelsPerCm] = useState(10); // pixels per cm in the drawing
+  const [scaleConfigOpen, setScaleConfigOpen] = useState(false);
+  const [calibrationMode, setCalibrationMode] = useState(false);
+  const [calibrationPoints, setCalibrationPoints] = useState<{ x: number; y: number }[]>([]);
+  const [calibrationDistance, setCalibrationDistance] = useState<number | undefined>();
+  
+  // Calculate measureScale from architectural scale settings
+  const measureScale = useMemo(() => {
+    // measureScale = pixels per meter
+    // 1cm in drawing = scaleRatio cm in real life
+    // So: pixelsPerCm pixels = scaleRatio cm in real life
+    // For 1 meter (100 cm) real: 100/scaleRatio * pixelsPerCm pixels
+    return (pixelsPerCm * 100) / scaleRatio;
+  }, [pixelsPerCm, scaleRatio]);
   
   // Save measurement dialog state
   const [saveMeasurementOpen, setSaveMeasurementOpen] = useState(false);
@@ -354,10 +373,48 @@ export default function FloorPlan() {
   const handleLoadMeasurement = useCallback((measurement: Measurement) => {
     if (viewerRef.current) {
       viewerRef.current.setMeasurePointsExternal(measurement.points, measurement.is_closed);
-      setMeasureScale(measurement.scale);
+      // Reverse calculate scaleRatio and pixelsPerCm from saved measureScale
+      // measureScale = (pixelsPerCm * 100) / scaleRatio
+      // Assuming pixelsPerCm stays constant, we update scaleRatio
+      const newScaleRatio = (pixelsPerCm * 100) / measurement.scale;
+      setScaleRatio(Math.round(newScaleRatio));
       setMeasureMode(true);
     }
+  }, [pixelsPerCm]);
+
+  // Handle scale configuration apply
+  const handleScaleApply = useCallback((newScaleRatio: number, newPixelsPerCm: number) => {
+    setScaleRatio(newScaleRatio);
+    setPixelsPerCm(newPixelsPerCm);
+    setCalibrationMode(false);
+    setCalibrationPoints([]);
+    setCalibrationDistance(undefined);
   }, []);
+
+  // Handle calibration start
+  const handleStartCalibration = useCallback(() => {
+    setCalibrationMode(true);
+    setCalibrationPoints([]);
+    setCalibrationDistance(undefined);
+    setScaleConfigOpen(false);
+  }, []);
+
+  // Handle calibration click (from viewer)
+  const handleCalibrationClick = useCallback((x: number, y: number) => {
+    if (!calibrationMode) return;
+    
+    const newPoints = [...calibrationPoints, { x, y }];
+    setCalibrationPoints(newPoints);
+    
+    if (newPoints.length === 2) {
+      const dx = newPoints[1].x - newPoints[0].x;
+      const dy = newPoints[1].y - newPoints[0].y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      setCalibrationDistance(distance);
+      setCalibrationMode(false);
+      setScaleConfigOpen(true);
+    }
+  }, [calibrationMode, calibrationPoints]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -675,6 +732,9 @@ export default function FloorPlan() {
                   snapToGrid={snapToGrid}
                   measureMode={measureMode}
                   measureScale={measureScale}
+                  scaleRatio={scaleRatio}
+                  calibrationMode={calibrationMode}
+                  onCalibrationClick={handleCalibrationClick}
                   onHover={handleHover}
                   onHoverEnd={handleHoverEnd}
                 />
@@ -914,29 +974,39 @@ export default function FloorPlan() {
                         
                         <div className="w-px h-6 bg-border" />
                         
+                        {/* Scale Dropdown */}
                         <DropdownMenu>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
-                                  {measureScale}px/m
+                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
+                                  <Ruler className="h-3 w-3" />
+                                  1:{scaleRatio}
                                 </Button>
                               </DropdownMenuTrigger>
                             </TooltipTrigger>
-                            <TooltipContent>Escala de medição</TooltipContent>
+                            <TooltipContent>Escala do desenho</TooltipContent>
                           </Tooltip>
                           <DropdownMenuContent className="bg-popover">
-                            <DropdownMenuItem onClick={() => setMeasureScale(50)}>
-                              50px/m (Escala grande)
+                            <DropdownMenuItem onClick={() => setScaleRatio(50)}>
+                              1:50 - Detalhes construtivos
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setMeasureScale(100)}>
-                              100px/m (Padrão)
+                            <DropdownMenuItem onClick={() => setScaleRatio(100)}>
+                              1:100 - Residencial (padrão)
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setMeasureScale(200)}>
-                              200px/m (Detalhado)
+                            <DropdownMenuItem onClick={() => setScaleRatio(200)}>
+                              1:200 - Industrial / Galpões
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setMeasureScale(500)}>
-                              500px/m (Alta precisão)
+                            <DropdownMenuItem onClick={() => setScaleRatio(250)}>
+                              1:250 - Planta geral
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setScaleRatio(500)}>
+                              1:500 - Vista distante
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setScaleConfigOpen(true)}>
+                              <Settings2 className="h-4 w-4 mr-2" />
+                              Configurar escala...
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -945,6 +1015,7 @@ export default function FloorPlan() {
                         <ExportMeasurementButton
                           points={measurePoints}
                           scale={measureScale}
+                          scaleRatio={scaleRatio}
                           floorPlanName={floor?.name || 'Planta'}
                           buildingName={floor?.building?.name}
                         />
@@ -1279,6 +1350,18 @@ export default function FloorPlan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Scale Configuration Dialog */}
+      <ScaleConfigDialog
+        open={scaleConfigOpen}
+        onOpenChange={setScaleConfigOpen}
+        currentScaleRatio={scaleRatio}
+        currentPixelsPerCm={pixelsPerCm}
+        onApply={handleScaleApply}
+        calibrationMode={calibrationMode}
+        onStartCalibration={handleStartCalibration}
+        calibrationDistance={calibrationDistance}
+      />
     </AppLayout>
   );
 }

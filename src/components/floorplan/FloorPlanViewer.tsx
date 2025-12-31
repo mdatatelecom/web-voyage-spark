@@ -30,6 +30,9 @@ interface FloorPlanViewerProps {
   snapToGrid?: boolean;
   measureMode?: boolean;
   measureScale?: number;
+  scaleRatio?: number; // architectural scale ratio (e.g., 100 for 1:100)
+  calibrationMode?: boolean;
+  onCalibrationClick?: (x: number, y: number) => void;
   onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
   onHoverEnd?: () => void;
 }
@@ -65,6 +68,9 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   snapToGrid = false,
   measureMode = false,
   measureScale = 100,
+  scaleRatio = 100,
+  calibrationMode = false,
+  onCalibrationClick,
   onHover,
   onHoverEnd,
 }, ref) => {
@@ -334,7 +340,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     });
   };
 
-  // Handle stage click (for adding equipment or measurement)
+  // Handle stage click (for adding equipment or measurement or calibration)
   const handleStageClick = (e: any) => {
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
@@ -342,6 +348,12 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     // Get actual position on canvas
     const actualX = (pointer.x - position.x) / scale;
     const actualY = (pointer.y - position.y) / scale;
+    
+    // In calibration mode, pass click to parent
+    if (calibrationMode && onCalibrationClick) {
+      onCalibrationClick(actualX, actualY);
+      return;
+    }
     
     // In measure mode, ALWAYS add a point regardless of what was clicked
     if (measureMode) {
@@ -413,7 +425,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     }
   }, [measureMode, measurePoints.length, position, scale, isPolygonClosedState]);
 
-  const cursorStyle = measureMode ? 'cursor-crosshair' : addMode ? 'cursor-crosshair' : 'cursor-grab';
+  const cursorStyle = calibrationMode ? 'cursor-crosshair' : measureMode ? 'cursor-crosshair' : addMode ? 'cursor-crosshair' : 'cursor-grab';
   
   return (
     <div 
@@ -428,7 +440,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
         scaleY={scale}
         x={position.x}
         y={position.y}
-        draggable={!addMode && !measureMode && !isAnimating}
+        draggable={!addMode && !measureMode && !calibrationMode && !isAnimating}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
@@ -532,6 +544,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               containerHeight={dimensions.height}
               position={position}
               scale={scale}
+              scaleRatio={scaleRatio}
             />
           )}
         </Layer>
