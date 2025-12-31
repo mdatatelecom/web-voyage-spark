@@ -11,6 +11,7 @@ interface MeasurementPoint {
 interface ExportMeasurementButtonProps {
   points: MeasurementPoint[];
   scale: number; // pixels per meter
+  scaleRatio?: number; // architectural scale ratio (e.g., 100 for 1:100)
   floorPlanName?: string;
   buildingName?: string;
 }
@@ -18,6 +19,7 @@ interface ExportMeasurementButtonProps {
 export function ExportMeasurementButton({
   points,
   scale,
+  scaleRatio = 100,
   floorPlanName = 'Planta',
   buildingName,
 }: ExportMeasurementButtonProps) {
@@ -154,7 +156,9 @@ export function ExportMeasurementButton({
     yPos += 5;
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Escala utilizada: ${scale} pixels/metro`, 25, yPos);
+    doc.text(`Escala do desenho: 1:${scaleRatio}`, 25, yPos);
+    yPos += 5;
+    doc.text(`Resolução: ${scale.toFixed(1)} pixels/metro`, 25, yPos);
 
     // Save
     const filename = `medicoes-${floorPlanName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
