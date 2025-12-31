@@ -31,7 +31,10 @@ import {
   Ruler,
   Maximize2,
   Minimize2,
-  Undo2
+  Undo2,
+  Save,
+  History,
+  Trash2 as TrashIcon
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
@@ -46,6 +49,10 @@ import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanBut
 import { ExportMeasurementButton } from '@/components/floorplan/ExportMeasurementButton';
 import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison';
 import { ICON_OPTIONS, EQUIPMENT_TYPE_LABELS } from '@/components/floorplan/equipment-icons';
+import { useMeasurements, MeasurementPoint, Measurement } from '@/hooks/useMeasurements';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -113,7 +120,13 @@ export default function FloorPlan() {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureScale, setMeasureScale] = useState(100);
   const [currentZoom, setCurrentZoom] = useState(1);
-  const [measurePoints, setMeasurePoints] = useState<{ x: number; y: number }[]>([]);
+  const [measurePoints, setMeasurePoints] = useState<MeasurementPoint[]>([]);
+  const [isPolygonClosed, setIsPolygonClosed] = useState(false);
+  
+  // Save measurement dialog state
+  const [saveMeasurementOpen, setSaveMeasurementOpen] = useState(false);
+  const [measurementName, setMeasurementName] = useState('');
+  const [measurementDescription, setMeasurementDescription] = useState('');
   
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -170,6 +183,14 @@ export default function FloorPlan() {
     deletePosition,
     isLoading: positionsLoading 
   } = useEquipmentPositions(currentPlan?.id);
+
+  // Measurements hook
+  const {
+    measurements,
+    saveMeasurement,
+    isSaving,
+    deleteMeasurement
+  } = useMeasurements(currentPlan?.id);
 
   // Update selectedPlanId when activeFloorPlan changes
   useEffect(() => {
@@ -267,17 +288,76 @@ export default function FloorPlan() {
   useEffect(() => {
     if (!measureMode) {
       setMeasurePoints([]);
+      setIsPolygonClosed(false);
       return;
     }
     
     const interval = setInterval(() => {
       if (viewerRef.current) {
         setMeasurePoints(viewerRef.current.getMeasurePoints());
+        setIsPolygonClosed(viewerRef.current.isPolygonClosed());
       }
     }, 100);
     
     return () => clearInterval(interval);
   }, [measureMode]);
+
+  // Calculate total distance and area for saving
+  const calculateTotalDistance = useCallback((points: MeasurementPoint[], closed: boolean) => {
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const dx = points[i + 1].x - points[i].x;
+      const dy = points[i + 1].y - points[i].y;
+      total += Math.sqrt(dx * dx + dy * dy) / measureScale;
+    }
+    if (closed && points.length >= 3) {
+      const dx = points[0].x - points[points.length - 1].x;
+      const dy = points[0].y - points[points.length - 1].y;
+      total += Math.sqrt(dx * dx + dy * dy) / measureScale;
+    }
+    return total;
+  }, [measureScale]);
+
+  const calculateArea = useCallback((points: MeasurementPoint[]) => {
+    if (points.length < 3) return 0;
+    let area = 0;
+    const n = points.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      area += points[i].x * points[j].y;
+      area -= points[j].x * points[i].y;
+    }
+    return Math.abs(area) / 2 / (measureScale * measureScale);
+  }, [measureScale]);
+
+  // Handle save measurement
+  const handleSaveMeasurement = useCallback(() => {
+    if (!currentPlan?.id || measurePoints.length < 2 || !measurementName.trim()) return;
+    
+    saveMeasurement({
+      floor_plan_id: currentPlan.id,
+      name: measurementName.trim(),
+      description: measurementDescription.trim() || undefined,
+      points: measurePoints,
+      scale: measureScale,
+      is_closed: isPolygonClosed,
+      total_distance: calculateTotalDistance(measurePoints, isPolygonClosed),
+      area: isPolygonClosed ? calculateArea(measurePoints) : undefined,
+    });
+    
+    setSaveMeasurementOpen(false);
+    setMeasurementName('');
+    setMeasurementDescription('');
+  }, [currentPlan?.id, measurePoints, measurementName, measurementDescription, measureScale, isPolygonClosed, saveMeasurement, calculateTotalDistance, calculateArea]);
+
+  // Handle load measurement
+  const handleLoadMeasurement = useCallback((measurement: Measurement) => {
+    if (viewerRef.current) {
+      viewerRef.current.setMeasurePointsExternal(measurement.points, measurement.is_closed);
+      setMeasureScale(measurement.scale);
+      setMeasureMode(true);
+    }
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -868,6 +948,67 @@ export default function FloorPlan() {
                           floorPlanName={floor?.name || 'Planta'}
                           buildingName={floor?.building?.name}
                         />
+                        
+                        <div className="w-px h-6 bg-border" />
+                        
+                        {/* Save Measurement */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => setSaveMeasurementOpen(true)}
+                              disabled={measurePoints.length < 2}
+                            >
+                              <Save className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Salvar medição</TooltipContent>
+                        </Tooltip>
+                        
+                        {/* Load Saved Measurements */}
+                        {measurements && measurements.length > 0 && (
+                          <DropdownMenu>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <History className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent>Medições salvas</TooltipContent>
+                            </Tooltip>
+                            <DropdownMenuContent className="bg-popover w-64">
+                              {measurements.map((m) => (
+                                <DropdownMenuItem 
+                                  key={m.id} 
+                                  className="flex justify-between items-center"
+                                  onClick={() => handleLoadMeasurement(m)}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{m.name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {m.total_distance?.toFixed(2)}m {m.is_closed && `• ${m.area?.toFixed(2)}m²`}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteMeasurement(m.id);
+                                    }}
+                                  >
+                                    <TrashIcon className="h-3 w-3" />
+                                  </Button>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </>
                     )}
                   </div>
@@ -1095,6 +1236,49 @@ export default function FloorPlan() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Save Measurement Dialog */}
+      <Dialog open={saveMeasurementOpen} onOpenChange={setSaveMeasurementOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Salvar Medição</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="measurement-name">Nome</Label>
+              <Input 
+                id="measurement-name"
+                value={measurementName}
+                onChange={(e) => setMeasurementName(e.target.value)}
+                placeholder="Ex: Sala de servidores"
+              />
+            </div>
+            <div>
+              <Label htmlFor="measurement-desc">Descrição (opcional)</Label>
+              <Textarea 
+                id="measurement-desc"
+                value={measurementDescription}
+                onChange={(e) => setMeasurementDescription(e.target.value)}
+                placeholder="Observações sobre a medição..."
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {measurePoints.length} pontos • {isPolygonClosed ? 'Polígono fechado' : 'Linha aberta'}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveMeasurementOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveMeasurement} 
+              disabled={!measurementName.trim() || isSaving}
+            >
+              {isSaving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

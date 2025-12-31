@@ -10,13 +10,33 @@ interface MeasurementToolProps {
   tempEndPoint?: MeasurementPoint | null;
   scale: number; // pixels per meter (user defined)
   currentZoom: number;
+  isClosed?: boolean;
 }
+
+// Calculate polygon area using Shoelace formula
+const calculatePolygonArea = (points: MeasurementPoint[], scale: number): number => {
+  if (points.length < 3) return 0;
+  
+  let area = 0;
+  const n = points.length;
+  
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  
+  area = Math.abs(area) / 2;
+  // Convert from pixels² to meters²
+  return area / (scale * scale);
+};
 
 export function MeasurementTool({
   points,
   tempEndPoint,
   scale = 100,
   currentZoom = 1,
+  isClosed = false,
 }: MeasurementToolProps) {
   if (points.length === 0) return null;
 
@@ -26,7 +46,7 @@ export function MeasurementTool({
   const fontSize = 12 / currentZoom;
   const dashSize = 6 / currentZoom;
 
-  // Calculate total distance
+  // Calculate total distance including closing segment if closed
   let totalDistanceMeters = 0;
   const segments: { start: MeasurementPoint; end: MeasurementPoint; distance: number }[] = [];
 
@@ -41,17 +61,32 @@ export function MeasurementTool({
     segments.push({ start, end, distance: distanceMeters });
   }
 
-  // If there's a temp point, add it as the last segment
+  // Add closing segment if polygon is closed
+  if (isClosed && points.length >= 3) {
+    const start = points[points.length - 1];
+    const end = points[0];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distancePixels = Math.sqrt(dx * dx + dy * dy);
+    const distanceMeters = distancePixels / scale;
+    totalDistanceMeters += distanceMeters;
+    segments.push({ start, end, distance: distanceMeters });
+  }
+
+  // If there's a temp point and not closed, add it as the last segment
   const lastPoint = points[points.length - 1];
   let tempSegment: { start: MeasurementPoint; end: MeasurementPoint; distance: number } | null = null;
   
-  if (tempEndPoint && points.length > 0) {
+  if (tempEndPoint && points.length > 0 && !isClosed) {
     const dx = tempEndPoint.x - lastPoint.x;
     const dy = tempEndPoint.y - lastPoint.y;
     const distancePixels = Math.sqrt(dx * dx + dy * dy);
     const distanceMeters = distancePixels / scale;
     tempSegment = { start: lastPoint, end: tempEndPoint, distance: distanceMeters };
   }
+
+  // Calculate area if closed
+  const areaMeters = isClosed ? calculatePolygonArea(points, scale) : 0;
 
   const formatDistance = (meters: number) => {
     if (meters >= 1) {
@@ -60,10 +95,28 @@ export function MeasurementTool({
     return `${(meters * 100).toFixed(1)} cm`;
   };
 
+  const formatArea = (sqMeters: number) => {
+    if (sqMeters >= 1) {
+      return `${sqMeters.toFixed(2)} m²`;
+    }
+    return `${(sqMeters * 10000).toFixed(1)} cm²`;
+  };
+
+  // Check if cursor is near first point (for close indicator)
+  const isNearFirstPoint = tempEndPoint && points.length >= 3 && !isClosed && (() => {
+    const firstPoint = points[0];
+    const dist = Math.sqrt(
+      Math.pow(tempEndPoint.x - firstPoint.x, 2) + 
+      Math.pow(tempEndPoint.y - firstPoint.y, 2)
+    );
+    return dist < 20 / currentZoom;
+  })();
+
   const renderSegment = (
     segment: { start: MeasurementPoint; end: MeasurementPoint; distance: number },
     index: number,
-    isTemp: boolean = false
+    isTemp: boolean = false,
+    isClosingSegment: boolean = false
   ) => {
     const { start, end, distance } = segment;
     
@@ -81,14 +134,17 @@ export function MeasurementTool({
     
     const displayDistance = formatDistance(distance);
 
+    const lineColor = isClosingSegment ? '#22c55e' : isTemp ? '#f97316' : '#ef4444';
+    const bgColor = isClosingSegment ? 'rgba(34, 197, 94, 0.9)' : isTemp ? 'rgba(249, 115, 22, 0.9)' : 'rgba(0, 0, 0, 0.8)';
+
     return (
       <Group key={`segment-${index}`}>
         {/* Segment line */}
         <Line
           points={[start.x, start.y, end.x, end.y]}
-          stroke={isTemp ? '#f97316' : '#ef4444'}
+          stroke={lineColor}
           strokeWidth={strokeWidth}
-          dash={[dashSize, dashSize / 2]}
+          dash={isClosingSegment ? undefined : [dashSize, dashSize / 2]}
           opacity={isTemp ? 0.7 : 1}
         />
         
@@ -98,7 +154,7 @@ export function MeasurementTool({
           y={labelY - fontSize * 0.7}
           width={displayDistance.length * fontSize * 0.6 + fontSize}
           height={fontSize * 1.4}
-          fill={isTemp ? 'rgba(249, 115, 22, 0.9)' : 'rgba(0, 0, 0, 0.8)'}
+          fill={bgColor}
           cornerRadius={4 / currentZoom}
         />
         
@@ -127,7 +183,9 @@ export function MeasurementTool({
   return (
     <Group>
       {/* Render all confirmed segments */}
-      {segments.map((segment, index) => renderSegment(segment, index))}
+      {segments.map((segment, index) => 
+        renderSegment(segment, index, false, isClosed && index === segments.length - 1)
+      )}
       
       {/* Render temp segment if exists */}
       {tempSegment && renderSegment(tempSegment, segments.length, true)}
@@ -138,10 +196,11 @@ export function MeasurementTool({
           <Circle
             x={point.x}
             y={point.y}
-            radius={markerSize}
-            fill="#ef4444"
+            radius={index === 0 && isNearFirstPoint ? markerSize * 1.5 : markerSize}
+            fill={index === 0 ? '#22c55e' : '#ef4444'}
             stroke="#ffffff"
             strokeWidth={strokeWidth}
+            opacity={index === 0 && isNearFirstPoint ? 1 : 1}
           />
           {/* Point number label */}
           {points.length > 1 && (
@@ -161,27 +220,52 @@ export function MeasurementTool({
         </Group>
       ))}
       
+      {/* "Close polygon" hint when near first point */}
+      {isNearFirstPoint && (
+        <Group>
+          <Rect
+            x={points[0].x - 50 / currentZoom}
+            y={points[0].y - 35 / currentZoom}
+            width={100 / currentZoom}
+            height={20 / currentZoom}
+            fill="rgba(34, 197, 94, 0.95)"
+            cornerRadius={4 / currentZoom}
+          />
+          <Text
+            x={points[0].x}
+            y={points[0].y - 25 / currentZoom}
+            text="Clique para fechar"
+            fontSize={fontSize * 0.9}
+            fill="#ffffff"
+            fontStyle="bold"
+            align="center"
+            verticalAlign="middle"
+            offsetX={fontSize * 4}
+          />
+        </Group>
+      )}
+      
       {/* Temp end point marker */}
-      {tempEndPoint && (
+      {tempEndPoint && !isClosed && (
         <Circle
           x={tempEndPoint.x}
           y={tempEndPoint.y}
           radius={markerSize}
-          fill="#f97316"
+          fill={isNearFirstPoint ? '#22c55e' : '#f97316'}
           stroke="#ffffff"
           strokeWidth={strokeWidth}
           opacity={0.7}
         />
       )}
       
-      {/* Total distance badge (show when 2+ points) */}
+      {/* Total distance/perimeter badge (show when 2+ points) */}
       {(points.length >= 2 || tempSegment) && (
         <Group>
           {/* Position at top-center of the measurement area */}
           {(() => {
             // Find bounding box of all points
             const allPoints = [...points];
-            if (tempEndPoint) allPoints.push(tempEndPoint);
+            if (tempEndPoint && !isClosed) allPoints.push(tempEndPoint);
             
             const minY = Math.min(...allPoints.map(p => p.y));
             const avgX = allPoints.reduce((sum, p) => sum + p.x, 0) / allPoints.length;
@@ -189,8 +273,16 @@ export function MeasurementTool({
             const badgeY = minY - 40 / currentZoom;
             const badgeX = avgX;
             
-            const totalText = `Total: ${formatDistance(totalWithTemp)}`;
-            const badgeWidth = totalText.length * fontSize * 0.6 + fontSize * 1.5;
+            const label = isClosed ? 'Perímetro' : 'Total';
+            const totalText = `${label}: ${formatDistance(totalWithTemp)}`;
+            const areaText = isClosed ? `Área: ${formatArea(areaMeters)}` : '';
+            const pointsText = `${points.length} pontos`;
+            
+            const fullText = isClosed 
+              ? `${totalText} | ${areaText}`
+              : `${totalText} | ${pointsText}`;
+            
+            const badgeWidth = fullText.length * fontSize * 0.5 + fontSize * 2;
             const badgeHeight = fontSize * 2;
             
             return (
@@ -200,7 +292,7 @@ export function MeasurementTool({
                   y={badgeY - badgeHeight / 2}
                   width={badgeWidth}
                   height={badgeHeight}
-                  fill="rgba(34, 197, 94, 0.95)"
+                  fill={isClosed ? "rgba(34, 197, 94, 0.95)" : "rgba(34, 197, 94, 0.95)"}
                   cornerRadius={6 / currentZoom}
                   stroke="#ffffff"
                   strokeWidth={1 / currentZoom}
@@ -208,13 +300,13 @@ export function MeasurementTool({
                 <Text
                   x={badgeX}
                   y={badgeY}
-                  text={totalText}
+                  text={fullText}
                   fontSize={fontSize * 1.1}
                   fill="#ffffff"
                   fontStyle="bold"
                   align="center"
                   verticalAlign="middle"
-                  offsetX={totalText.length * fontSize * 0.28}
+                  offsetX={fullText.length * fontSize * 0.25}
                   offsetY={fontSize * 0.5}
                 />
               </>
