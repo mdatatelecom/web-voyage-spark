@@ -4,10 +4,10 @@ import useImage from 'use-image';
 import { EquipmentMarker } from './EquipmentMarker';
 import { ConnectionLines } from './ConnectionLines';
 import { MeasurementTool } from './MeasurementTool';
+import { ScaleIndicator } from './ScaleIndicator';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlan } from '@/hooks/useFloorPlans';
 import { useFloorPlanConnections } from '@/hooks/useFloorPlanConnections';
-
 interface MeasurementPoint {
   x: number;
   y: number;
@@ -39,6 +39,7 @@ export interface FloorPlanViewerRef {
   getScale: () => number;
   setZoom: (zoom: number) => void;
   fitToView: () => void;
+  resetView: () => void;
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -68,6 +69,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Measurement state
   const [measureStart, setMeasureStart] = useState<MeasurementPoint | null>(null);
@@ -78,6 +80,39 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   
   // Fetch connections between positioned equipment
   const { data: connections } = useFloorPlanConnections(positions);
+  
+  // LocalStorage key for persisting view state
+  const storageKey = `floorplan-view-${floorPlan.id}`;
+  
+  // Load saved view state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const { scale: savedScale, posX, posY } = JSON.parse(saved);
+        setScale(savedScale);
+        setPosition({ x: posX, y: posY });
+      } catch (e) {
+        console.error('Error loading saved view state:', e);
+      }
+    }
+    setIsInitialized(true);
+  }, [storageKey]);
+  
+  // Save view state with debounce
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const timeoutId = setTimeout(() => {
+      localStorage.setItem(storageKey, JSON.stringify({
+        scale,
+        posX: position.x,
+        posY: position.y,
+      }));
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [scale, position, storageKey, isInitialized]);
 
   // Expose stage ref and scale to parent
   useImperativeHandle(ref, () => ({
@@ -88,6 +123,11 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       setScale(clampedZoom);
     },
     fitToView: () => {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    },
+    resetView: () => {
+      localStorage.removeItem(storageKey);
       setScale(1);
       setPosition({ x: 0, y: 0 });
     },
@@ -428,6 +468,18 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               tempEndPoint={tempMeasureEnd}
               scale={measureScale}
               currentZoom={scale}
+            />
+          )}
+          
+          {/* Scale Indicator */}
+          {measureMode && (
+            <ScaleIndicator
+              measureScale={measureScale}
+              currentZoom={scale}
+              containerWidth={dimensions.width}
+              containerHeight={dimensions.height}
+              position={position}
+              scale={scale}
             />
           )}
         </Layer>

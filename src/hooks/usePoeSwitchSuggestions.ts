@@ -66,11 +66,15 @@ export const usePoeSwitchSuggestions = (deviceType: string | null, roomId?: stri
           const switchRoomId = sw.rack?.room_id;
           const sameRoom = roomId ? switchRoomId === roomId : false;
 
-          // Filter PoE ports that are available
+          // Filter PoE-capable ports that are available
+          // For PoE switches, any RJ45 port can provide PoE power
           const availablePorts = (sw.ports || []).filter(
             (p: any) =>
               p.status === 'available' &&
-              ['rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'].includes(p.port_type)
+              (
+                ['rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'].includes(p.port_type) ||
+                p.port_type === 'rj45' // PoE switch can power any RJ45 port
+              )
           );
 
           return {

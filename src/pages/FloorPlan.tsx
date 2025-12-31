@@ -683,6 +683,20 @@ export default function FloorPlan() {
                       </TooltipTrigger>
                       <TooltipContent>Ajustar à tela</TooltipContent>
                     </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => viewerRef.current?.resetView()}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Resetar View</TooltipContent>
+                    </Tooltip>
                   </div>
                   
                   {/* Measurement Tool */}
