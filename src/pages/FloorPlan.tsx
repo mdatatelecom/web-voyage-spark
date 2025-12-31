@@ -30,6 +30,7 @@ import {
   X,
   Ruler,
   Maximize2,
+  Minimize2,
   Undo2
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
@@ -42,6 +43,7 @@ import { AddEquipmentDialog } from '@/components/floorplan/AddEquipmentDialog';
 import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
 import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
 import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanButton';
+import { ExportMeasurementButton } from '@/components/floorplan/ExportMeasurementButton';
 import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison';
 import { ICON_OPTIONS, EQUIPMENT_TYPE_LABELS } from '@/components/floorplan/equipment-icons';
 import {
@@ -111,6 +113,11 @@ export default function FloorPlan() {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureScale, setMeasureScale] = useState(100);
   const [currentZoom, setCurrentZoom] = useState(1);
+  const [measurePoints, setMeasurePoints] = useState<{ x: number; y: number }[]>([]);
+  
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   
   // Hover tooltip state
   const [hoveredPosition, setHoveredPosition] = useState<EquipmentPosition | null>(null);
@@ -201,7 +208,7 @@ export default function FloorPlan() {
     setTimeout(() => setFocusedPositionId(null), 3000);
   }, []);
 
-  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), and undo (Ctrl+Z)
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), fullscreen (F), and undo (Ctrl+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -220,16 +227,65 @@ export default function FloorPlan() {
         setSearchOpen(false);
         setSearchQuery('');
         setMeasureMode(false);
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
       }
       if (e.key === 'm' || e.key === 'M') {
         if (!searchOpen && document.activeElement?.tagName !== 'INPUT') {
           setMeasureMode(prev => !prev);
         }
       }
+      // F key for fullscreen toggle
+      if ((e.key === 'f' || e.key === 'F') && !(e.ctrlKey || e.metaKey)) {
+        if (!searchOpen && document.activeElement?.tagName !== 'INPUT') {
+          toggleFullscreen();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [searchOpen, measureMode]);
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Update measure points when they change
+  useEffect(() => {
+    if (viewerRef.current) {
+      setMeasurePoints(viewerRef.current.getMeasurePoints());
+    }
+  }, [measureMode]);
+
+  // Poll for measure points updates
+  useEffect(() => {
+    if (!measureMode) {
+      setMeasurePoints([]);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      if (viewerRef.current) {
+        setMeasurePoints(viewerRef.current.getMeasurePoints());
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [measureMode]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      fullscreenContainerRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
 
   // Hover handlers for tooltip
   const handleHover = useCallback((position: EquipmentPosition, screenX: number, screenY: number) => {
@@ -500,9 +556,9 @@ export default function FloorPlan() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex overflow-hidden mt-4">
+        <div className="flex-1 flex overflow-hidden mt-4" ref={fullscreenContainerRef}>
           {/* Canvas Area */}
-          <div className="flex-1 relative rounded-lg overflow-hidden border bg-muted/20">
+          <div className={`flex-1 relative rounded-lg overflow-hidden border bg-muted/20 ${isFullscreen ? 'bg-background' : ''}`}>
             {isLoading || positionsLoading ? (
               <div className="flex items-center justify-center h-full">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -705,6 +761,29 @@ export default function FloorPlan() {
                       </TooltipTrigger>
                       <TooltipContent>Resetar View</TooltipContent>
                     </Tooltip>
+                    
+                    <div className="w-px h-6 bg-border" />
+                    
+                    {/* Fullscreen Toggle */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={toggleFullscreen}
+                        >
+                          {isFullscreen ? (
+                            <Minimize2 className="h-4 w-4" />
+                          ) : (
+                            <Maximize2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isFullscreen ? 'Sair da tela cheia (F)' : 'Tela cheia (F)'}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   
                   {/* Measurement Tool */}
@@ -781,6 +860,14 @@ export default function FloorPlan() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        
+                        {/* Export Measurements PDF */}
+                        <ExportMeasurementButton
+                          points={measurePoints}
+                          scale={measureScale}
+                          floorPlanName={floor?.name || 'Planta'}
+                          buildingName={floor?.building?.name}
+                        />
                       </>
                     )}
                   </div>
