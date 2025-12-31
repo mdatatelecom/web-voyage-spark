@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle } from 'lucide-react';
+import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle, Clock } from 'lucide-react';
 import { useAlertSettings } from '@/hooks/useAlertSettings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +38,12 @@ export default function AlertSettings() {
   const [whatsappResolvedEnabled, setWhatsappResolvedEnabled] = useState(false);
   const [loadingNotifSettings, setLoadingNotifSettings] = useState(true);
 
+  // Ticket deadline settings
+  const [ticketDeadlineWarningHours, setTicketDeadlineWarningHours] = useState(24);
+  const [ticketDeadlineCriticalHours, setTicketDeadlineCriticalHours] = useState(4);
+  const [ticketAutoEscalationEnabled, setTicketAutoEscalationEnabled] = useState(true);
+  const [ticketDeadlineWhatsappEnabled, setTicketDeadlineWhatsappEnabled] = useState(true);
+
   useEffect(() => {
     if (settings) {
       setRackWarning(getSetting('rack_warning_threshold')?.setting_value || 80);
@@ -53,6 +59,12 @@ export default function AlertSettings() {
       setConnectionFaultyEnabled((getSetting('connection_faulty_alert_enabled')?.setting_value || 1) === 1);
       setTestingMaxDays(getSetting('testing_max_days')?.setting_value || 7);
       setEquipmentNoIpEnabled((getSetting('equipment_no_ip_alert_enabled')?.setting_value || 1) === 1);
+
+      // Ticket deadline settings
+      setTicketDeadlineWarningHours(getSetting('ticket_deadline_warning_hours')?.setting_value || 24);
+      setTicketDeadlineCriticalHours(getSetting('ticket_deadline_critical_hours')?.setting_value || 4);
+      setTicketAutoEscalationEnabled((getSetting('ticket_auto_escalation_enabled')?.setting_value ?? 1) === 1);
+      setTicketDeadlineWhatsappEnabled((getSetting('ticket_deadline_whatsapp_enabled')?.setting_value ?? 1) === 1);
     }
   }, [settings, getSetting]);
 
@@ -126,6 +138,12 @@ export default function AlertSettings() {
     updateSetting({ key: 'connection_faulty_alert_enabled', value: connectionFaultyEnabled ? 1 : 0 });
     updateSetting({ key: 'testing_max_days', value: testingMaxDays });
     updateSetting({ key: 'equipment_no_ip_alert_enabled', value: equipmentNoIpEnabled ? 1 : 0 });
+
+    // Ticket deadline settings
+    updateSetting({ key: 'ticket_deadline_warning_hours', value: ticketDeadlineWarningHours });
+    updateSetting({ key: 'ticket_deadline_critical_hours', value: ticketDeadlineCriticalHours });
+    updateSetting({ key: 'ticket_auto_escalation_enabled', value: ticketAutoEscalationEnabled ? 1 : 0 });
+    updateSetting({ key: 'ticket_deadline_whatsapp_enabled', value: ticketDeadlineWhatsappEnabled ? 1 : 0 });
   };
 
   const handleReset = () => {

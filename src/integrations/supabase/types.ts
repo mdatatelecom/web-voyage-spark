@@ -1311,6 +1311,44 @@ export type Database = {
           },
         ]
       }
+      ticket_deadline_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          new_priority: string | null
+          notification_type: string
+          notified_users: Json | null
+          old_priority: string | null
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          new_priority?: string | null
+          notification_type: string
+          notified_users?: Json | null
+          old_priority?: string | null
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          new_priority?: string | null
+          notification_type?: string
+          notified_users?: Json | null
+          old_priority?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_deadline_notifications_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           assigned_at: string

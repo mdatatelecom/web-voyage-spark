@@ -12,6 +12,9 @@ import { SLAComplianceChart } from '@/components/tickets/SLAComplianceChart';
 import { MonthlyTrendChart } from '@/components/tickets/MonthlyTrendChart';
 import { UrgentTicketsList } from '@/components/tickets/UrgentTicketsList';
 import { TicketsByPriorityChart } from '@/components/tickets/TicketsByPriorityChart';
+import { SLATrendChart } from '@/components/tickets/SLATrendChart';
+import { SLAByCategoryChart } from '@/components/tickets/SLAByCategoryChart';
+import { SLAByTechnicianChart } from '@/components/tickets/SLAByTechnicianChart';
 import { 
   BarChart3, 
   Clock, 
@@ -93,7 +96,7 @@ const TicketMetrics = () => {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Urgentes (24h)</p>
+                      <p className="text-sm text-muted-foreground">Urgentes</p>
                       <p className="text-3xl font-bold text-amber-500">{stats.urgentTickets.length}</p>
                     </div>
                     <AlertTriangle className="h-10 w-10 text-amber-500/50" />
@@ -114,6 +117,15 @@ const TicketMetrics = () => {
               </Card>
             </>
           ) : null}
+        </div>
+
+        {/* SLA Trend - Full Width */}
+        <SLATrendChart />
+
+        {/* SLA Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SLAByCategoryChart />
+          <SLAByTechnicianChart />
         </div>
 
         {/* Charts Grid - Row 1 */}

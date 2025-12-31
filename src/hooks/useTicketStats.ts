@@ -2,6 +2,41 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInHours, differenceInMinutes, startOfDay, subDays, subMonths, isAfter, isBefore, parseISO, format, startOfMonth, endOfMonth } from 'date-fns';
 
+export type DeadlineStatus = 'overdue' | 'critical' | 'warning' | 'normal';
+
+export interface UrgentTicket {
+  id: string;
+  ticket_number: string;
+  title: string;
+  due_date: string;
+  priority: string;
+  hoursRemaining: number;
+  deadlineStatus: DeadlineStatus;
+}
+
+export interface SLATrendItem {
+  month: string;
+  compliance: number;
+  overdueCount: number;
+}
+
+export interface SLAByCategoryItem {
+  category: string;
+  label: string;
+  compliance: number;
+  total: number;
+  onTime: number;
+}
+
+export interface SLAByTechnicianItem {
+  id: string;
+  name: string;
+  compliance: number;
+  total: number;
+  onTime: number;
+  overdue: number;
+}
+
 export interface TicketStats {
   totalTickets: number;
   openTickets: number;
@@ -19,9 +54,13 @@ export interface TicketStats {
   // Advanced metrics
   slaCompliance: number;
   overdueTickets: number;
-  urgentTickets: { id: string; ticket_number: string; title: string; due_date: string; priority: string; hoursRemaining: number }[];
+  urgentTickets: UrgentTicket[];
   resolutionByCategory: { category: string; label: string; avgMinutes: number; count: number }[];
   monthlyTrend: { month: string; created: number; resolved: number; avgResolutionMinutes: number }[];
+  // New SLA metrics
+  slaTrend: SLATrendItem[];
+  slaByCategory: SLAByCategoryItem[];
+  slaByTechnician: SLAByTechnicianItem[];
 }
 
 const getCategoryLabel = (category: string): string => {
@@ -210,24 +249,46 @@ export const useTicketStats = () => {
         return isBefore(parseISO(t.due_date), now);
       }).length;
 
-      // Urgent tickets (due in next 24 hours)
-      const urgentTickets = allTickets
+      // Urgent tickets - includes overdue and due within 72 hours
+      const urgentTickets: UrgentTicket[] = allTickets
         .filter(t => {
           if (t.status === 'resolved' || t.status === 'closed') return false;
           if (!t.due_date) return false;
           const dueDate = parseISO(t.due_date);
           const hoursUntilDue = differenceInHours(dueDate, now);
-          return hoursUntilDue > 0 && hoursUntilDue <= 24;
+          // Include overdue (< 0) or due within 72h
+          return hoursUntilDue <= 72;
         })
-        .map(t => ({
-          id: t.id,
-          ticket_number: t.ticket_number,
-          title: t.title,
-          due_date: t.due_date!,
-          priority: t.priority,
-          hoursRemaining: differenceInHours(parseISO(t.due_date!), now)
-        }))
-        .sort((a, b) => a.hoursRemaining - b.hoursRemaining);
+        .map(t => {
+          const hoursRemaining = differenceInHours(parseISO(t.due_date!), now);
+          let deadlineStatus: DeadlineStatus;
+          
+          if (hoursRemaining < 0) {
+            deadlineStatus = 'overdue';
+          } else if (hoursRemaining <= 4) {
+            deadlineStatus = 'critical';
+          } else if (hoursRemaining <= 24) {
+            deadlineStatus = 'warning';
+          } else {
+            deadlineStatus = 'normal';
+          }
+          
+          return {
+            id: t.id,
+            ticket_number: t.ticket_number,
+            title: t.title,
+            due_date: t.due_date!,
+            priority: t.priority,
+            hoursRemaining,
+            deadlineStatus
+          };
+        })
+        // Sort: overdue first, then by least remaining time
+        .sort((a, b) => {
+          if (a.deadlineStatus === 'overdue' && b.deadlineStatus !== 'overdue') return -1;
+          if (b.deadlineStatus === 'overdue' && a.deadlineStatus !== 'overdue') return 1;
+          return a.hoursRemaining - b.hoursRemaining;
+        });
 
       // Resolution time by category
       const categoryResolutionMap = new Map<string, { totalMinutes: number; count: number }>();
@@ -246,8 +307,46 @@ export const useTicketStats = () => {
         count: data.count
       })).sort((a, b) => b.count - a.count);
 
+      // Helper function to check if ticket was resolved on time
+      const wasResolvedOnTime = (t: any): boolean => {
+        if (!t.due_date || !t.resolved_at) return true;
+        return isBefore(parseISO(t.resolved_at), parseISO(t.due_date));
+      };
+
+      // SLA by Category
+      const slaByCategory: SLAByCategoryItem[] = ticketsByCategory.map(cat => {
+        const catTickets = ticketsWithDueDate.filter(t => t.category === cat.category);
+        const resolvedCatTickets = catTickets.filter(t => t.status === 'resolved' || t.status === 'closed');
+        const onTime = resolvedCatTickets.filter(t => wasResolvedOnTime(t)).length;
+        return {
+          category: cat.category,
+          label: cat.label,
+          total: resolvedCatTickets.length,
+          onTime,
+          compliance: resolvedCatTickets.length > 0 ? Math.round((onTime / resolvedCatTickets.length) * 100) : 100
+        };
+      }).filter(c => c.total > 0);
+
+      // SLA by Technician
+      const slaByTechnician: SLAByTechnicianItem[] = ticketsByTechnician.map(tech => {
+        const techTickets = ticketsWithDueDate.filter(t => t.assigned_to === tech.id);
+        const resolvedTechTickets = techTickets.filter(t => t.status === 'resolved' || t.status === 'closed');
+        const onTime = resolvedTechTickets.filter(t => wasResolvedOnTime(t)).length;
+        const overdue = resolvedTechTickets.filter(t => !wasResolvedOnTime(t)).length;
+        return {
+          id: tech.id,
+          name: tech.name,
+          total: resolvedTechTickets.length,
+          onTime,
+          overdue,
+          compliance: resolvedTechTickets.length > 0 ? Math.round((onTime / resolvedTechTickets.length) * 100) : 100
+        };
+      }).filter(t => t.total > 0);
+
       // Monthly trend (last 6 months)
       const monthlyTrend: { month: string; created: number; resolved: number; avgResolutionMinutes: number }[] = [];
+      const slaTrend: SLATrendItem[] = [];
+      
       for (let i = 5; i >= 0; i--) {
         const monthStart = startOfMonth(subMonths(now, i));
         const monthEnd = endOfMonth(subMonths(now, i));
@@ -273,11 +372,24 @@ export const useTicketStats = () => {
           avgMinutes = Math.round(total / resolvedWithTimeInMonth.length);
         }
         
+        // Calculate SLA for this month
+        const monthTicketsWithDue = resolvedInMonth.filter(t => t.due_date);
+        const onTimeThisMonth = monthTicketsWithDue.filter(t => wasResolvedOnTime(t)).length;
+        const overdueThisMonth = monthTicketsWithDue.filter(t => !wasResolvedOnTime(t)).length;
+        
+        const monthLabel = format(monthStart, 'MMM/yy');
+        
         monthlyTrend.push({
-          month: format(monthStart, 'MMM/yy'),
+          month: monthLabel,
           created: createdInMonth.length,
           resolved: resolvedInMonth.length,
           avgResolutionMinutes: avgMinutes
+        });
+        
+        slaTrend.push({
+          month: monthLabel,
+          compliance: monthTicketsWithDue.length > 0 ? Math.round((onTimeThisMonth / monthTicketsWithDue.length) * 100) : 100,
+          overdueCount: overdueThisMonth
         });
       }
 
@@ -300,7 +412,11 @@ export const useTicketStats = () => {
         overdueTickets,
         urgentTickets,
         resolutionByCategory,
-        monthlyTrend
+        monthlyTrend,
+        // New SLA metrics
+        slaTrend,
+        slaByCategory,
+        slaByTechnician
       };
     },
     refetchInterval: 60000 // Refresh every minute

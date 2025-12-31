@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.system-chat]
 verify_jwt = true
+
+[functions.check-ticket-deadlines]
+verify_jwt = false
