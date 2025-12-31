@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Rect, Line, Group } from 'react-konva';
 import useImage from 'use-image';
 import { EquipmentMarker } from './EquipmentMarker';
@@ -43,6 +43,7 @@ export interface FloorPlanViewerRef {
   undoLastMeasurePoint: () => void;
   clearMeasurement: () => void;
   getMeasurePointsCount: () => number;
+  getMeasurePoints: () => MeasurementPoint[];
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -82,6 +83,22 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   
   // Fetch connections between positioned equipment
   const { data: connections } = useFloorPlanConnections(positions);
+  
+  // Calculate connection counts per equipment
+  const connectionCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!connections) return map;
+    
+    connections.forEach(conn => {
+      if (conn.equipment_a_id) {
+        map.set(conn.equipment_a_id, (map.get(conn.equipment_a_id) || 0) + 1);
+      }
+      if (conn.equipment_b_id) {
+        map.set(conn.equipment_b_id, (map.get(conn.equipment_b_id) || 0) + 1);
+      }
+    });
+    return map;
+  }, [connections]);
   
   // LocalStorage key for persisting view state
   const storageKey = `floorplan-view-${floorPlan.id}`;
@@ -141,6 +158,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       setTempMeasurePoint(null);
     },
     getMeasurePointsCount: () => measurePoints.length,
+    getMeasurePoints: () => measurePoints,
   }));
 
   // Calculate stage dimensions based on container
@@ -308,24 +326,27 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
 
   // Handle stage click (for adding equipment or measurement)
   const handleStageClick = (e: any) => {
+    const stage = e.target.getStage();
+    const pointer = stage.getPointerPosition();
+    
+    // Get actual position on canvas
+    const actualX = (pointer.x - position.x) / scale;
+    const actualY = (pointer.y - position.y) / scale;
+    
+    // In measure mode, ALWAYS add a point regardless of what was clicked
+    if (measureMode) {
+      setMeasurePoints(prev => [...prev, { x: actualX, y: actualY }]);
+      setTempMeasurePoint(null);
+      return;
+    }
+    
     const clickedOnEmpty = e.target === e.target.getStage() || 
                           e.target.name() === 'background' ||
                           e.target.name() === 'floor-plan-image' ||
                           e.target.name() === 'grid-line';
     
     if (clickedOnEmpty) {
-      const stage = e.target.getStage();
-      const pointer = stage.getPointerPosition();
-      
-      // Get actual position on canvas
-      const actualX = (pointer.x - position.x) / scale;
-      const actualY = (pointer.y - position.y) / scale;
-      
-      if (measureMode) {
-        // Add point to measurement array
-        setMeasurePoints(prev => [...prev, { x: actualX, y: actualY }]);
-        setTempMeasurePoint(null);
-      } else if (addMode && onAddClick) {
+      if (addMode && onAddClick) {
         // Convert click position to relative coordinates (0-1) based on image bounds
         let relX = (actualX - imageDims.x) / imageDims.width;
         let relY = (actualY - imageDims.y) / imageDims.height;
@@ -444,6 +465,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               currentScale={scale}
               gridSize={gridSize}
               snapToGrid={snapToGrid}
+              activeConnectionCount={connectionCountMap.get(pos.equipment_id) || 0}
               onSelect={() => onSelect(pos.id)}
               onDragStart={() => setDraggingId(pos.id)}
               onDragEnd={(x, y) => {

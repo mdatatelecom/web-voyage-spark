@@ -14,6 +14,7 @@ interface EquipmentMarkerProps {
   currentScale?: number;
   gridSize?: number;
   snapToGrid?: boolean;
+  activeConnectionCount?: number;
   onSelect: () => void;
   onDragStart: () => void;
   onDragEnd: (x: number, y: number) => void;
@@ -47,6 +48,7 @@ function EquipmentMarkerComponent({
   currentScale = 1,
   gridSize = 20,
   snapToGrid = false,
+  activeConnectionCount = 0,
   onSelect,
   onDragStart,
   onDragEnd,
@@ -306,6 +308,28 @@ function EquipmentMarkerComponent({
             text="↻"
             fontSize={12}
             fill="#ffffff"
+          />
+        </Group>
+      )}
+      
+      {/* Connection count badge */}
+      {activeConnectionCount > 0 && (
+        <Group x={size * 0.7} y={-size * 0.7}>
+          <Circle
+            radius={8 * compensatedScale}
+            fill="#22c55e"
+            stroke="#ffffff"
+            strokeWidth={1.5}
+          />
+          <Text
+            text={String(activeConnectionCount)}
+            fontSize={8 * compensatedScale}
+            fill="#ffffff"
+            fontStyle="bold"
+            align="center"
+            verticalAlign="middle"
+            offsetX={activeConnectionCount >= 10 ? 5 * compensatedScale : 2.5 * compensatedScale}
+            offsetY={4 * compensatedScale}
           />
         </Group>
       )}
