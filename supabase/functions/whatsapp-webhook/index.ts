@@ -4371,6 +4371,35 @@ serve(async (req) => {
       );
     }
 
+    // Handle unrecognized commands - send error message with menu options
+    if (!command && !ticket && messageContent && messageContent.trim().length >= 2) {
+      console.log('❓ Unrecognized command:', messageContent);
+      
+      const truncatedMessage = messageContent.length > 50 
+        ? messageContent.substring(0, 50) + '...' 
+        : messageContent;
+      
+      const errorMessage = 
+        `❓ *Comando não reconhecido*\n\n` +
+        `Não entendi: _"${truncatedMessage}"_\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `💡 *Opções disponíveis:*\n\n` +
+        `📋 Digite um número *1-8* para menu\n` +
+        `🔤 Digite *menu* para ver opções\n` +
+        `❓ Digite *ajuda* para comandos\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `📌 *Dica:* Responda uma notificação\n` +
+        `de chamado para adicionar comentário.`;
+      
+      await sendResponse(errorMessage);
+      await saveInteraction(errorMessage, 'error');
+      
+      return new Response(
+        JSON.stringify({ success: true, message: 'Unknown command handled' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // If we found a ticket (from quote or mention), add the message as a comment
     if (ticket && (messageContent || hasMedia) && !command) {
       console.log('💬 Adding comment to ticket:', ticket.ticket_number);
