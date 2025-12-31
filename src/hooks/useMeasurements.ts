@@ -18,6 +18,7 @@ export interface Measurement {
   total_distance: number | null;
   area: number | null;
   color: string;
+  category: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -33,6 +34,7 @@ export interface SaveMeasurementData {
   total_distance?: number;
   area?: number;
   color?: string;
+  category?: string;
 }
 
 export function useMeasurements(floorPlanId: string | undefined) {
@@ -53,7 +55,8 @@ export function useMeasurements(floorPlanId: string | undefined) {
       
       return (data || []).map(item => ({
         ...item,
-        points: (Array.isArray(item.points) ? item.points : []) as unknown as MeasurementPoint[]
+        points: (Array.isArray(item.points) ? item.points : []) as unknown as MeasurementPoint[],
+        category: item.category || 'geral'
       })) as Measurement[];
     },
     enabled: !!floorPlanId
@@ -73,6 +76,7 @@ export function useMeasurements(floorPlanId: string | undefined) {
         total_distance: measurement.total_distance,
         area: measurement.area,
         color: measurement.color,
+        category: measurement.category || 'geral',
         created_by: user?.user?.id
       };
       

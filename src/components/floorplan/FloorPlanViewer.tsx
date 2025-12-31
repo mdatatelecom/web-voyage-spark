@@ -5,9 +5,12 @@ import { EquipmentMarker } from './EquipmentMarker';
 import { ConnectionLines } from './ConnectionLines';
 import { MeasurementTool } from './MeasurementTool';
 import { ScaleIndicator } from './ScaleIndicator';
+import { RackMarker } from './RackMarker';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlan } from '@/hooks/useFloorPlans';
+import { RackPosition } from '@/hooks/useRackPositions';
 import { useFloorPlanConnections } from '@/hooks/useFloorPlanConnections';
+
 interface MeasurementPoint {
   x: number;
   y: number;
@@ -35,6 +38,11 @@ interface FloorPlanViewerProps {
   onCalibrationClick?: (x: number, y: number) => void;
   onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
   onHoverEnd?: () => void;
+  // Rack positioning
+  rackPositions?: RackPosition[];
+  selectedRackId?: string | null;
+  onRackSelect?: (id: string | null) => void;
+  onRackPositionChange?: (id: string, x: number, y: number) => void;
 }
 
 export interface FloorPlanViewerRef {
@@ -73,6 +81,10 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   onCalibrationClick,
   onHover,
   onHoverEnd,
+  rackPositions = [],
+  selectedRackId,
+  onRackSelect,
+  onRackPositionChange,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
@@ -521,6 +533,27 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               onRotationChange={onRotationChange ? (rotation) => onRotationChange(pos.id, rotation) : undefined}
               onHover={onHover}
               onHoverEnd={onHoverEnd}
+            />
+          ))}
+          
+          {/* Rack Markers */}
+          {rackPositions.map(pos => (
+            <RackMarker
+              key={pos.id}
+              position={{
+                ...pos,
+                position_x: imageDims.x + (pos.position_x / 100) * imageDims.width,
+                position_y: imageDims.y + (pos.position_y / 100) * imageDims.height,
+              }}
+              currentZoom={scale}
+              isSelected={selectedRackId === pos.id}
+              isEditing={editable}
+              onClick={() => onRackSelect?.(pos.id)}
+              onDragEnd={(x, y) => {
+                const relX = ((x - imageDims.x) / imageDims.width) * 100;
+                const relY = ((y - imageDims.y) / imageDims.height) * 100;
+                onRackPositionChange?.(pos.id, relX, relY);
+              }}
             />
           ))}
           

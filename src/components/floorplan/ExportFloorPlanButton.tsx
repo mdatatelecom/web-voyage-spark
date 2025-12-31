@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, FileImage, FileText, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Download, FileImage, FileText, Loader2, FileSpreadsheet, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
+import { RackPosition } from '@/hooks/useRackPositions';
 import { EQUIPMENT_TYPE_LABELS, EQUIPMENT_TYPE_COLORS, ICON_OPTIONS } from './equipment-icons';
 
 interface ExportFloorPlanButtonProps {
@@ -18,6 +19,7 @@ interface ExportFloorPlanButtonProps {
   floorName: string;
   buildingName?: string;
   positions?: EquipmentPosition[];
+  rackPositions?: RackPosition[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,6 +36,7 @@ export function ExportFloorPlanButton({
   floorName,
   buildingName,
   positions = [],
+  rackPositions = [],
 }: ExportFloorPlanButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -367,9 +370,88 @@ export function ExportFloorPlanButton({
         });
 
         // Footer
+        // Footer for equipment list
         pdf.setTextColor(150, 150, 150);
         pdf.setFontSize(8);
         pdf.text(`Total: ${positions.length} equipamentos`, margin, pageHeight - 10);
+        pdf.text(date, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      }
+
+      // ====== PAGE 3: Rack List ======
+      if (rackPositions.length > 0) {
+        pdf.addPage();
+
+        // Header
+        pdf.setFillColor(15, 23, 42);
+        pdf.rect(0, 0, pageWidth, 25, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Lista de Racks Posicionados', margin, 16);
+
+        // Table header
+        const tableTop = 35;
+        const rackColWidths = [10, 50, 20, 50, 50];
+        const rackHeaders = ['#', 'Nome', 'Tamanho', 'Sala', 'Posição'];
+
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, tableTop, pageWidth - margin * 2, 8, 'F');
+
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+
+        let headerX = margin + 2;
+        rackHeaders.forEach((header, i) => {
+          pdf.text(header, headerX, tableTop + 5.5);
+          headerX += rackColWidths[i];
+        });
+
+        // Table rows
+        pdf.setFont('helvetica', 'normal');
+        let rowY = tableTop + 14;
+
+        rackPositions.forEach((pos, index) => {
+          if (rowY > pageHeight - 20) {
+            pdf.addPage();
+            rowY = 20;
+          }
+
+          const rackName = pos.rack?.name || 'Rack';
+          const sizeU = pos.rack?.size_u || 42;
+          const roomName = '-'; // Room info not available in current structure
+          const posLabel = `${Math.round(pos.position_x)}%, ${Math.round(pos.position_y)}%`;
+
+          // Alternating row colors
+          if (index % 2 === 0) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(margin, rowY - 4, pageWidth - margin * 2, 8, 'F');
+          }
+
+          pdf.setTextColor(60, 60, 60);
+          pdf.setFontSize(7);
+
+          let cellX = margin + 2;
+          const rowData = [
+            String(index + 1),
+            rackName.substring(0, 25),
+            `${sizeU}U`,
+            roomName.substring(0, 25),
+            posLabel,
+          ];
+
+          rowData.forEach((text, i) => {
+            pdf.text(text, cellX, rowY);
+            cellX += rackColWidths[i];
+          });
+
+          rowY += 8;
+        });
+
+        // Footer
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(8);
+        pdf.text(`Total: ${rackPositions.length} racks`, margin, pageHeight - 10);
         pdf.text(date, pageWidth - margin, pageHeight - 10, { align: 'right' });
       }
 

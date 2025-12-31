@@ -480,6 +480,7 @@ export type Database = {
       floor_plan_measurements: {
         Row: {
           area: number | null
+          category: string | null
           color: string | null
           created_at: string | null
           created_by: string | null
@@ -495,6 +496,7 @@ export type Database = {
         }
         Insert: {
           area?: number | null
+          category?: string | null
           color?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -510,6 +512,7 @@ export type Database = {
         }
         Update: {
           area?: number | null
+          category?: string | null
           color?: string | null
           created_at?: string | null
           created_by?: string | null
