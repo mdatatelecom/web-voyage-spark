@@ -3,9 +3,15 @@ import { Stage, Layer, Image as KonvaImage, Rect, Line, Group } from 'react-konv
 import useImage from 'use-image';
 import { EquipmentMarker } from './EquipmentMarker';
 import { ConnectionLines } from './ConnectionLines';
+import { MeasurementTool } from './MeasurementTool';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlan } from '@/hooks/useFloorPlans';
 import { useFloorPlanConnections } from '@/hooks/useFloorPlanConnections';
+
+interface MeasurementPoint {
+  x: number;
+  y: number;
+}
 
 interface FloorPlanViewerProps {
   floorPlan: FloorPlan;
@@ -22,11 +28,17 @@ interface FloorPlanViewerProps {
   showGrid?: boolean;
   gridSize?: number;
   snapToGrid?: boolean;
+  measureMode?: boolean;
+  measureScale?: number;
+  onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
+  onHoverEnd?: () => void;
 }
 
 export interface FloorPlanViewerRef {
   getStage: () => any;
   getScale: () => number;
+  setZoom: (zoom: number) => void;
+  fitToView: () => void;
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -44,6 +56,10 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   showGrid = false,
   gridSize = 20,
   snapToGrid = false,
+  measureMode = false,
+  measureScale = 100,
+  onHover,
+  onHoverEnd,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
@@ -52,6 +68,11 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Measurement state
+  const [measureStart, setMeasureStart] = useState<MeasurementPoint | null>(null);
+  const [measureEnd, setMeasureEnd] = useState<MeasurementPoint | null>(null);
+  const [tempMeasureEnd, setTempMeasureEnd] = useState<MeasurementPoint | null>(null);
   
   const [image] = useImage(floorPlan.file_url, 'anonymous');
   
@@ -62,6 +83,14 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   useImperativeHandle(ref, () => ({
     getStage: () => stageRef.current,
     getScale: () => scale,
+    setZoom: (zoom: number) => {
+      const clampedZoom = Math.max(0.25, Math.min(5, zoom));
+      setScale(clampedZoom);
+    },
+    fitToView: () => {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    },
   }));
 
   // Calculate stage dimensions based on container
@@ -193,7 +222,16 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     requestAnimationFrame(animate);
   }, [focusedId]);
 
-  // Handle zoom
+  // Clear measurement when mode changes
+  useEffect(() => {
+    if (!measureMode) {
+      setMeasureStart(null);
+      setMeasureEnd(null);
+      setTempMeasureEnd(null);
+    }
+  }, [measureMode]);
+
+  // Handle zoom with extended range
   const handleWheel = (e: any) => {
     if (isAnimating) return;
     e.evt.preventDefault();
@@ -209,7 +247,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     };
 
     const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    const clampedScale = Math.max(0.5, Math.min(3, newScale));
+    // Extended zoom range: 25% to 500%
+    const clampedScale = Math.max(0.25, Math.min(5, newScale));
 
     setScale(clampedScale);
     setPosition({
@@ -218,7 +257,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     });
   };
 
-  // Handle stage click (for adding equipment)
+  // Handle stage click (for adding equipment or measurement)
   const handleStageClick = (e: any) => {
     const clickedOnEmpty = e.target === e.target.getStage() || 
                           e.target.name() === 'background' ||
@@ -226,13 +265,30 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
                           e.target.name() === 'grid-line';
     
     if (clickedOnEmpty) {
-      if (addMode && onAddClick) {
-        const stage = e.target.getStage();
-        const pointer = stage.getPointerPosition();
-        
+      const stage = e.target.getStage();
+      const pointer = stage.getPointerPosition();
+      
+      // Get actual position on canvas
+      const actualX = (pointer.x - position.x) / scale;
+      const actualY = (pointer.y - position.y) / scale;
+      
+      if (measureMode) {
+        // Measurement mode logic
+        if (!measureStart) {
+          setMeasureStart({ x: actualX, y: actualY });
+          setMeasureEnd(null);
+        } else if (!measureEnd) {
+          setMeasureEnd({ x: actualX, y: actualY });
+          setTempMeasureEnd(null);
+        } else {
+          // Start new measurement
+          setMeasureStart({ x: actualX, y: actualY });
+          setMeasureEnd(null);
+        }
+      } else if (addMode && onAddClick) {
         // Convert click position to relative coordinates (0-1) based on image bounds
-        let relX = (pointer.x / scale - position.x / scale - imageDims.x) / imageDims.width;
-        let relY = (pointer.y / scale - position.y / scale - imageDims.y) / imageDims.height;
+        let relX = (actualX - imageDims.x) / imageDims.width;
+        let relY = (actualY - imageDims.y) / imageDims.height;
         
         // Apply snap if enabled
         if (snapToGrid) {
@@ -254,10 +310,25 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     }
   };
 
+  // Handle mouse move for temp measurement line
+  const handleMouseMove = useCallback((e: any) => {
+    if (!measureMode || !measureStart || measureEnd) return;
+    
+    const stage = e.target.getStage();
+    const pointer = stage.getPointerPosition();
+    if (pointer) {
+      const actualX = (pointer.x - position.x) / scale;
+      const actualY = (pointer.y - position.y) / scale;
+      setTempMeasureEnd({ x: actualX, y: actualY });
+    }
+  }, [measureMode, measureStart, measureEnd, position, scale]);
+
+  const cursorStyle = measureMode ? 'cursor-crosshair' : addMode ? 'cursor-crosshair' : 'cursor-grab';
+  
   return (
     <div 
       ref={containerRef} 
-      className={`w-full h-full bg-muted/30 ${addMode ? 'cursor-crosshair' : 'cursor-grab'}`}
+      className={`w-full h-full bg-muted/30 ${cursorStyle}`}
     >
       <Stage
         ref={stageRef}
@@ -267,10 +338,11 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
         scaleY={scale}
         x={position.x}
         y={position.y}
-        draggable={!addMode && !isAnimating}
+        draggable={!addMode && !measureMode && !isAnimating}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
+        onMouseMove={handleMouseMove}
         onDragEnd={(e) => {
           setPosition({ x: e.target.x(), y: e.target.y() });
         }}
@@ -343,8 +415,21 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
                 }
               }}
               onRotationChange={onRotationChange ? (rotation) => onRotationChange(pos.id, rotation) : undefined}
+              onHover={onHover}
+              onHoverEnd={onHoverEnd}
             />
           ))}
+          
+          {/* Measurement Tool */}
+          {measureMode && (
+            <MeasurementTool
+              startPoint={measureStart}
+              endPoint={measureEnd}
+              tempEndPoint={tempMeasureEnd}
+              scale={measureScale}
+              currentZoom={scale}
+            />
+          )}
         </Layer>
       </Stage>
     </div>

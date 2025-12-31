@@ -1,9 +1,7 @@
 import { memo, useEffect, useState, useMemo, useCallback } from 'react';
 import { Circle, Group, Text, Line } from 'react-konva';
-import { Html } from 'react-konva-utils';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
-import { FloorPlanEquipmentIcon } from './equipment-icons';
-import { EquipmentTooltip } from './EquipmentTooltip';
+import { FloorPlanEquipmentIcon, EQUIPMENT_TYPE_COLORS } from './equipment-icons';
 
 interface EquipmentMarkerProps {
   position: EquipmentPosition;
@@ -20,13 +18,15 @@ interface EquipmentMarkerProps {
   onDragStart: () => void;
   onDragEnd: (x: number, y: number) => void;
   onRotationChange?: (rotation: number) => void;
+  onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
+  onHoverEnd?: () => void;
 }
 
-// Base sizes reduced by 70%
+// Base sizes increased by 15% from original
 const SIZE_MAP: Record<string, number> = {
-  small: 12,
-  medium: 18,
-  large: 24,
+  small: 14,
+  medium: 21,
+  large: 28,
 };
 
 // Min/max scale for icon compensation
@@ -51,11 +51,14 @@ function EquipmentMarkerComponent({
   onDragStart,
   onDragEnd,
   onRotationChange,
+  onHover,
+  onHoverEnd,
 }: EquipmentMarkerProps) {
   const equipment = position.equipment;
   // Use custom_icon if set, otherwise fall back to equipment type
   const equipmentType = (position as any).custom_icon || equipment?.type || 'default';
   const status = equipment?.equipment_status || 'active';
+  const typeColor = EQUIPMENT_TYPE_COLORS[equipmentType] || '#6b7280';
   
   const baseSize = SIZE_MAP[position.icon_size] || SIZE_MAP.medium;
   
@@ -92,12 +95,20 @@ function EquipmentMarkerComponent({
   const [isHovered, setIsHovered] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const handleMouseEnter = useCallback(() => {
+  const handleMouseEnter = useCallback((e: any) => {
     const timeout = setTimeout(() => {
       setIsHovered(true);
+      if (onHover) {
+        const stage = e.target.getStage();
+        const container = stage.container().getBoundingClientRect();
+        const pointer = stage.getPointerPosition();
+        if (pointer) {
+          onHover(position, container.left + pointer.x, container.top + pointer.y);
+        }
+      }
     }, HOVER_DELAY);
     setHoverTimeout(timeout);
-  }, []);
+  }, [onHover, position]);
 
   const handleMouseLeave = useCallback(() => {
     if (hoverTimeout) {
@@ -105,7 +116,10 @@ function EquipmentMarkerComponent({
       setHoverTimeout(null);
     }
     setIsHovered(false);
-  }, [hoverTimeout]);
+    if (onHoverEnd) {
+      onHoverEnd();
+    }
+  }, [hoverTimeout, onHoverEnd]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -194,25 +208,6 @@ function EquipmentMarkerComponent({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Hover Tooltip */}
-      {isHovered && !isDragging && !editable && (
-        <Html
-          divProps={{
-            style: {
-              position: 'absolute',
-              transform: `translate(-50%, ${-size - 60}px)`,
-              pointerEvents: 'none',
-              zIndex: 1000,
-            }
-          }}
-        >
-          <EquipmentTooltip 
-            equipment={equipment} 
-            customLabel={position.custom_label}
-          />
-        </Html>
-      )}
-
       {/* Main equipment group with rotation */}
       <Group rotation={position.rotation || 0}>
         {/* Pulsating focus ring */}
@@ -252,30 +247,30 @@ function EquipmentMarkerComponent({
           />
         )}
         
-        {/* White halo for better visibility */}
+        {/* White halo for better visibility - increased opacity */}
         <Circle
           radius={size * 1.05}
-          fill="rgba(255, 255, 255, 0.4)"
-          stroke="#ffffff"
+          fill="rgba(255, 255, 255, 0.6)"
+          stroke={typeColor}
           strokeWidth={2}
         />
         
-        {/* Background circle - darker for better icon contrast */}
+        {/* Transparent background - no black circle */}
         <Circle
           radius={size * 0.9}
-          fill="#0f172a"
-          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : isHovered ? '#60a5fa' : '#ffffff'}
-          strokeWidth={isDragging ? 4 : isFocused ? 4 : isHovered ? 4 : 3}
-          shadowColor="#000000"
-          shadowBlur={12}
-          shadowOpacity={0.6}
+          fill="transparent"
+          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : isHovered ? '#60a5fa' : typeColor}
+          strokeWidth={isDragging ? 3 : isFocused ? 3 : isHovered ? 3 : 2}
+          shadowColor={typeColor}
+          shadowBlur={8}
+          shadowOpacity={0.4}
           opacity={isDragging ? 0.9 : 1}
         />
         
-        {/* Equipment-specific SVG icon - larger size */}
+        {/* Equipment-specific SVG icon - increased 15% (0.75 * 1.15 = 0.86) */}
         <FloorPlanEquipmentIcon
           type={equipmentType}
-          size={size * 0.75}
+          size={size * 0.86}
           status={status}
         />
       </Group>
