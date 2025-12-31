@@ -29,9 +29,10 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   const fontSize = Math.max(8, 12 / currentZoom);
   const padding = 4 / currentZoom;
   
-  // Colors
-  const fillColor = isSelected ? 'rgba(59, 130, 246, 0.3)' : 'rgba(100, 116, 139, 0.2)';
-  const strokeColor = isSelected ? '#3b82f6' : '#64748b';
+  // Colors - enhanced for better visibility
+  const fillColor = isSelected ? 'rgba(59, 130, 246, 0.4)' : 'rgba(30, 41, 59, 0.6)';
+  const strokeColor = isSelected ? '#3b82f6' : '#475569';
+  const headerColor = isSelected ? '#2563eb' : '#1e293b';
   
   return (
     <Group
@@ -46,6 +47,23 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
       }}
       style={{ cursor: isEditing ? 'move' : 'pointer' }}
     >
+      {/* Selection glow */}
+      {isSelected && (
+        <Rect
+          x={-width / 2 - 4 / currentZoom}
+          y={-height / 2 - fontSize - padding * 2 - 4 / currentZoom}
+          width={width + 8 / currentZoom}
+          height={height + fontSize + padding * 2 + 8 / currentZoom}
+          fill="transparent"
+          stroke="#3b82f6"
+          strokeWidth={3 / currentZoom}
+          cornerRadius={6 / currentZoom}
+          shadowColor="#3b82f6"
+          shadowBlur={10 / currentZoom}
+          shadowOpacity={0.5}
+        />
+      )}
+      
       {/* Main rack body */}
       <Rect
         x={-width / 2}
@@ -70,17 +88,53 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
           ]}
           stroke={strokeColor}
           strokeWidth={0.5 / currentZoom}
-          opacity={0.3}
+          opacity={0.4}
         />
       ))}
       
-      {/* Rack name label */}
+      {/* Server icon in center */}
+      <Rect
+        x={-width / 4}
+        y={-height / 6}
+        width={width / 2}
+        height={height / 8}
+        fill="#475569"
+        cornerRadius={2 / currentZoom}
+      />
+      <Rect
+        x={-width / 4}
+        y={0}
+        width={width / 2}
+        height={height / 8}
+        fill="#475569"
+        cornerRadius={2 / currentZoom}
+      />
+      
+      {/* LED indicators on servers */}
+      <Rect
+        x={width / 4 - 8 / currentZoom}
+        y={-height / 6 + 2 / currentZoom}
+        width={4 / currentZoom}
+        height={4 / currentZoom}
+        fill="#22c55e"
+        cornerRadius={2 / currentZoom}
+      />
+      <Rect
+        x={width / 4 - 8 / currentZoom}
+        y={2 / currentZoom}
+        width={4 / currentZoom}
+        height={4 / currentZoom}
+        fill="#22c55e"
+        cornerRadius={2 / currentZoom}
+      />
+      
+      {/* Rack name label (header) */}
       <Rect
         x={-width / 2}
         y={-height / 2 - fontSize - padding * 2}
         width={width}
         height={fontSize + padding * 2}
-        fill={strokeColor}
+        fill={headerColor}
         cornerRadius={[4 / currentZoom, 4 / currentZoom, 0, 0]}
       />
       <Text
@@ -101,14 +155,13 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
         width={width}
         text={`${sizeU}U`}
         fontSize={fontSize * 0.9}
-        fill={strokeColor}
+        fill="#94a3b8"
         align="center"
       />
       
-      {/* Selection indicator */}
+      {/* Corner resize handles when selected */}
       {isSelected && (
         <>
-          {/* Corner handles */}
           {[
             { x: -width / 2, y: -height / 2 },
             { x: width / 2, y: -height / 2 },
@@ -124,6 +177,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               fill="#3b82f6"
               stroke="#ffffff"
               strokeWidth={1 / currentZoom}
+              cornerRadius={2 / currentZoom}
             />
           ))}
         </>

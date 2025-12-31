@@ -117,6 +117,7 @@ export default function FloorPlan() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [showConnections, setShowConnections] = useState(true);
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [selectedRackId, setSelectedRackId] = useState<string | null>(null);
   
   // Grid and alignment states
   const [showGrid, setShowGrid] = useState(false);
@@ -150,7 +151,8 @@ export default function FloorPlan() {
   const [saveMeasurementOpen, setSaveMeasurementOpen] = useState(false);
   const [measurementName, setMeasurementName] = useState('');
   const [measurementDescription, setMeasurementDescription] = useState('');
-  
+  const [measurementCategory, setMeasurementCategory] = useState('geral');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
@@ -393,12 +395,14 @@ export default function FloorPlan() {
       is_closed: isPolygonClosed,
       total_distance: calculateTotalDistance(measurePoints, isPolygonClosed),
       area: isPolygonClosed ? calculateArea(measurePoints) : undefined,
+      category: measurementCategory,
     });
     
     setSaveMeasurementOpen(false);
     setMeasurementName('');
     setMeasurementDescription('');
-  }, [currentPlan?.id, measurePoints, measurementName, measurementDescription, measureScale, isPolygonClosed, saveMeasurement, calculateTotalDistance, calculateArea]);
+    setMeasurementCategory('geral');
+  }, [currentPlan?.id, measurePoints, measurementName, measurementDescription, measureScale, isPolygonClosed, measurementCategory, saveMeasurement, calculateTotalDistance, calculateArea]);
 
   // Handle load measurement
   const handleLoadMeasurement = useCallback((measurement: Measurement) => {
@@ -708,6 +712,7 @@ export default function FloorPlan() {
                 floorName={floor?.name || 'planta'}
                 buildingName={floor?.building?.name}
                 positions={positions}
+                rackPositions={rackPositions}
               />
             )}
 
@@ -795,6 +800,12 @@ export default function FloorPlan() {
                   onCalibrationClick={handleCalibrationClick}
                   onHover={handleHover}
                   onHoverEnd={handleHoverEnd}
+                  rackPositions={rackPositions || []}
+                  selectedRackId={selectedRackId}
+                  onRackSelect={setSelectedRackId}
+                  onRackPositionChange={(id, x, y) => {
+                    updateRackPosition({ id, position_x: x, position_y: y });
+                  }}
                 />
 
                 {/* Floating Tooltip */}
@@ -1117,7 +1128,15 @@ export default function FloorPlan() {
                                   onClick={() => handleLoadMeasurement(m)}
                                 >
                                   <div className="flex flex-col">
-                                    <span className="font-medium">{m.name}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{m.name}</span>
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                        {m.category === 'eletrica' ? 'Elétrica' : 
+                                         m.category === 'rede' ? 'Rede' : 
+                                         m.category === 'hidraulica' ? 'Hidráulica' : 
+                                         m.category === 'estrutura' ? 'Estrutura' : 'Geral'}
+                                      </Badge>
+                                    </div>
                                     <span className="text-xs text-muted-foreground">
                                       {m.total_distance?.toFixed(2)}m {m.is_closed && `• ${m.area?.toFixed(2)}m²`}
                                     </span>
@@ -1391,6 +1410,21 @@ export default function FloorPlan() {
                 onChange={(e) => setMeasurementName(e.target.value)}
                 placeholder="Ex: Sala de servidores"
               />
+            </div>
+            <div>
+              <Label htmlFor="measurement-category">Categoria</Label>
+              <Select value={measurementCategory} onValueChange={setMeasurementCategory}>
+                <SelectTrigger id="measurement-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="geral">Geral</SelectItem>
+                  <SelectItem value="eletrica">Elétrica</SelectItem>
+                  <SelectItem value="rede">Rede</SelectItem>
+                  <SelectItem value="hidraulica">Hidráulica</SelectItem>
+                  <SelectItem value="estrutura">Estrutura</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="measurement-desc">Descrição (opcional)</Label>
