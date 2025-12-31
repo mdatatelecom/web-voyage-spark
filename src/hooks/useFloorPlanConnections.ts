@@ -24,17 +24,31 @@ export function useFloorPlanConnections(positions: EquipmentPosition[] | undefin
     queryFn: async () => {
       if (equipmentIds.length === 0) return [];
 
-      // Get connections where both equipment are positioned on this floor plan
-      const { data, error } = await supabase
+      // Supabase doesn't support OR with .in(), so we need 2 queries
+      // Query for connections where equipment_a is on the floor plan
+      const { data: dataA, error: errorA } = await supabase
         .from('v_connection_details')
         .select('*')
         .in('equipment_a_id', equipmentIds)
+        .eq('status', 'active');
+
+      if (errorA) throw errorA;
+
+      // Query for connections where equipment_b is on the floor plan
+      const { data: dataB, error: errorB } = await supabase
+        .from('v_connection_details')
+        .select('*')
         .in('equipment_b_id', equipmentIds)
         .eq('status', 'active');
 
-      if (error) throw error;
+      if (errorB) throw errorB;
 
-      return (data || []).map(conn => ({
+      // Combine and remove duplicates by id
+      const all = [...(dataA || []), ...(dataB || [])];
+      const uniqueMap = new Map(all.map(c => [c.id, c]));
+      const unique = Array.from(uniqueMap.values());
+
+      return unique.map(conn => ({
         id: conn.id!,
         connection_code: conn.connection_code || '',
         cable_type: conn.cable_type || 'other',
