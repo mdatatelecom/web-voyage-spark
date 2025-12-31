@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { RackTooltip } from '@/components/floorplan/RackTooltip';
+import { RackContextMenu } from '@/components/floorplan/RackContextMenu';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { useRackPositions, RackPosition } from '@/hooks/useRackPositions';
@@ -167,6 +168,13 @@ export default function FloorPlan() {
   const [rackTooltipPos, setRackTooltipPos] = useState({ x: 0, y: 0 });
   const [rackDeleteConfirmOpen, setRackDeleteConfirmOpen] = useState(false);
   
+  // Context menu state
+  const [rackContextMenu, setRackContextMenu] = useState<{
+    position: RackPosition;
+    x: number;
+    y: number;
+  } | null>(null);
+  
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -287,7 +295,12 @@ export default function FloorPlan() {
     setTimeout(() => setFocusedPositionId(null), 3000);
   }, []);
 
-  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), fullscreen (F), and undo (Ctrl+Z)
+  // Handle rack rotation - defined before keyboard effect that uses it
+  const handleRackRotate = useCallback((id: string, rotation: number) => {
+    updateRackPosition({ id, rotation });
+  }, [updateRackPosition]);
+
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), fullscreen (F), rotation (R), and undo (Ctrl+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -306,6 +319,7 @@ export default function FloorPlan() {
         setSearchOpen(false);
         setSearchQuery('');
         setMeasureMode(false);
+        setRackContextMenu(null);
         if (document.fullscreenElement) {
           document.exitFullscreen();
         }
@@ -321,10 +335,22 @@ export default function FloorPlan() {
           toggleFullscreen();
         }
       }
+      // R key for rack rotation (90° clockwise), Shift+R for counter-clockwise
+      if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+        if (!searchOpen && document.activeElement?.tagName !== 'INPUT' && viewMode === 'edit' && selectedRackId) {
+          e.preventDefault();
+          const rackPos = rackPositions?.find(p => p.id === selectedRackId);
+          if (rackPos) {
+            const delta = e.shiftKey ? -90 : 90;
+            const newRotation = ((rackPos.rotation || 0) + delta + 360) % 360;
+            handleRackRotate(selectedRackId, newRotation);
+          }
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen, measureMode]);
+  }, [searchOpen, measureMode, viewMode, selectedRackId, rackPositions, handleRackRotate]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -583,6 +609,32 @@ export default function FloorPlan() {
   const handleRackHoverEnd = useCallback(() => {
     setHoveredRackPosition(null);
   }, []);
+
+  // Context menu handlers
+  const handleRackContextMenu = useCallback((position: RackPosition, screenX: number, screenY: number) => {
+    setRackContextMenu({ position, x: screenX, y: screenY });
+    setSelectedRackId(position.id);
+  }, []);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setRackContextMenu(null);
+  }, []);
+
+  // Handle rack duplicate
+  const handleDuplicateRack = useCallback((position: RackPosition) => {
+    if (!currentPlan?.id) return;
+    
+    addRackPosition({
+      floor_plan_id: currentPlan.id,
+      rack_id: position.rack_id,
+      position_x: position.position_x + 5,
+      position_y: position.position_y + 5,
+      rotation: position.rotation,
+      width: position.width,
+      height: position.height,
+    });
+    setRackContextMenu(null);
+  }, [currentPlan?.id, addRackPosition]);
 
   // Handle equipment selection from sidebar - focus and center
   const handleEquipmentSelect = (id: string | null) => {
@@ -845,6 +897,8 @@ export default function FloorPlan() {
                   onRackDelete={handleRackDelete}
                   onRackHover={handleRackHover}
                   onRackHoverEnd={handleRackHoverEnd}
+                  onRackContextMenu={handleRackContextMenu}
+                  onRackRotate={handleRackRotate}
                 />
 
                 {/* Floating Tooltip */}
@@ -876,6 +930,45 @@ export default function FloorPlan() {
                   >
                     <RackTooltip position={hoveredRackPosition} />
                   </div>
+                )}
+
+                {/* Rack Context Menu */}
+                {rackContextMenu && (
+                  <>
+                    {/* Overlay to close context menu when clicking outside */}
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={handleCloseContextMenu}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleCloseContextMenu();
+                      }}
+                    />
+                    <RackContextMenu
+                      x={rackContextMenu.x}
+                      y={rackContextMenu.y}
+                      rackName={rackContextMenu.position.rack?.name}
+                      onEdit={() => {
+                        navigate(`/racks/${rackContextMenu.position.rack_id}`);
+                        handleCloseContextMenu();
+                      }}
+                      onDuplicate={() => handleDuplicateRack(rackContextMenu.position)}
+                      onDelete={() => {
+                        handleRackDelete(rackContextMenu.position.id);
+                        handleCloseContextMenu();
+                      }}
+                      onChangeIcon={() => {
+                        // TODO: Implement icon selector dialog
+                        handleCloseContextMenu();
+                      }}
+                      onRotate={(degrees) => {
+                        const current = rackContextMenu.position.rotation || 0;
+                        handleRackRotate(rackContextMenu.position.id, (current + degrees + 360) % 360);
+                        handleCloseContextMenu();
+                      }}
+                      onClose={handleCloseContextMenu}
+                    />
+                  </>
                 )}
 
                 {/* Mode indicator */}
