@@ -217,6 +217,14 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'equipamentos', args: '' };
   }
   
+  // Menu/Welcome command - responds to greetings
+  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || 
+      lowerText === 'menu' || lowerText === 'inicio' || lowerText === 'início' ||
+      lowerText === 'hi' || lowerText === 'hello' || lowerText === 'bom dia' ||
+      lowerText === 'boa tarde' || lowerText === 'boa noite' || lowerText === 'opa') {
+    return { command: 'menu', args: '' };
+  }
+  
   // Help sub-menus
   if (lowerText === 'ajuda chamados' || lowerText === 'help chamados') {
     return { command: 'help_chamados', args: '' };
@@ -1242,6 +1250,45 @@ serve(async (req) => {
       console.log('🤖 Bot command detected:', command);
 
       switch (command.command) {
+        case 'menu': {
+          const menuMessage = `🤖 *BEM-VINDO AO DATACENTER BOT!*\n\n` +
+            `O que você deseja fazer?\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📋 *CONSULTAS*\n` +
+            `• *meus chamados* - Seus tickets\n` +
+            `• *status XXXXX* - Ver status\n` +
+            `• *detalhes XXXXX* - Ver detalhes\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `➕ *CRIAR CHAMADO*\n` +
+            `• *criar chamado* - Wizard guiado ✨\n` +
+            `• *novo* - Menu categorias\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔧 *ALTERAR STATUS* (Técnicos)\n` +
+            `• *iniciar / resolver / encerrar XXXXX*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `👨‍🔧 *ATRIBUIÇÃO* (Técnicos)\n` +
+            `• *atribuir / transferir XXXXX*\n` +
+            `• *disponiveis* - Ver disponíveis\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 *ESTATÍSTICAS* (Técnicos)\n` +
+            `• *minhas estatisticas*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📎 *ANEXAR ARQUIVOS*\n` +
+            `• *anexar XXXXX* + foto/doc\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `⚡ *PRIORIDADE*\n` +
+            `• *prioridade XXXXX alta*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🏗️ *INFRAESTRUTURA*\n` +
+            `• *racks / plantas / cameras / nvrs*\n` +
+            `• *localizar [termo]*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💡 Digite *ajuda* para mais detalhes`;
+          
+          await sendResponse(menuMessage);
+          break;
+        }
+
         case 'help': {
           const helpMessage = `🤖 *CENTRAL DE AJUDA*\n\n` +
             `Escolha uma categoria:\n\n` +
