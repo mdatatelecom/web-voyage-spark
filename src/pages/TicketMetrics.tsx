@@ -15,13 +15,15 @@ import { TicketsByPriorityChart } from '@/components/tickets/TicketsByPriorityCh
 import { SLATrendChart } from '@/components/tickets/SLATrendChart';
 import { SLAByCategoryChart } from '@/components/tickets/SLAByCategoryChart';
 import { SLAByTechnicianChart } from '@/components/tickets/SLAByTechnicianChart';
+import { SLAReportExport } from '@/components/tickets/SLAReportExport';
 import { 
   BarChart3, 
   Clock, 
   AlertTriangle, 
   CheckCircle2, 
   TrendingUp,
-  ArrowLeft
+  ArrowLeft,
+  History
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -51,6 +53,16 @@ const TicketMetrics = () => {
                 Análise detalhada de desempenho e SLA
               </p>
             </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/tickets/escalations')}
+            >
+              <History className="h-4 w-4 mr-2" />
+              Histórico de Escalonamentos
+            </Button>
+            <SLAReportExport />
           </div>
         </div>
 
