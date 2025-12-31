@@ -1368,6 +1368,48 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_interactions: {
+        Row: {
+          args: string | null
+          command: string | null
+          created_at: string | null
+          group_id: string | null
+          id: string
+          is_group: boolean | null
+          message_received: string
+          phone_number: string
+          processing_time_ms: number | null
+          response_sent: string | null
+          response_status: string | null
+        }
+        Insert: {
+          args?: string | null
+          command?: string | null
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          is_group?: boolean | null
+          message_received: string
+          phone_number: string
+          processing_time_ms?: number | null
+          response_sent?: string | null
+          response_status?: string | null
+        }
+        Update: {
+          args?: string | null
+          command?: string | null
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          is_group?: boolean | null
+          message_received?: string
+          phone_number?: string
+          processing_time_ms?: number | null
+          response_sent?: string | null
+          response_status?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_message_mapping: {
         Row: {
           created_at: string | null

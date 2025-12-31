@@ -198,8 +198,37 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'camera', args };
   }
   
+  // NVR commands
+  if (lowerText === 'nvrs' || lowerText === 'listar nvrs' || lowerText === 'listar nvr') {
+    return { command: 'nvrs', args: '' };
+  }
+  
+  if (lowerText.startsWith('nvr ')) {
+    return { command: 'nvr', args: lowerText.replace('nvr ', '').trim() };
+  }
+  
+  // Localizar command (universal search)
+  if (lowerText.startsWith('localizar ') || lowerText.startsWith('buscar ') || lowerText.startsWith('encontrar ')) {
+    const args = lowerText.replace(/^(localizar|buscar|encontrar)\s+/, '').trim();
+    return { command: 'localizar', args };
+  }
+  
   if (lowerText === 'equipamentos' || lowerText === 'listar equipamentos') {
     return { command: 'equipamentos', args: '' };
+  }
+  
+  // Help sub-menus
+  if (lowerText === 'ajuda chamados' || lowerText === 'help chamados') {
+    return { command: 'help_chamados', args: '' };
+  }
+  if (lowerText === 'ajuda tecnico' || lowerText === 'ajuda técnico' || lowerText === 'help tecnico') {
+    return { command: 'help_tecnico', args: '' };
+  }
+  if (lowerText === 'ajuda infra' || lowerText === 'ajuda infraestrutura' || lowerText === 'help infra') {
+    return { command: 'help_infra', args: '' };
+  }
+  if (lowerText === 'ajuda status' || lowerText === 'help status') {
+    return { command: 'help_status', args: '' };
   }
   
   return null;
@@ -1186,72 +1215,141 @@ serve(async (req) => {
 
     // Check for bot commands
     const command = extractCommand(messageContent);
+    const commandStartTime = Date.now();
+    let commandResponse = '';
+
+    // Helper to save interaction
+    const saveInteraction = async (response: string, status: string = 'success') => {
+      try {
+        const processingTime = Date.now() - commandStartTime;
+        await supabase.from('whatsapp_interactions').insert({
+          phone_number: senderPhone,
+          message_received: messageContent?.substring(0, 500) || '',
+          command: command?.command || null,
+          args: command?.args?.substring(0, 200) || null,
+          response_sent: response.substring(0, 1000),
+          response_status: status,
+          processing_time_ms: processingTime,
+          is_group: !!groupId,
+          group_id: groupId || null,
+        });
+      } catch (err) {
+        console.error('Failed to save interaction:', err);
+      }
+    };
 
     if (command) {
       console.log('🤖 Bot command detected:', command);
 
       switch (command.command) {
         case 'help': {
-          const helpMessage = `🤖 *Comandos do WhatsApp*\n\n` +
+          const helpMessage = `🤖 *CENTRAL DE AJUDA*\n\n` +
+            `Escolha uma categoria:\n\n` +
+            `📋 *ajuda chamados* - Criar e gerenciar\n` +
+            `🔧 *ajuda tecnico* - Atribuição e estatísticas\n` +
+            `🏗️ *ajuda infra* - Racks, plantas, câmeras, NVRs\n` +
+            `📊 *ajuda status* - Consultas rápidas\n\n` +
+            `Ou digite diretamente o comando desejado!\n\n` +
+            `💡 _Responda uma notificação para comentar_`;
+          
+          await sendResponse(helpMessage);
+          break;
+        }
+
+        case 'help_chamados': {
+          const helpMessage = `📋 *COMANDOS DE CHAMADOS*\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📊 *CONSULTAS*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *meus chamados* - Listar abertos\n` +
+            `📖 *Consultar:*\n` +
+            `• *meus chamados* - Seus chamados\n` +
             `• *todos chamados* - Listar todos\n` +
-            `• *disponiveis* - Não atribuídos 👨‍🔧\n` +
+            `• *disponiveis* - Não atribuídos\n` +
             `• *status 00001* - Ver status\n` +
             `• *detalhes 00001* - Ver detalhes\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `➕ *CRIAR CHAMADO*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `➕ *Criar:*\n` +
             `• *criar chamado* - Wizard guiado ✨\n` +
             `• *novo* - Menu de categorias\n` +
             `• *novo manutenção* - Com categoria\n` +
-            `• *novo: [título]* - Criação rápida\n` +
+            `• *novo: [título]* - Criação rápida\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💬 *Interagir:*\n` +
             `• *comentar 00001 [texto]*\n` +
-            `• *cancelar* ou *sair* - Cancela criação\n\n` +
+            `• *anexar 00001* + envie foto/doc\n` +
+            `• *cancelar* - Cancela criação\n\n` +
+            `📋 _Digite *ajuda* para voltar_`;
+          
+          await sendResponse(helpMessage);
+          break;
+        }
+
+        case 'help_tecnico': {
+          const helpMessage = `🔧 *COMANDOS TÉCNICO*\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🔄 *ALTERAR STATUS*\n` +
+            `👨‍🔧 *Atribuição:*\n` +
+            `• *atribuir 00001* - Assumir\n` +
+            `• *cancelar 00001* - Remover atribuição\n` +
+            `• *transferir 00001 [tel]*\n` +
+            `• *disponiveis* - Não atribuídos\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔄 *Alterar Status:*\n` +
             `• *iniciar 00001* - Em Andamento\n` +
             `• *resolver 00001* - Resolvido ⚠️\n` +
             `• *encerrar 00001* - Fechado ⚠️\n` +
             `• *reabrir 00001* - Reabrir\n` +
             `   ⚠️ _Pedirá confirmação_\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `👨‍🔧 *ATRIBUIÇÃO (Técnicos)*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *atribuir 00001* - Assumir\n` +
-            `• *cancelar 00001* - Remover\n` +
-            `• *transferir 00001 [telefone]*\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📈 *ESTATÍSTICAS (Técnicos)*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *minhas estatisticas* - Desempenho\n` +
-            `• *meus resolvidos* - Histórico\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📎 *ANEXAR ARQUIVOS*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *anexar 00001* - Envie foto/doc\n` +
-            `  _com esta legenda para anexar_\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `⚡ *PRIORIDADE*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `⚡ *Prioridade:*\n` +
             `• *prioridade 00001 alta*\n` +
             `  📋 baixa | média | alta | crítica\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🏗️ *INFRAESTRUTURA*\n` +
+            `📈 *Estatísticas:*\n` +
+            `• *minhas estatisticas*\n` +
+            `• *meus resolvidos*\n\n` +
+            `📋 _Digite *ajuda* para voltar_`;
+          
+          await sendResponse(helpMessage);
+          break;
+        }
+
+        case 'help_infra': {
+          const helpMessage = `🏗️ *COMANDOS DE INFRAESTRUTURA*\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `• *racks* - Listar todos os racks\n` +
-            `• *rack [nome]* - Detalhes do rack\n` +
-            `• *ocupacao [nome]* - Ver ocupação\n` +
+            `🗄️ *Racks:*\n` +
+            `• *racks* - Listar todos\n` +
+            `• *rack [nome]* - Detalhes\n` +
+            `• *ocupacao [nome]* - Ver ocupação\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🗺️ *Plantas Baixas:*\n` +
             `• *plantas* - Listar plantas\n` +
             `• *planta [nome]* - Receber imagem 📷\n` +
-            `• *plantas [prédio]* - Todas de um prédio\n` +
+            `• *plantas [prédio]* - Todas de um prédio\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📷 *Câmeras:*\n` +
             `• *cameras* - Listar câmeras IP\n` +
-            `• *camera [nome]* - Detalhes câmera 📷\n` +
-            `• *equipamentos* - Listar equips.\n\n` +
-            `💡 _Responda uma notificação para comentar_`;
+            `• *camera [nome]* - Detalhes 📷\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📹 *NVRs:*\n` +
+            `• *nvrs* - Listar NVRs/DVRs\n` +
+            `• *nvr [nome]* - Detalhes + câmeras\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔍 *Busca Universal:*\n` +
+            `• *localizar [termo]* - Buscar equipamento\n` +
+            `• *equipamentos* - Resumo por tipo\n\n` +
+            `📋 _Digite *ajuda* para voltar_`;
+          
+          await sendResponse(helpMessage);
+          break;
+        }
+
+        case 'help_status': {
+          const helpMessage = `📊 *CONSULTAS RÁPIDAS*\n\n` +
+            `• *status 00001* - Status do chamado\n` +
+            `• *detalhes 00001* - Detalhes completos\n` +
+            `• *meus chamados* - Seus chamados\n` +
+            `• *todos chamados* - Todos os chamados\n` +
+            `• *disponiveis* - Sem técnico\n\n` +
+            `💡 _Responda uma notificação para comentar_\n\n` +
+            `📋 _Digite *ajuda* para voltar_`;
           
           await sendResponse(helpMessage);
           break;
@@ -3673,6 +3771,225 @@ serve(async (req) => {
           await sendResponse(message);
           break;
         }
+
+        case 'nvrs': {
+          // List all NVRs/DVRs
+          const { data: nvrs } = await supabase
+            .from('equipment')
+            .select('id, name, ip_address, notes, equipment_status')
+            .in('type', ['nvr', 'dvr'])
+            .order('name')
+            .limit(15);
+
+          if (!nvrs || nvrs.length === 0) {
+            await sendResponse('📹 Nenhum NVR/DVR cadastrado.');
+            break;
+          }
+
+          let nvrMessage = `📹 *NVRs / DVRs*\n\n`;
+          
+          for (const nvr of nvrs) {
+            let notes: any = {};
+            try {
+              notes = nvr.notes ? (typeof nvr.notes === 'string' ? JSON.parse(nvr.notes) : nvr.notes) : {};
+            } catch { notes = {}; }
+            
+            const total = notes.totalChannels || 0;
+            const used = notes.cameras?.length || 0;
+            const status = nvr.equipment_status === 'active' ? '🟢' : '🔴';
+            const usage = total > 0 ? Math.round((used / total) * 100) : 0;
+            
+            nvrMessage += `${status} *${nvr.name}*\n`;
+            nvrMessage += `  🌐 ${nvr.ip_address || '-'}\n`;
+            if (total > 0) {
+              nvrMessage += `  📊 ${used}/${total} canais (${usage}%)\n`;
+            }
+            nvrMessage += `\n`;
+          }
+          
+          nvrMessage += `💡 Para detalhes: *nvr [nome ou IP]*`;
+          await sendResponse(nvrMessage);
+          break;
+        }
+
+        case 'nvr': {
+          // Show NVR details with connected cameras
+          const searchNvr = command.args.trim();
+          
+          if (!searchNvr) {
+            await sendResponse(
+              `📹 *Consultar NVR*\n\n` +
+              `Use: *nvr [nome ou IP]*\n\n` +
+              `Exemplo: *nvr 10.3.30.10*\n\n` +
+              `💡 Digite *nvrs* para ver a lista.`
+            );
+            break;
+          }
+
+          const { data: nvrData } = await supabase
+            .from('equipment')
+            .select(`
+              id, name, ip_address, notes, equipment_status, hostname,
+              manufacturer, model, serial_number,
+              racks (
+                name,
+                rooms (
+                  name,
+                  floors (
+                    name,
+                    buildings (name)
+                  )
+                )
+              )
+            `)
+            .in('type', ['nvr', 'dvr'])
+            .or(`name.ilike.%${searchNvr}%,ip_address.ilike.%${searchNvr}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (!nvrData) {
+            await sendResponse(
+              `❌ NVR "${searchNvr}" não encontrado.\n\n` +
+              `💡 Digite *nvrs* para ver a lista.`
+            );
+            break;
+          }
+
+          let notes: any = {};
+          try {
+            notes = nvrData.notes ? (typeof nvrData.notes === 'string' ? JSON.parse(nvrData.notes) : nvrData.notes) : {};
+          } catch { notes = {}; }
+          
+          const cameras = notes.cameras || [];
+          const vacant = notes.vacantChannels || [];
+          const totalChannels = notes.totalChannels || 0;
+          const statusNvr = nvrData.equipment_status === 'active' ? '🟢 Online' : '🔴 Offline';
+          
+          const rackNvr = nvrData.racks as any;
+          const roomNvr = rackNvr?.rooms as any;
+          const floorNvr = roomNvr?.floors as any;
+          const buildingNvr = floorNvr?.buildings as any;
+
+          let nvrDetail = `📹 *${nvrData.name}*\n\n`;
+          nvrDetail += `📊 *Status:* ${statusNvr}\n`;
+          nvrDetail += `🌐 *IP:* ${nvrData.ip_address || '-'}\n`;
+          if (nvrData.hostname) nvrDetail += `🖥️ *Hostname:* ${nvrData.hostname}\n`;
+          if (nvrData.manufacturer) nvrDetail += `🏭 *Fabricante:* ${nvrData.manufacturer}\n`;
+          if (nvrData.model) nvrDetail += `📦 *Modelo:* ${nvrData.model}\n`;
+          
+          if (totalChannels > 0) {
+            nvrDetail += `\n📊 *Canais:* ${cameras.length}/${totalChannels} usados\n`;
+            if (vacant.length > 0) {
+              nvrDetail += `✅ *Livres:* ${vacant.slice(0, 10).join(', ')}${vacant.length > 10 ? '...' : ''}\n`;
+            }
+          }
+          
+          nvrDetail += `\n📍 *Localização:*\n`;
+          if (buildingNvr?.name) nvrDetail += `  🏢 ${buildingNvr.name}\n`;
+          if (floorNvr?.name) nvrDetail += `  🏠 ${floorNvr.name}\n`;
+          if (roomNvr?.name) nvrDetail += `  🚪 ${roomNvr.name}\n`;
+          if (rackNvr?.name) nvrDetail += `  📦 ${rackNvr.name}\n`;
+          
+          if (cameras.length > 0) {
+            nvrDetail += `\n📷 *Câmeras Conectadas:*\n`;
+            for (const cam of cameras.slice(0, 12)) {
+              const chLabel = cam.channel ? `CH${cam.channel}` : '•';
+              const location = cam.location || cam.name || '-';
+              nvrDetail += `  ${chLabel}: ${location}\n`;
+              if (cam.ip) {
+                nvrDetail += `    └ ${cam.ip}${cam.model ? ` (${cam.model})` : ''}\n`;
+              }
+            }
+            
+            if (cameras.length > 12) {
+              nvrDetail += `  _... e mais ${cameras.length - 12} câmeras_\n`;
+            }
+          }
+
+          await sendResponse(nvrDetail);
+          break;
+        }
+
+        case 'localizar': {
+          // Universal equipment search
+          const searchTerm = command.args.trim();
+          
+          if (!searchTerm) {
+            await sendResponse(
+              `🔍 *Localizar Equipamento*\n\n` +
+              `Use: *localizar [nome, IP, serial]*\n\n` +
+              `Exemplos:\n` +
+              `• *localizar switch*\n` +
+              `• *localizar 10.0.0.1*\n` +
+              `• *localizar SN12345*`
+            );
+            break;
+          }
+
+          const { data: equipSearch } = await supabase
+            .from('equipment')
+            .select(`
+              id, name, type, ip_address, hostname, serial_number, 
+              manufacturer, model, equipment_status,
+              racks (
+                name,
+                rooms (
+                  name,
+                  floors (name, buildings (name))
+                )
+              )
+            `)
+            .or(`name.ilike.%${searchTerm}%,ip_address.ilike.%${searchTerm}%,hostname.ilike.%${searchTerm}%,serial_number.ilike.%${searchTerm}%`)
+            .limit(5);
+
+          if (!equipSearch || equipSearch.length === 0) {
+            await sendResponse(`❌ Nenhum equipamento encontrado para "${searchTerm}".`);
+            break;
+          }
+
+          const typeLabelsSearch: Record<string, string> = {
+            switch: 'Switch',
+            switch_poe: 'Switch PoE',
+            router: 'Router',
+            server: 'Servidor',
+            patch_panel: 'Patch Panel',
+            firewall: 'Firewall',
+            storage: 'Storage',
+            ups: 'UPS',
+            pdu: 'PDU',
+            nvr: 'NVR',
+            dvr: 'DVR',
+            ip_camera: 'Câmera IP',
+            access_point: 'Access Point',
+            other: 'Outros'
+          };
+
+          let searchMessage = `🔍 *Resultados para "${searchTerm}"*\n\n`;
+          
+          for (const eq of equipSearch) {
+            const rack = eq.racks as any;
+            const room = rack?.rooms as any;
+            const floor = room?.floors as any;
+            const building = floor?.buildings as any;
+            const status = eq.equipment_status === 'active' ? '🟢' : '🔴';
+            const typeLabel = typeLabelsSearch[eq.type] || eq.type;
+            
+            searchMessage += `${status} *${eq.name}*\n`;
+            searchMessage += `  📋 Tipo: ${typeLabel}\n`;
+            if (eq.ip_address) searchMessage += `  🌐 IP: ${eq.ip_address}\n`;
+            if (eq.manufacturer) searchMessage += `  🏭 ${eq.manufacturer}${eq.model ? ` ${eq.model}` : ''}\n`;
+            searchMessage += `  📍 ${building?.name || '-'} → ${floor?.name || '-'}\n`;
+            searchMessage += `     ${room?.name || '-'} → ${rack?.name || '-'}\n\n`;
+          }
+
+          await sendResponse(searchMessage);
+          break;
+        }
+      }
+
+      // Save interaction after command processing
+      if (command) {
+        await saveInteraction(`Command ${command.command} processed`, 'success');
       }
 
       return new Response(
