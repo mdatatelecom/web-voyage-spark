@@ -35,6 +35,7 @@ import CameraMap from "./pages/CameraMap";
 import SupportTickets from "./pages/SupportTickets";
 import TicketDetails from "./pages/TicketDetails";
 import TicketMetrics from "./pages/TicketMetrics";
+import EscalationHistory from "./pages/EscalationHistory";
 import WhatsAppHistory from "./pages/WhatsAppHistory";
 import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
@@ -277,6 +278,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <TicketMetrics />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tickets/escalations"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <EscalationHistory />
                 </ProtectedRoute>
               } 
             />

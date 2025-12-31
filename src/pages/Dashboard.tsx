@@ -11,6 +11,7 @@ import { EquipmentTypeChart } from '@/components/dashboard/EquipmentTypeChart';
 import { ConnectionStatusChart } from '@/components/dashboard/ConnectionStatusChart';
 import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
+import { SLAWidget } from '@/components/dashboard/SLAWidget';
 import { usePortUsageStats } from '@/hooks/useDashboardStats';
 import { useAlerts } from '@/hooks/useAlerts';
 import { Badge } from '@/components/ui/badge';
@@ -304,6 +305,9 @@ export default function Dashboard() {
               Ver Todos
             </Button>
           </div>
+
+          {/* SLA Widget */}
+          <SLAWidget className="mb-6" />
           
           <TicketStatsCards />
           
