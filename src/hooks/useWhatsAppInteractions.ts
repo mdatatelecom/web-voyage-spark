@@ -118,15 +118,16 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
   });
 
   // Query for trend data (hourly and daily distribution)
-  const { data: trendData, isLoading: isTrendLoading } = useQuery({
-    queryKey: ['whatsapp-interactions-trend', { 
-      startDate: filters.startDate, 
-      endDate: filters.endDate 
-    }],
+  const { data: trendData, isLoading: isTrendLoading, error: trendError } = useQuery({
+    queryKey: ['whatsapp-interactions-trend', filters.startDate?.toISOString(), filters.endDate?.toISOString()],
     queryFn: async () => {
+      console.log('📊 Fetching trend data...');
+      
       let query = supabase
         .from('whatsapp_interactions')
-        .select('created_at, response_status');
+        .select('created_at, response_status')
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (filters.startDate) {
         query = query.gte('created_at', filters.startDate.toISOString());
@@ -138,6 +139,9 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
       }
 
       const { data, error } = await query;
+      
+      console.log('📊 Trend data result:', { count: data?.length, error });
+      
       if (error) throw error;
 
       // Group by hour
@@ -213,6 +217,7 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
     pageSize,
     trendData: trendData as TrendData | undefined,
     isTrendLoading,
+    trendError,
   };
 }
 

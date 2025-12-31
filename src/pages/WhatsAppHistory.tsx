@@ -109,18 +109,27 @@ const WhatsAppHistory = () => {
   const { 
     interactions, 
     isLoading: isLoadingInteractions, 
+    error: interactionError,
     refetch: refetchInteractions,
     stats: interactionStats,
     totalCount: interactionTotalCount,
     totalPages: interactionTotalPages,
     currentPage: interactionCurrentPage,
     trendData,
-    isTrendLoading
+    isTrendLoading,
+    trendError
   } = useWhatsAppInteractions({
     ...interactionFilters,
     page: interactionPage,
     pageSize: interactionPageSize
   });
+
+  // Debug log for trend data
+  React.useEffect(() => {
+    if (activeTab === 'interactions') {
+      console.log('📊 Trend data state:', { trendData, isTrendLoading, trendError, interactionStats });
+    }
+  }, [activeTab, trendData, isTrendLoading, trendError, interactionStats]);
 
   const handleResend = async (id: string) => {
     setResendingId(id);
