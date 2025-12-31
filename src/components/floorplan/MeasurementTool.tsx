@@ -1,4 +1,4 @@
-import { Group, Line, Circle, Text, Rect } from 'react-konva';
+import { Group, Line, Circle, Text, Rect, Arc } from 'react-konva';
 
 interface MeasurementPoint {
   x: number;
@@ -11,6 +11,7 @@ interface MeasurementToolProps {
   scale: number; // pixels per meter (user defined)
   currentZoom: number;
   isClosed?: boolean;
+  showAngles?: boolean;
 }
 
 // Calculate polygon area using Shoelace formula
@@ -31,12 +32,42 @@ const calculatePolygonArea = (points: MeasurementPoint[], scale: number): number
   return area / (scale * scale);
 };
 
+// Calculate angle between two vectors (in degrees)
+const calculateAngle = (
+  p1: MeasurementPoint,
+  vertex: MeasurementPoint,
+  p2: MeasurementPoint
+): { angle: number; startAngle: number } => {
+  // Vectors from vertex to each point
+  const v1 = { x: p1.x - vertex.x, y: p1.y - vertex.y };
+  const v2 = { x: p2.x - vertex.x, y: p2.y - vertex.y };
+  
+  // Angles of vectors (in radians, from positive x-axis)
+  const angle1 = Math.atan2(v1.y, v1.x);
+  const angle2 = Math.atan2(v2.y, v2.x);
+  
+  // Calculate the angle difference
+  let angleDiff = angle2 - angle1;
+  
+  // Normalize to [0, 2π]
+  if (angleDiff < 0) angleDiff += 2 * Math.PI;
+  
+  // Convert to degrees
+  const angleDegrees = angleDiff * (180 / Math.PI);
+  
+  // Start angle for the arc (in degrees, Konva uses degrees)
+  const startAngleDegrees = angle1 * (180 / Math.PI);
+  
+  return { angle: angleDegrees, startAngle: startAngleDegrees };
+};
+
 export function MeasurementTool({
   points,
   tempEndPoint,
   scale = 100,
   currentZoom = 1,
   isClosed = false,
+  showAngles = true,
 }: MeasurementToolProps) {
   if (points.length === 0) return null;
 
@@ -244,6 +275,150 @@ export function MeasurementTool({
           />
         </Group>
       )}
+      
+      {/* Angle indicators at vertices */}
+      {showAngles && points.length >= 3 && (() => {
+        const angleElements: JSX.Element[] = [];
+        const numPoints = isClosed ? points.length : points.length;
+        
+        for (let i = 1; i < numPoints - (isClosed ? 0 : 1); i++) {
+          const prevIndex = i - 1;
+          const nextIndex = isClosed && i === points.length - 1 ? 0 : i + 1;
+          
+          // Skip if we don't have valid next point
+          if (nextIndex >= points.length && !isClosed) continue;
+          
+          const prev = points[prevIndex];
+          const vertex = points[i];
+          const next = points[nextIndex];
+          
+          const { angle, startAngle } = calculateAngle(prev, vertex, next);
+          const arcRadius = 25 / currentZoom;
+          
+          // Only show interior angle (the smaller one if > 180)
+          const displayAngle = angle > 180 ? 360 - angle : angle;
+          const adjustedStartAngle = angle > 180 ? startAngle + angle : startAngle;
+          const arcAngle = angle > 180 ? 360 - angle : angle;
+          
+          angleElements.push(
+            <Group key={`angle-${i}`}>
+              {/* Angle arc */}
+              <Arc
+                x={vertex.x}
+                y={vertex.y}
+                innerRadius={0}
+                outerRadius={arcRadius}
+                angle={arcAngle}
+                rotation={adjustedStartAngle}
+                fill="rgba(59, 130, 246, 0.25)"
+                stroke="#3b82f6"
+                strokeWidth={1.5 / currentZoom}
+              />
+              {/* Angle label */}
+              <Group>
+                {(() => {
+                  // Position label at the middle of the arc
+                  const midAngleRad = (adjustedStartAngle + arcAngle / 2) * (Math.PI / 180);
+                  const labelRadius = arcRadius + 15 / currentZoom;
+                  const labelX = vertex.x + Math.cos(midAngleRad) * labelRadius;
+                  const labelY = vertex.y + Math.sin(midAngleRad) * labelRadius;
+                  const angleText = `${displayAngle.toFixed(1)}°`;
+                  
+                  return (
+                    <>
+                      <Rect
+                        x={labelX - (angleText.length * fontSize * 0.3)}
+                        y={labelY - fontSize * 0.6}
+                        width={angleText.length * fontSize * 0.6 + fontSize * 0.5}
+                        height={fontSize * 1.2}
+                        fill="rgba(59, 130, 246, 0.9)"
+                        cornerRadius={3 / currentZoom}
+                      />
+                      <Text
+                        x={labelX}
+                        y={labelY}
+                        text={angleText}
+                        fontSize={fontSize * 0.85}
+                        fill="#ffffff"
+                        fontStyle="bold"
+                        align="center"
+                        verticalAlign="middle"
+                        offsetX={angleText.length * fontSize * 0.22}
+                        offsetY={fontSize * 0.35}
+                      />
+                    </>
+                  );
+                })()}
+              </Group>
+            </Group>
+          );
+        }
+        
+        // Handle first angle for closed polygon
+        if (isClosed) {
+          const prev = points[points.length - 1];
+          const vertex = points[0];
+          const next = points[1];
+          
+          const { angle, startAngle } = calculateAngle(prev, vertex, next);
+          const arcRadius = 25 / currentZoom;
+          const displayAngle = angle > 180 ? 360 - angle : angle;
+          const adjustedStartAngle = angle > 180 ? startAngle + angle : startAngle;
+          const arcAngle = angle > 180 ? 360 - angle : angle;
+          
+          angleElements.push(
+            <Group key="angle-first">
+              <Arc
+                x={vertex.x}
+                y={vertex.y}
+                innerRadius={0}
+                outerRadius={arcRadius}
+                angle={arcAngle}
+                rotation={adjustedStartAngle}
+                fill="rgba(34, 197, 94, 0.25)"
+                stroke="#22c55e"
+                strokeWidth={1.5 / currentZoom}
+              />
+              <Group>
+                {(() => {
+                  const midAngleRad = (adjustedStartAngle + arcAngle / 2) * (Math.PI / 180);
+                  const labelRadius = arcRadius + 15 / currentZoom;
+                  const labelX = vertex.x + Math.cos(midAngleRad) * labelRadius;
+                  const labelY = vertex.y + Math.sin(midAngleRad) * labelRadius;
+                  const angleText = `${displayAngle.toFixed(1)}°`;
+                  
+                  return (
+                    <>
+                      <Rect
+                        x={labelX - (angleText.length * fontSize * 0.3)}
+                        y={labelY - fontSize * 0.6}
+                        width={angleText.length * fontSize * 0.6 + fontSize * 0.5}
+                        height={fontSize * 1.2}
+                        fill="rgba(34, 197, 94, 0.9)"
+                        cornerRadius={3 / currentZoom}
+                      />
+                      <Text
+                        x={labelX}
+                        y={labelY}
+                        text={angleText}
+                        fontSize={fontSize * 0.85}
+                        fill="#ffffff"
+                        fontStyle="bold"
+                        align="center"
+                        verticalAlign="middle"
+                        offsetX={angleText.length * fontSize * 0.22}
+                        offsetY={fontSize * 0.35}
+                      />
+                    </>
+                  );
+                })()}
+              </Group>
+            </Group>
+          );
+        }
+        
+        return angleElements;
+      })()}
       
       {/* Temp end point marker */}
       {tempEndPoint && !isClosed && (

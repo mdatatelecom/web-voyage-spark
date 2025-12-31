@@ -35,15 +35,19 @@ import {
   Save,
   History,
   Trash2 as TrashIcon,
-  Settings2
+  Settings2,
+  Server
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
+import { useRackPositions } from '@/hooks/useRackPositions';
+import { useRacks } from '@/hooks/useRacks';
 import { useUserRole } from '@/hooks/useUserRole';
 import { FloorPlanViewer, FloorPlanViewerRef } from '@/components/floorplan/FloorPlanViewer';
 import { FloorPlanUpload } from '@/components/floorplan/FloorPlanUpload';
 import { AddEquipmentDialog } from '@/components/floorplan/AddEquipmentDialog';
+import { AddRackDialog } from '@/components/floorplan/AddRackDialog';
 import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
 import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
 import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanButton';
@@ -188,7 +192,8 @@ export default function FloorPlan() {
     isLoading, 
     deleteFloorPlan, 
     setActiveFloorPlan,
-    renameFloorPlan 
+    renameFloorPlan,
+    updateFloorPlanScale
   } = useFloorPlans(floorId);
 
   // Determine which plan to show
@@ -196,7 +201,33 @@ export default function FloorPlan() {
     ? floorPlans?.find(p => p.id === selectedPlanId) || activeFloorPlan
     : activeFloorPlan;
 
-  const { 
+  // Rack positions hook
+  const {
+    rackPositions,
+    addRackPosition,
+    updateRackPosition,
+    deleteRackPosition,
+    isAdding: isAddingRack
+  } = useRackPositions(currentPlan?.id);
+
+  // Get racks for selection dialog
+  const { racks } = useRacks();
+
+  // Rack dialog state
+  const [addRackDialogOpen, setAddRackDialogOpen] = useState(false);
+  const [rackClickPosition, setRackClickPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Load scale from current plan
+  useEffect(() => {
+    if (currentPlan?.scale_ratio) {
+      setScaleRatio(currentPlan.scale_ratio);
+    }
+    if (currentPlan?.pixels_per_cm) {
+      setPixelsPerCm(currentPlan.pixels_per_cm);
+    }
+  }, [currentPlan?.id, currentPlan?.scale_ratio, currentPlan?.pixels_per_cm]);
+
+  const {
     positions, 
     updatePosition, 
     deletePosition,
@@ -389,7 +420,12 @@ export default function FloorPlan() {
     setCalibrationMode(false);
     setCalibrationPoints([]);
     setCalibrationDistance(undefined);
-  }, []);
+    
+    // Save to database
+    if (currentPlan?.id) {
+      updateFloorPlanScale(currentPlan.id, newScaleRatio, newPixelsPerCm);
+    }
+  }, [currentPlan?.id, updateFloorPlanScale]);
 
   // Handle calibration start
   const handleStartCalibration = useCallback(() => {
@@ -490,6 +526,24 @@ export default function FloorPlan() {
       setDeleteConfirmOpen(false);
     }
   };
+
+  // Handle adding rack to floor plan
+  const handleAddRack = useCallback((rackId: string) => {
+    if (!currentPlan?.id) return;
+    
+    // Default position in center or at click position
+    const posX = rackClickPosition?.x ?? 0.5;
+    const posY = rackClickPosition?.y ?? 0.5;
+    
+    addRackPosition({
+      floor_plan_id: currentPlan.id,
+      rack_id: rackId,
+      position_x: posX * 100, // Store as percentage * 100
+      position_y: posY * 100,
+    });
+    
+    setRackClickPosition(null);
+  }, [currentPlan?.id, rackClickPosition, addRackPosition]);
 
   // Handle equipment selection from sidebar - focus and center
   const handleEquipmentSelect = (id: string | null) => {
@@ -683,6 +737,10 @@ export default function FloorPlan() {
             {/* Actions */}
             {canEdit && (
               <>
+                <Button variant="outline" onClick={() => setAddRackDialogOpen(true)}>
+                  <Server className="mr-2 h-4 w-4" />
+                  Adicionar Rack
+                </Button>
                 <Button variant="outline" onClick={() => setUploadOpen(true)}>
                   <Upload className="mr-2 h-4 w-4" />
                   Nova Planta
@@ -1268,6 +1326,16 @@ export default function FloorPlan() {
         floorId={floorId || ''}
         open={uploadOpen}
         onOpenChange={setUploadOpen}
+      />
+
+      {/* Add Rack Dialog */}
+      <AddRackDialog
+        open={addRackDialogOpen}
+        onOpenChange={setAddRackDialogOpen}
+        availableRacks={racks?.map(r => ({ ...r, room: undefined })) || []}
+        existingRackIds={rackPositions?.map(rp => rp.rack_id) || []}
+        onAddRack={handleAddRack}
+        isLoading={isAddingRack}
       />
 
       {currentPlan && (

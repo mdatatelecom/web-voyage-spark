@@ -14,6 +14,8 @@ export interface FloorPlan {
   uploaded_by: string | null;
   created_at: string;
   updated_at: string;
+  scale_ratio: number | null;
+  pixels_per_cm: number | null;
 }
 
 export const useFloorPlans = (floorId?: string) => {
@@ -159,6 +161,27 @@ export const useFloorPlans = (floorId?: string) => {
     },
   });
 
+  const updateScaleMutation = useMutation({
+    mutationFn: async ({ id, scale_ratio, pixels_per_cm }: { 
+      id: string; 
+      scale_ratio: number; 
+      pixels_per_cm: number;
+    }) => {
+      const { error } = await supabase
+        .from('floor_plans')
+        .update({ scale_ratio, pixels_per_cm })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['floor_plans'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao salvar escala: ${error.message}`);
+    },
+  });
+
   return {
     floorPlans,
     activeFloorPlan,
@@ -167,6 +190,8 @@ export const useFloorPlans = (floorId?: string) => {
     deleteFloorPlan: deleteMutation.mutate,
     setActiveFloorPlan: setActiveMutation.mutate,
     renameFloorPlan: (id: string, name: string) => renameMutation.mutate({ id, name }),
+    updateFloorPlanScale: (id: string, scale_ratio: number, pixels_per_cm: number) => 
+      updateScaleMutation.mutate({ id, scale_ratio, pixels_per_cm }),
     isUploading: uploadMutation.isPending,
     isDeleting: deleteMutation.isPending,
   };
