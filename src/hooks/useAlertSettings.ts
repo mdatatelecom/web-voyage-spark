@@ -14,7 +14,11 @@ type AlertSettingKey =
   | 'camera_orphan_alert_enabled'
   | 'connection_faulty_alert_enabled'
   | 'testing_max_days'
-  | 'equipment_no_ip_alert_enabled';
+  | 'equipment_no_ip_alert_enabled'
+  | 'ticket_deadline_warning_hours'
+  | 'ticket_deadline_critical_hours'
+  | 'ticket_auto_escalation_enabled'
+  | 'ticket_deadline_whatsapp_enabled';
 
 interface AlertSetting {
   id: string;
@@ -72,6 +76,10 @@ export const useAlertSettings = () => {
         { key: 'connection_faulty_alert_enabled', value: 1 },
         { key: 'testing_max_days', value: 7 },
         { key: 'equipment_no_ip_alert_enabled', value: 1 },
+        { key: 'ticket_deadline_warning_hours', value: 24 },
+        { key: 'ticket_deadline_critical_hours', value: 4 },
+        { key: 'ticket_auto_escalation_enabled', value: 1 },
+        { key: 'ticket_deadline_whatsapp_enabled', value: 1 },
       ];
 
       for (const { key, value } of defaults) {
