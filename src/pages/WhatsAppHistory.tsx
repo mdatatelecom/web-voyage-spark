@@ -486,14 +486,6 @@ const WhatsAppHistory = () => {
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
-                                  >
-                                    <Ticket className="h-3 w-3 mr-1" />
-                                    {notification.ticket.ticket_number}
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
                               <TableCell>
                                 {getStatusBadge(notification.status)}
                               </TableCell>
