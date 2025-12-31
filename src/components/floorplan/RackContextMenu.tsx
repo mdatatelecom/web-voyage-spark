@@ -1,27 +1,38 @@
 import React from 'react';
-import { Edit3, Copy, Trash2, RotateCw, RotateCcw, ImageIcon, ExternalLink } from 'lucide-react';
+import { Copy, Trash2, RotateCw, RotateCcw, ImageIcon, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface RackContextMenuProps {
   x: number;
   y: number;
   rackName?: string;
+  currentSize?: 'small' | 'medium' | 'large';
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onChangeIcon: () => void;
   onRotate: (degrees: number) => void;
+  onChangeSize?: (size: 'small' | 'medium' | 'large') => void;
   onClose: () => void;
 }
+
+const SIZE_LABELS: Record<string, string> = {
+  small: 'P',
+  medium: 'M',
+  large: 'G',
+};
 
 export const RackContextMenu: React.FC<RackContextMenuProps> = ({
   x,
   y,
   rackName,
+  currentSize = 'medium',
   onEdit,
   onDuplicate,
   onDelete,
   onChangeIcon,
   onRotate,
+  onChangeSize,
   onClose,
 }) => {
   const handleItemClick = (action: () => void) => {
@@ -31,7 +42,7 @@ export const RackContextMenu: React.FC<RackContextMenuProps> = ({
 
   // Adjust position to stay within viewport
   const menuWidth = 200;
-  const menuHeight = 280;
+  const menuHeight = 340;
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 20);
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 20);
 
@@ -82,6 +93,32 @@ export const RackContextMenu: React.FC<RackContextMenuProps> = ({
         </button>
 
         <div className="h-px bg-border my-1" />
+
+        {/* Size selector */}
+        {onChangeSize && (
+          <>
+            <div className="px-3 py-2">
+              <span className="text-xs text-muted-foreground mb-1.5 block">Tamanho do Ícone</span>
+              <div className="flex gap-1">
+                {(['small', 'medium', 'large'] as const).map(size => (
+                  <button
+                    key={size}
+                    className={cn(
+                      "flex-1 px-2 py-1 text-xs rounded font-medium transition-colors",
+                      currentSize === size 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                    )}
+                    onClick={() => handleItemClick(() => onChangeSize(size))}
+                  >
+                    {SIZE_LABELS[size]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="h-px bg-border my-1" />
+          </>
+        )}
 
         {/* Rotate clockwise */}
         <button

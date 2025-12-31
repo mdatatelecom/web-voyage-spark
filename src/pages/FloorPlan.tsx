@@ -1034,6 +1034,7 @@ export default function FloorPlan() {
                       x={rackContextMenu.x}
                       y={rackContextMenu.y}
                       rackName={rackContextMenu.position.rack?.name}
+                      currentSize={rackContextMenu.position.icon_size || 'medium'}
                       onEdit={() => {
                         navigate(`/racks/${rackContextMenu.position.rack_id}`);
                         handleCloseContextMenu();
@@ -1051,6 +1052,11 @@ export default function FloorPlan() {
                       onRotate={(degrees) => {
                         const current = rackContextMenu.position.rotation || 0;
                         handleRackRotate(rackContextMenu.position.id, (current + degrees + 360) % 360);
+                        handleCloseContextMenu();
+                      }}
+                      onChangeSize={(size) => {
+                        updateRackPosition({ id: rackContextMenu.position.id, icon_size: size });
+                        toast.success('Tamanho do rack atualizado!');
                         handleCloseContextMenu();
                       }}
                       onClose={handleCloseContextMenu}

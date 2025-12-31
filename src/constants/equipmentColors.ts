@@ -56,6 +56,12 @@ export const EQUIPMENT_COLORS: Record<string, { hex: string; name: string }> = {
   // Accessories
   fixed_shelf: { hex: '#78716c', name: 'Cinza Stone' },
   
+  // Racks
+  rack: { hex: '#3b82f6', name: 'Azul Rack' },
+  rack_network: { hex: '#8b5cf6', name: 'Roxo Rede' },
+  rack_server: { hex: '#64748b', name: 'Cinza Servidor' },
+  rack_storage: { hex: '#f97316', name: 'Laranja Storage' },
+  
   // Other
   other: { hex: '#9ca3af', name: 'Cinza Claro' }
 };

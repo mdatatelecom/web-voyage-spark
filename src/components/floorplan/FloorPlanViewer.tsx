@@ -561,6 +561,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               isSelected={selectedRackId === pos.id}
               isEditing={editable}
               occupancy={pos.occupancy_percent}
+              iconSize={pos.icon_size || 'medium'}
               onClick={() => onRackSelect?.(pos.id)}
               onDragEnd={(x, y) => {
                 const relX = ((x - imageDims.x) / imageDims.width) * 100;
