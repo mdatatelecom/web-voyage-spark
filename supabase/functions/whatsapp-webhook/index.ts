@@ -182,6 +182,11 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'plantas', args: '' };
   }
   
+  if (lowerText.startsWith('planta ') || lowerText.startsWith('ver planta ')) {
+    const args = lowerText.replace(/^(ver\s+)?planta\s+/, '').trim();
+    return { command: 'planta', args };
+  }
+  
   if (lowerText === 'equipamentos' || lowerText === 'listar equipamentos') {
     return { command: 'equipamentos', args: '' };
   }
@@ -1230,6 +1235,7 @@ serve(async (req) => {
             `• *rack [nome]* - Detalhes do rack\n` +
             `• *ocupacao [nome]* - Ver ocupação\n` +
             `• *plantas* - Listar plantas\n` +
+            `• *planta [nome]* - Receber imagem 📷\n` +
             `• *equipamentos* - Listar equips.\n\n` +
             `💡 _Responda uma notificação para comentar_`;
           
@@ -3324,9 +3330,90 @@ serve(async (req) => {
             message += `  📍 ${building?.name || '-'} → ${floor?.name || '-'}\n\n`;
           }
           
-          message += `💡 _Acesse o sistema para visualizar_`;
+          message += `💡 Para receber a imagem, digite:\n`;
+          message += `*planta [nome]*`;
           
           await sendResponse(message);
+          break;
+        }
+
+        case 'planta': {
+          // Send floor plan image
+          const searchName = command.args.trim();
+          
+          if (!searchName) {
+            await sendResponse(
+              `🗺️ *Visualizar Planta*\n\n` +
+              `Use: *planta [nome]*\n\n` +
+              `Exemplo: *planta Itaqua*\n` +
+              `Exemplo: *planta térreo*\n\n` +
+              `💡 Digite *plantas* para ver a lista completa.`
+            );
+            break;
+          }
+
+          // Search for floor plan by name
+          const { data: planData } = await supabase
+            .from('floor_plans')
+            .select(`
+              id,
+              name,
+              file_url,
+              file_type,
+              is_active,
+              floors (
+                name,
+                buildings (name)
+              )
+            `)
+            .ilike('name', `%${searchName}%`)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+          if (!planData) {
+            await sendResponse(
+              `❌ Planta "${searchName}" não encontrada.\n\n` +
+              `💡 Digite *plantas* para ver a lista disponível.`
+            );
+            break;
+          }
+
+          const floor = planData.floors as any;
+          const building = floor?.buildings as any;
+
+          // Build caption
+          const caption = 
+            `🗺️ *${planData.name}*\n\n` +
+            `📍 ${building?.name || '-'} → ${floor?.name || '-'}`;
+
+          // Determine MIME type from file_type
+          let mimeType = 'image/png';
+          if (planData.file_type === 'pdf') {
+            mimeType = 'application/pdf';
+          } else if (planData.file_type === 'jpg' || planData.file_type === 'jpeg') {
+            mimeType = 'image/jpeg';
+          } else if (planData.file_type === 'png') {
+            mimeType = 'image/png';
+          }
+
+          console.log(`📤 Sending floor plan image: ${planData.name} (${mimeType})`);
+
+          // Send the image using the existing sendMediaMessage function
+          const imageSent = await sendMediaMessage(
+            planData.file_url,
+            mimeType,
+            planData.name,
+            caption
+          );
+
+          if (!imageSent) {
+            await sendResponse(
+              `⚠️ Não foi possível enviar a imagem.\n\n` +
+              `🔗 Acesse diretamente:\n${planData.file_url}`
+            );
+          }
+          
           break;
         }
 
