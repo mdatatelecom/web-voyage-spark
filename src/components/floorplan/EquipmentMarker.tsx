@@ -1,7 +1,9 @@
-import { memo, useEffect, useState, useMemo } from 'react';
+import { memo, useEffect, useState, useMemo, useCallback } from 'react';
 import { Circle, Group, Text, Line } from 'react-konva';
+import { Html } from 'react-konva-utils';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlanEquipmentIcon } from './equipment-icons';
+import { EquipmentTooltip } from './EquipmentTooltip';
 
 interface EquipmentMarkerProps {
   position: EquipmentPosition;
@@ -30,6 +32,9 @@ const SIZE_MAP: Record<string, number> = {
 // Min/max scale for icon compensation
 const MIN_ICON_SCALE = 0.4;
 const MAX_ICON_SCALE = 2.5;
+
+// Hover delay in ms
+const HOVER_DELAY = 300;
 
 function EquipmentMarkerComponent({
   position,
@@ -82,6 +87,34 @@ function EquipmentMarkerComponent({
 
   // Rotation handle state
   const [isRotating, setIsRotating] = useState(false);
+
+  // Hover state for tooltip
+  const [isHovered, setIsHovered] = useState(false);
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    const timeout = setTimeout(() => {
+      setIsHovered(true);
+    }, HOVER_DELAY);
+    setHoverTimeout(timeout);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      setHoverTimeout(null);
+    }
+    setIsHovered(false);
+  }, [hoverTimeout]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout);
+      }
+    };
+  }, [hoverTimeout]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -158,7 +191,28 @@ function EquipmentMarkerComponent({
         const clampedY = Math.max(0, Math.min(1, newY));
         onDragEnd(clampedX, clampedY);
       }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
+      {/* Hover Tooltip */}
+      {isHovered && !isDragging && !editable && (
+        <Html
+          divProps={{
+            style: {
+              position: 'absolute',
+              transform: `translate(-50%, ${-size - 60}px)`,
+              pointerEvents: 'none',
+              zIndex: 1000,
+            }
+          }}
+        >
+          <EquipmentTooltip 
+            equipment={equipment} 
+            customLabel={position.custom_label}
+          />
+        </Html>
+      )}
+
       {/* Main equipment group with rotation */}
       <Group rotation={position.rotation || 0}>
         {/* Pulsating focus ring */}
@@ -186,6 +240,17 @@ function EquipmentMarkerComponent({
             opacity={0.8}
           />
         )}
+
+        {/* Hover glow */}
+        {isHovered && !isSelected && !isFocused && (
+          <Circle
+            radius={size + 6}
+            fill="transparent"
+            stroke="#60a5fa"
+            strokeWidth={2}
+            opacity={0.6}
+          />
+        )}
         
         {/* White halo for better visibility */}
         <Circle
@@ -199,8 +264,8 @@ function EquipmentMarkerComponent({
         <Circle
           radius={size * 0.9}
           fill="#0f172a"
-          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : '#ffffff'}
-          strokeWidth={isDragging ? 4 : isFocused ? 4 : 3}
+          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : isHovered ? '#60a5fa' : '#ffffff'}
+          strokeWidth={isDragging ? 4 : isFocused ? 4 : isHovered ? 4 : 3}
           shadowColor="#000000"
           shadowBlur={12}
           shadowOpacity={0.6}

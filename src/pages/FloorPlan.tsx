@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { getTerminology } from '@/constants/locationTypes';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -24,10 +25,12 @@ import {
   RotateCcw,
   RotateCw,
   RotateCcwSquare,
-  Trash2
+  Trash2,
+  Search,
+  X
 } from 'lucide-react';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
-import { useEquipmentPositions } from '@/hooks/useEquipmentPositions';
+import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { useUserRole } from '@/hooks/useUserRole';
 import { FloorPlanViewer, FloorPlanViewerRef } from '@/components/floorplan/FloorPlanViewer';
 import { FloorPlanUpload } from '@/components/floorplan/FloorPlanUpload';
@@ -36,7 +39,7 @@ import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
 import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
 import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanButton';
 import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison';
-import { ICON_OPTIONS } from '@/components/floorplan/equipment-icons';
+import { ICON_OPTIONS, EQUIPMENT_TYPE_LABELS } from '@/components/floorplan/equipment-icons';
 import {
   Select,
   SelectContent,
@@ -61,6 +64,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 type ViewMode = 'view' | 'edit' | 'add';
 
@@ -87,6 +102,11 @@ export default function FloorPlan() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(20);
   const [snapToGrid, setSnapToGrid] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch floor info with building type for terminology
   const { data: floor } = useQuery({
@@ -137,6 +157,53 @@ export default function FloorPlan() {
       setSelectedPlanId(activeFloorPlan.id);
     }
   }, [activeFloorPlan, selectedPlanId]);
+
+  // Search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || !positions) return [];
+    
+    const query = searchQuery.toLowerCase();
+    return positions.filter(pos => {
+      const equipment = pos.equipment;
+      const name = (pos.custom_label || equipment?.name || '').toLowerCase();
+      const ip = (equipment?.ip_address || '').toLowerCase();
+      const model = (equipment?.model || '').toLowerCase();
+      const type = (equipment?.type || '').toLowerCase();
+      const typeLabel = (EQUIPMENT_TYPE_LABELS[equipment?.type || ''] || '').toLowerCase();
+      
+      return name.includes(query) || 
+             ip.includes(query) || 
+             model.includes(query) || 
+             type.includes(query) ||
+             typeLabel.includes(query);
+    }).slice(0, 5);
+  }, [searchQuery, positions]);
+
+  // Handle search result selection
+  const handleSearchSelect = useCallback((position: EquipmentPosition) => {
+    setSelectedPositionId(position.id);
+    setFocusedPositionId(position.id);
+    setSearchQuery('');
+    setSearchOpen(false);
+    setTimeout(() => setFocusedPositionId(null), 3000);
+  }, []);
+
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 100);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleAddClick = (x: number, y: number) => {
     setClickPosition({ x, y });
@@ -252,12 +319,89 @@ export default function FloorPlan() {
               </Tooltip>
             )}
 
+            {/* Search */}
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="w-[200px] justify-start">
+                  <Search className="mr-2 h-4 w-4" />
+                  <span className="text-muted-foreground">Buscar equipamento...</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <div className="flex items-center border-b px-3">
+                    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                    <Input
+                      ref={searchInputRef}
+                      placeholder="Nome, IP, modelo..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex h-10 w-full border-0 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+                    />
+                    {searchQuery && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6"
+                        onClick={() => setSearchQuery('')}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  <CommandList>
+                    {searchQuery.trim() && searchResults.length === 0 && (
+                      <CommandEmpty>Nenhum equipamento encontrado</CommandEmpty>
+                    )}
+                    {searchResults.length > 0 && (
+                      <CommandGroup heading="Equipamentos">
+                        {searchResults.map((pos) => {
+                          const equipment = pos.equipment;
+                          const typeLabel = EQUIPMENT_TYPE_LABELS[equipment?.type || ''] || equipment?.type;
+                          return (
+                            <CommandItem
+                              key={pos.id}
+                              onSelect={() => handleSearchSelect(pos)}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium">
+                                  {pos.custom_label || equipment?.name}
+                                </span>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                    {typeLabel}
+                                  </Badge>
+                                  {equipment?.ip_address && (
+                                    <span className="font-mono">{equipment.ip_address}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    )}
+                    {!searchQuery.trim() && (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        Digite para buscar por nome, IP ou modelo
+                        <div className="mt-1 text-xs opacity-70">
+                          Atalho: Ctrl+F
+                        </div>
+                      </div>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
             {/* Export Button */}
             {currentPlan && (
               <ExportFloorPlanButton
                 stageRef={{ current: viewerRef.current?.getStage() }}
                 floorName={floor?.name || 'planta'}
                 buildingName={floor?.building?.name}
+                positions={positions}
               />
             )}
 
