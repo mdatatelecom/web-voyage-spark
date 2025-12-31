@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Group, Rect, Text, Line, Circle } from 'react-konva';
 import { RackPosition } from '@/hooks/useRackPositions';
 import Konva from 'konva';
+import { getEquipmentColor } from '@/constants/equipmentColors';
 
 // Same size constants as EquipmentMarker for consistency
 const SIZE_MAP: Record<string, number> = {
@@ -12,6 +13,10 @@ const SIZE_MAP: Record<string, number> = {
 
 const MIN_ICON_SCALE = 0.4;
 const MAX_ICON_SCALE = 2.5;
+
+// Default rack color from design system
+const RACK_DEFAULT_COLOR = getEquipmentColor('rack');
+const RACK_SELECTED_COLOR = '#2563eb';
 
 interface RackMarkerProps {
   position: RackPosition;
@@ -28,6 +33,7 @@ interface RackMarkerProps {
   onRotate?: (rotation: number) => void;
   occupancy?: number; // 0-100 percentage
   iconSize?: 'small' | 'medium' | 'large';
+  iconColor?: string; // Optional custom color
 }
 
 export const RackMarker: React.FC<RackMarkerProps> = ({
@@ -45,6 +51,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   onRotate,
   occupancy,
   iconSize = 'medium',
+  iconColor,
 }) => {
   const groupRef = useRef<Konva.Group>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -63,13 +70,14 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   const compensatedScale = Math.max(MIN_ICON_SCALE, Math.min(MAX_ICON_SCALE, 1 / currentZoom));
   const iconRadius = baseIconSize * compensatedScale;
   
+  // Colors from design system
+  const rackColor = iconColor || RACK_DEFAULT_COLOR;
+  const primaryColor = isSelected ? RACK_SELECTED_COLOR : rackColor;
+  const secondaryColor = isSelected ? '#93c5fd' : '#60a5fa';
+  
   // Scale factors
   const strokeWidth = Math.max(1, 2 / currentZoom);
   const fontSize = Math.max(8, 11 / currentZoom);
-  
-  // Colors
-  const frameColor = isSelected ? '#2563eb' : '#1e293b';
-  const innerFrameColor = isSelected ? 'rgba(59, 130, 246, 0.2)' : '#374151';
   
   // Occupancy bar color
   const getOccupancyColor = (occ: number) => {
@@ -240,10 +248,10 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
           width={width + 12 / currentZoom}
           height={height + fontSize + 24 / currentZoom}
           fill="transparent"
-          stroke="#3b82f6"
+          stroke={primaryColor}
           strokeWidth={3 / currentZoom}
           cornerRadius={8 / currentZoom}
-          shadowColor="#3b82f6"
+          shadowColor={primaryColor}
           shadowBlur={15 / currentZoom}
           shadowOpacity={0.6}
         />
@@ -255,7 +263,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
         y={-height / 2 - fontSize - 6 / currentZoom}
         width={width}
         height={fontSize + 6 / currentZoom}
-        fill={isSelected ? '#2563eb' : '#1e293b'}
+        fill={isSelected ? RACK_SELECTED_COLOR : '#1e293b'}
         cornerRadius={[4 / currentZoom, 4 / currentZoom, 0, 0]}
       />
       <Text
@@ -287,7 +295,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               y={0}
               radius={radius}
               fill="transparent"
-              stroke={isSelected ? '#2563eb' : '#3b82f6'}
+              stroke={primaryColor}
               strokeWidth={2 / currentZoom}
             />
             
@@ -297,7 +305,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               y={0}
               radius={radius - 4 / currentZoom}
               fill={isSelected ? '#eff6ff' : '#ffffff'}
-              stroke={isSelected ? '#3b82f6' : '#60a5fa'}
+              stroke={secondaryColor}
               strokeWidth={1.5 / currentZoom}
             />
             
@@ -307,7 +315,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               y={-rackInnerHeight / 2}
               width={railWidth}
               height={rackInnerHeight}
-              fill={isSelected ? '#2563eb' : '#3b82f6'}
+              fill={primaryColor}
               cornerRadius={1 / currentZoom}
             />
             
@@ -317,7 +325,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               y={-rackInnerHeight / 2}
               width={railWidth}
               height={rackInnerHeight}
-              fill={isSelected ? '#2563eb' : '#3b82f6'}
+              fill={primaryColor}
               cornerRadius={1 / currentZoom}
             />
             
@@ -334,7 +342,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
                     y={shelfY - shelfHeight / 2}
                     width={rackInnerWidth - railWidth * 2}
                     height={shelfHeight}
-                    fill={isSelected ? '#2563eb' : '#3b82f6'}
+                    fill={primaryColor}
                     cornerRadius={1 / currentZoom}
                   />
                   
@@ -347,7 +355,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
                         x={indicatorX}
                         y={shelfY}
                         radius={1.5 / currentZoom}
-                        fill={isSelected ? '#93c5fd' : '#60a5fa'}
+                        fill={secondaryColor}
                       />
                     );
                   })}

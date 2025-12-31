@@ -12,6 +12,7 @@ export interface RackPosition {
   width: number;
   height: number;
   icon_style?: string;
+  icon_size?: 'small' | 'medium' | 'large';
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -120,6 +121,7 @@ export const useRackPositions = (floorPlanId?: string) => {
       width?: number;
       height?: number;
       icon_style?: string;
+      icon_size?: 'small' | 'medium' | 'large';
     }) => {
       const { error } = await supabase
         .from('rack_positions')
