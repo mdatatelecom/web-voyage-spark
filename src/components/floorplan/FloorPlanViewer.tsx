@@ -421,6 +421,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               stageWidth={dimensions.width}
               stageHeight={dimensions.height}
               imageBounds={imageDims}
+              currentScale={scale}
             />
           )}
           
