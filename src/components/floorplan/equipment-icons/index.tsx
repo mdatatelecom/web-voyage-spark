@@ -38,6 +38,27 @@ const TYPE_COLORS: Record<string, string> = {
   default: '#6b7280',
 };
 
+// Icon options for user selection
+export const ICON_OPTIONS = [
+  { value: 'auto', label: 'Automático', color: null },
+  { value: 'ip_camera', label: 'Câmera IP', color: '#22c55e' },
+  { value: 'nvr', label: 'NVR/DVR', color: '#3b82f6' },
+  { value: 'switch', label: 'Switch', color: '#8b5cf6' },
+  { value: 'switch_poe', label: 'Switch PoE', color: '#a855f7' },
+  { value: 'access_point', label: 'Access Point', color: '#f59e0b' },
+  { value: 'router', label: 'Roteador', color: '#06b6d4' },
+  { value: 'firewall', label: 'Firewall', color: '#ef4444' },
+  { value: 'server', label: 'Servidor', color: '#64748b' },
+  { value: 'pdu', label: 'PDU', color: '#f97316' },
+  { value: 'ups', label: 'UPS/Nobreak', color: '#84cc16' },
+  { value: 'environment_sensor', label: 'Sensor', color: '#14b8a6' },
+  { value: 'patch_panel', label: 'Patch Panel', color: '#78716c' },
+  { value: 'media_converter', label: 'Media Converter', color: '#ec4899' },
+  { value: 'default', label: 'Genérico', color: '#6b7280' },
+];
+
+export { TYPE_COLORS };
+
 // Status LED colors
 const STATUS_COLORS: Record<string, string> = {
   active: '#22c55e',

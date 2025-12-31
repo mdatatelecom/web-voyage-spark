@@ -36,6 +36,14 @@ import { EquipmentSidebar } from '@/components/floorplan/EquipmentSidebar';
 import { PlanVersionSelector } from '@/components/floorplan/PlanVersionSelector';
 import { ExportFloorPlanButton } from '@/components/floorplan/ExportFloorPlanButton';
 import { FloorPlanComparison } from '@/components/floorplan/FloorPlanComparison';
+import { ICON_OPTIONS } from '@/components/floorplan/equipment-icons';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
@@ -458,9 +466,44 @@ export default function FloorPlan() {
                     </div>
                   )}
                   
-                  {/* Rotation and Delete controls (only when something is selected in edit mode) */}
+                  {/* Rotation, Icon, and Delete controls (only when something is selected in edit mode) */}
                   {viewMode === 'edit' && selectedPositionId && (
-                    <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
+                    <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
+                      {/* Icon selector */}
+                      <Select 
+                        value={(positions?.find(p => p.id === selectedPositionId) as any)?.custom_icon || 'auto'}
+                        onValueChange={(icon) => {
+                          updatePosition({ 
+                            id: selectedPositionId, 
+                            customIcon: icon === 'auto' ? null : icon 
+                          });
+                        }}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <SelectTrigger className="w-[120px] h-8 text-xs">
+                              <SelectValue placeholder="Ícone" />
+                            </SelectTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>Alterar ícone</TooltipContent>
+                        </Tooltip>
+                        <SelectContent>
+                          {ICON_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className="w-3 h-3 rounded-full border border-white/50" 
+                                  style={{ backgroundColor: opt.color || '#6b7280' }} 
+                                />
+                                {opt.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <div className="w-px h-6 bg-border mx-1" />
+                      
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 
@@ -504,7 +547,7 @@ export default function FloorPlan() {
                       </Tooltip>
                       
                       {/* Delete button */}
-                      <div className="w-px bg-border mx-1" />
+                      <div className="w-px h-6 bg-border mx-1" />
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 

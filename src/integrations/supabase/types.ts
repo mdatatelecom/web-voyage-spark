@@ -400,6 +400,7 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          custom_icon: string | null
           custom_label: string | null
           equipment_id: string
           floor_plan_id: string
@@ -413,6 +414,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          custom_icon?: string | null
           custom_label?: string | null
           equipment_id: string
           floor_plan_id: string
@@ -426,6 +428,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          custom_icon?: string | null
           custom_label?: string | null
           equipment_id?: string
           floor_plan_id?: string

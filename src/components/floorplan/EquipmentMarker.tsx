@@ -48,7 +48,8 @@ function EquipmentMarkerComponent({
   onRotationChange,
 }: EquipmentMarkerProps) {
   const equipment = position.equipment;
-  const equipmentType = equipment?.type || 'default';
+  // Use custom_icon if set, otherwise fall back to equipment type
+  const equipmentType = (position as any).custom_icon || equipment?.type || 'default';
   const status = equipment?.equipment_status || 'active';
   
   const baseSize = SIZE_MAP[position.icon_size] || SIZE_MAP.medium;
@@ -186,30 +187,30 @@ function EquipmentMarkerComponent({
           />
         )}
         
-        {/* White halo for visibility */}
+        {/* White halo for better visibility */}
         <Circle
-          radius={size * 0.95}
-          fill="rgba(255, 255, 255, 0.15)"
+          radius={size * 1.05}
+          fill="rgba(255, 255, 255, 0.4)"
           stroke="#ffffff"
-          strokeWidth={1}
+          strokeWidth={2}
         />
         
-        {/* Background circle */}
+        {/* Background circle - darker for better icon contrast */}
         <Circle
-          radius={size * 0.8}
-          fill="#1f2937"
+          radius={size * 0.9}
+          fill="#0f172a"
           stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : '#ffffff'}
-          strokeWidth={isDragging ? 3 : isFocused ? 3 : 2}
+          strokeWidth={isDragging ? 4 : isFocused ? 4 : 3}
           shadowColor="#000000"
-          shadowBlur={isDragging ? 12 : 8}
-          shadowOpacity={0.5}
+          shadowBlur={12}
+          shadowOpacity={0.6}
           opacity={isDragging ? 0.9 : 1}
         />
         
-        {/* Equipment-specific SVG icon */}
+        {/* Equipment-specific SVG icon - larger size */}
         <FloorPlanEquipmentIcon
           type={equipmentType}
-          size={size * 0.6}
+          size={size * 0.75}
           status={status}
         />
       </Group>

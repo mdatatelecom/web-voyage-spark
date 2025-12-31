@@ -11,6 +11,7 @@ export interface EquipmentPosition {
   rotation: number;
   icon_size: string;
   custom_label: string | null;
+  custom_icon: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -59,13 +60,15 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
       equipmentId, 
       x, 
       y,
-      customLabel 
+      customLabel,
+      customIcon
     }: { 
       floorPlanId: string; 
       equipmentId: string; 
       x: number; 
       y: number;
       customLabel?: string;
+      customIcon?: string;
     }) => {
       const { data, error } = await supabase
         .from('equipment_positions')
@@ -75,6 +78,7 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
           position_x: x,
           position_y: y,
           custom_label: customLabel,
+          custom_icon: customIcon === 'auto' ? null : customIcon,
         })
         .select(`
           *,
@@ -113,7 +117,8 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
       y,
       rotation,
       iconSize,
-      customLabel 
+      customLabel,
+      customIcon
     }: { 
       id: string; 
       x?: number; 
@@ -121,6 +126,7 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
       rotation?: number;
       iconSize?: string;
       customLabel?: string;
+      customIcon?: string | null;
     }) => {
       const updates: Record<string, any> = {};
       if (x !== undefined) updates.position_x = x;
@@ -128,6 +134,7 @@ export const useEquipmentPositions = (floorPlanId?: string) => {
       if (rotation !== undefined) updates.rotation = rotation;
       if (iconSize !== undefined) updates.icon_size = iconSize;
       if (customLabel !== undefined) updates.custom_label = customLabel;
+      if (customIcon !== undefined) updates.custom_icon = customIcon === 'auto' ? null : customIcon;
 
       const { error } = await supabase
         .from('equipment_positions')
