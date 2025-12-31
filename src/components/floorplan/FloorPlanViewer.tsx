@@ -43,6 +43,10 @@ interface FloorPlanViewerProps {
   selectedRackId?: string | null;
   onRackSelect?: (id: string | null) => void;
   onRackPositionChange?: (id: string, x: number, y: number) => void;
+  onRackResize?: (id: string, width: number, height: number) => void;
+  onRackDelete?: (id: string) => void;
+  onRackHover?: (position: RackPosition, screenX: number, screenY: number) => void;
+  onRackHoverEnd?: () => void;
 }
 
 export interface FloorPlanViewerRef {
@@ -85,6 +89,10 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   selectedRackId,
   onRackSelect,
   onRackPositionChange,
+  onRackResize,
+  onRackDelete,
+  onRackHover,
+  onRackHoverEnd,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
@@ -548,12 +556,17 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               currentZoom={scale}
               isSelected={selectedRackId === pos.id}
               isEditing={editable}
+              occupancy={pos.occupancy_percent}
               onClick={() => onRackSelect?.(pos.id)}
               onDragEnd={(x, y) => {
                 const relX = ((x - imageDims.x) / imageDims.width) * 100;
                 const relY = ((y - imageDims.y) / imageDims.height) * 100;
                 onRackPositionChange?.(pos.id, relX, relY);
               }}
+              onResize={(width, height) => onRackResize?.(pos.id, width, height)}
+              onDelete={() => onRackDelete?.(pos.id)}
+              onHover={(screenX, screenY) => onRackHover?.(pos, screenX, screenY)}
+              onHoverEnd={onRackHoverEnd}
             />
           ))}
           

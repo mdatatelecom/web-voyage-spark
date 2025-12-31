@@ -39,9 +39,10 @@ import {
   Server
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
+import { RackTooltip } from '@/components/floorplan/RackTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
-import { useRackPositions } from '@/hooks/useRackPositions';
+import { useRackPositions, RackPosition } from '@/hooks/useRackPositions';
 import { useRacks } from '@/hooks/useRacks';
 import { useUserRole } from '@/hooks/useUserRole';
 import { FloorPlanViewer, FloorPlanViewerRef } from '@/components/floorplan/FloorPlanViewer';
@@ -160,6 +161,11 @@ export default function FloorPlan() {
   // Hover tooltip state
   const [hoveredPosition, setHoveredPosition] = useState<EquipmentPosition | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  
+  // Rack tooltip state
+  const [hoveredRackPosition, setHoveredRackPosition] = useState<RackPosition | null>(null);
+  const [rackTooltipPos, setRackTooltipPos] = useState({ x: 0, y: 0 });
+  const [rackDeleteConfirmOpen, setRackDeleteConfirmOpen] = useState(false);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -549,6 +555,35 @@ export default function FloorPlan() {
     setRackClickPosition(null);
   }, [currentPlan?.id, rackClickPosition, addRackPosition]);
 
+  // Handle rack resize
+  const handleRackResize = useCallback((id: string, width: number, height: number) => {
+    updateRackPosition({ id, width, height });
+  }, [updateRackPosition]);
+
+  // Handle rack delete
+  const handleRackDelete = useCallback((id: string) => {
+    setSelectedRackId(id);
+    setRackDeleteConfirmOpen(true);
+  }, []);
+
+  const confirmRackDelete = useCallback(() => {
+    if (selectedRackId) {
+      deleteRackPosition(selectedRackId);
+      setSelectedRackId(null);
+      setRackDeleteConfirmOpen(false);
+    }
+  }, [selectedRackId, deleteRackPosition]);
+
+  // Rack hover handlers
+  const handleRackHover = useCallback((position: RackPosition, screenX: number, screenY: number) => {
+    setHoveredRackPosition(position);
+    setRackTooltipPos({ x: screenX, y: screenY });
+  }, []);
+
+  const handleRackHoverEnd = useCallback(() => {
+    setHoveredRackPosition(null);
+  }, []);
+
   // Handle equipment selection from sidebar - focus and center
   const handleEquipmentSelect = (id: string | null) => {
     setSelectedPositionId(id);
@@ -806,6 +841,10 @@ export default function FloorPlan() {
                   onRackPositionChange={(id, x, y) => {
                     updateRackPosition({ id, position_x: x, position_y: y });
                   }}
+                  onRackResize={handleRackResize}
+                  onRackDelete={handleRackDelete}
+                  onRackHover={handleRackHover}
+                  onRackHoverEnd={handleRackHoverEnd}
                 />
 
                 {/* Floating Tooltip */}
@@ -822,6 +861,20 @@ export default function FloorPlan() {
                       equipment={hoveredPosition.equipment} 
                       customLabel={hoveredPosition.custom_label}
                     />
+                  </div>
+                )}
+
+                {/* Rack Floating Tooltip */}
+                {hoveredRackPosition && (
+                  <div 
+                    className="fixed z-50 pointer-events-none"
+                    style={{ 
+                      left: rackTooltipPos.x, 
+                      top: rackTooltipPos.y - 20,
+                      transform: 'translate(-50%, -100%)'
+                    }}
+                  >
+                    <RackTooltip position={hoveredRackPosition} />
                   </div>
                 )}
 
@@ -1389,6 +1442,25 @@ export default function FloorPlan() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeletePosition}>
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rack Delete Confirmation Dialog */}
+      <AlertDialog open={rackDeleteConfirmOpen} onOpenChange={setRackDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover rack da planta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover este rack da planta? 
+              O rack não será excluído, apenas sua posição na planta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRackDelete}>
               Remover
             </AlertDialogAction>
           </AlertDialogFooter>
