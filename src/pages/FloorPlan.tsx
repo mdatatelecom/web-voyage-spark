@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,11 +37,14 @@ import {
   History,
   Trash2 as TrashIcon,
   Settings2,
-  Server
+  Server,
+  Clipboard,
+  ClipboardPaste
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { RackTooltip } from '@/components/floorplan/RackTooltip';
 import { RackContextMenu } from '@/components/floorplan/RackContextMenu';
+import { RackIconSelector } from '@/components/floorplan/RackIconSelector';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { useRackPositions, RackPosition } from '@/hooks/useRackPositions';
@@ -175,6 +179,16 @@ export default function FloorPlan() {
     y: number;
   } | null>(null);
   
+  // Clipboard state for copy/paste
+  const [clipboard, setClipboard] = useState<{
+    type: 'equipment' | 'rack';
+    data: EquipmentPosition | RackPosition;
+  } | null>(null);
+  
+  // Icon selector state
+  const [iconSelectorOpen, setIconSelectorOpen] = useState(false);
+  const [iconTargetRackId, setIconTargetRackId] = useState<string | null>(null);
+  
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -247,6 +261,7 @@ export default function FloorPlan() {
     positions, 
     updatePosition, 
     deletePosition,
+    createPosition,
     isLoading: positionsLoading 
   } = useEquipmentPositions(currentPlan?.id);
 
@@ -300,13 +315,84 @@ export default function FloorPlan() {
     updateRackPosition({ id, rotation });
   }, [updateRackPosition]);
 
-  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), fullscreen (F), rotation (R), and undo (Ctrl+Z)
+  // Handle copy - copies selected equipment or rack to clipboard
+  const handleCopy = useCallback(() => {
+    if (selectedRackId && rackPositions) {
+      const rackPos = rackPositions.find(p => p.id === selectedRackId);
+      if (rackPos) {
+        setClipboard({ type: 'rack', data: rackPos });
+        toast.success('Rack copiado! Use Ctrl+V para colar.');
+      }
+    } else if (selectedPositionId && positions) {
+      const equipPos = positions.find(p => p.id === selectedPositionId);
+      if (equipPos) {
+        setClipboard({ type: 'equipment', data: equipPos });
+        toast.success('Equipamento copiado! Use Ctrl+V para colar.');
+      }
+    }
+  }, [selectedRackId, selectedPositionId, rackPositions, positions]);
+
+  // Handle paste - pastes clipboard content with offset
+  const handlePaste = useCallback(() => {
+    if (!clipboard || !currentPlan?.id) return;
+    
+    if (clipboard.type === 'rack') {
+      const rackData = clipboard.data as RackPosition;
+      addRackPosition({
+        floor_plan_id: currentPlan.id,
+        rack_id: rackData.rack_id,
+        position_x: rackData.position_x + 20,
+        position_y: rackData.position_y + 20,
+        rotation: rackData.rotation,
+        width: rackData.width,
+        height: rackData.height,
+      });
+      toast.success('Rack colado!');
+    } else {
+      const equipData = clipboard.data as EquipmentPosition;
+      createPosition({
+        floorPlanId: currentPlan.id,
+        equipmentId: equipData.equipment_id,
+        x: equipData.position_x + 0.02,
+        y: equipData.position_y + 0.02,
+        customLabel: equipData.custom_label ? `${equipData.custom_label} (cópia)` : undefined,
+        customIcon: equipData.custom_icon || undefined,
+      });
+      toast.success('Equipamento colado!');
+    }
+  }, [clipboard, currentPlan?.id, addRackPosition, createPosition]);
+
+  // Handle change rack icon style
+  const handleChangeRackIcon = useCallback((style: string) => {
+    if (iconTargetRackId) {
+      updateRackPosition({ id: iconTargetRackId, icon_style: style });
+      setIconSelectorOpen(false);
+      setIconTargetRackId(null);
+      toast.success('Estilo do rack atualizado!');
+    }
+  }, [iconTargetRackId, updateRackPosition]);
+
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), fullscreen (F), rotation (R), copy/paste (Ctrl+C/V), and undo (Ctrl+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setSearchOpen(true);
         setTimeout(() => searchInputRef.current?.focus(), 100);
+      }
+      // Ctrl+C to copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (viewMode === 'edit' && (selectedRackId || selectedPositionId)) {
+          e.preventDefault();
+          handleCopy();
+        }
+      }
+      // Ctrl+V to paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        if (viewMode === 'edit' && clipboard) {
+          e.preventDefault();
+          handlePaste();
+        }
       }
       // Ctrl+Z to undo last measurement point
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
@@ -350,7 +436,7 @@ export default function FloorPlan() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen, measureMode, viewMode, selectedRackId, rackPositions, handleRackRotate]);
+  }, [searchOpen, measureMode, viewMode, selectedRackId, selectedPositionId, rackPositions, handleRackRotate, handleCopy, handlePaste, clipboard]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -958,7 +1044,8 @@ export default function FloorPlan() {
                         handleCloseContextMenu();
                       }}
                       onChangeIcon={() => {
-                        // TODO: Implement icon selector dialog
+                        setIconTargetRackId(rackContextMenu.position.id);
+                        setIconSelectorOpen(true);
                         handleCloseContextMenu();
                       }}
                       onRotate={(degrees) => {
@@ -1006,6 +1093,16 @@ export default function FloorPlan() {
                     <Badge variant="outline" className="gap-1 bg-background/80">
                       <Cable className="h-3 w-3" />
                       Conexões visíveis
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Clipboard indicator */}
+                {clipboard && viewMode === 'edit' && (
+                  <div className="absolute top-12 right-4">
+                    <Badge variant="secondary" className="gap-1 bg-background/80">
+                      <Clipboard className="h-3 w-3" />
+                      {clipboard.type === 'rack' ? 'Rack' : 'Equipamento'} copiado • Ctrl+V para colar
                     </Badge>
                   </div>
                 )}
@@ -1628,6 +1725,14 @@ export default function FloorPlan() {
         calibrationMode={calibrationMode}
         onStartCalibration={handleStartCalibration}
         calibrationDistance={calibrationDistance}
+      />
+
+      {/* Rack Icon Selector Dialog */}
+      <RackIconSelector
+        open={iconSelectorOpen}
+        onOpenChange={setIconSelectorOpen}
+        currentStyle={rackPositions?.find(p => p.id === iconTargetRackId)?.icon_style}
+        onSelect={handleChangeRackIcon}
       />
     </AppLayout>
   );
