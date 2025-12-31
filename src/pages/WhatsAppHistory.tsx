@@ -21,7 +21,9 @@ import {
   Users,
   Terminal,
   Zap,
-  BarChart3
+  BarChart3,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -94,6 +96,8 @@ const WhatsAppHistory = () => {
     messageType: 'all',
   });
   const [interactionFilters, setInteractionFilters] = useState<InteractionFilters>({});
+  const [interactionPage, setInteractionPage] = useState(1);
+  const interactionPageSize = 20;
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('notifications');
@@ -103,8 +107,15 @@ const WhatsAppHistory = () => {
     interactions, 
     isLoading: isLoadingInteractions, 
     refetch: refetchInteractions,
-    stats: interactionStats 
-  } = useWhatsAppInteractions(interactionFilters);
+    stats: interactionStats,
+    totalCount: interactionTotalCount,
+    totalPages: interactionTotalPages,
+    currentPage: interactionCurrentPage
+  } = useWhatsAppInteractions({
+    ...interactionFilters,
+    page: interactionPage,
+    pageSize: interactionPageSize
+  });
 
   const handleResend = async (id: string) => {
     setResendingId(id);
@@ -654,7 +665,10 @@ const WhatsAppHistory = () => {
                       <Calendar
                         mode="single"
                         selected={interactionFilters.startDate}
-                        onSelect={(date) => setInteractionFilters({ ...interactionFilters, startDate: date })}
+                        onSelect={(date) => {
+                          setInteractionFilters({ ...interactionFilters, startDate: date });
+                          setInteractionPage(1);
+                        }}
                         locale={ptBR}
                       />
                     </PopoverContent>
@@ -674,7 +688,10 @@ const WhatsAppHistory = () => {
                       <Calendar
                         mode="single"
                         selected={interactionFilters.endDate}
-                        onSelect={(date) => setInteractionFilters({ ...interactionFilters, endDate: date })}
+                        onSelect={(date) => {
+                          setInteractionFilters({ ...interactionFilters, endDate: date });
+                          setInteractionPage(1);
+                        }}
                         locale={ptBR}
                       />
                     </PopoverContent>
@@ -682,7 +699,10 @@ const WhatsAppHistory = () => {
 
                   <Select
                     value={interactionFilters.command || 'all'}
-                    onValueChange={(value) => setInteractionFilters({ ...interactionFilters, command: value === 'all' ? undefined : value })}
+                    onValueChange={(value) => {
+                      setInteractionFilters({ ...interactionFilters, command: value === 'all' ? undefined : value });
+                      setInteractionPage(1);
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Comando" />
@@ -705,7 +725,10 @@ const WhatsAppHistory = () => {
                     <Input
                       placeholder="Buscar telefone..."
                       value={interactionFilters.phoneSearch || ''}
-                      onChange={(e) => setInteractionFilters({ ...interactionFilters, phoneSearch: e.target.value })}
+                      onChange={(e) => {
+                        setInteractionFilters({ ...interactionFilters, phoneSearch: e.target.value });
+                        setInteractionPage(1);
+                      }}
                       className="pl-9"
                     />
                   </div>
@@ -716,7 +739,10 @@ const WhatsAppHistory = () => {
                     variant="ghost"
                     size="sm"
                     className="mt-2"
-                    onClick={() => setInteractionFilters({})}
+                    onClick={() => {
+                      setInteractionFilters({});
+                      setInteractionPage(1);
+                    }}
                   >
                     Limpar filtros
                   </Button>
@@ -727,10 +753,35 @@ const WhatsAppHistory = () => {
             {/* Interactions Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Interações</CardTitle>
-                <CardDescription>
-                  {interactions.length} interação(ões) encontrada(s)
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Interações</CardTitle>
+                    <CardDescription>
+                      {interactionTotalCount} interação(ões) encontrada(s) • Página {interactionCurrentPage} de {interactionTotalPages || 1}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInteractionPage(p => Math.max(1, p - 1))}
+                      disabled={interactionCurrentPage <= 1 || isLoadingInteractions}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground min-w-[80px] text-center">
+                      {interactionCurrentPage} / {interactionTotalPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInteractionPage(p => Math.min(interactionTotalPages || 1, p + 1))}
+                      disabled={interactionCurrentPage >= (interactionTotalPages || 1) || isLoadingInteractions}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingInteractions ? (
@@ -826,6 +877,51 @@ const WhatsAppHistory = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    
+                    {/* Pagination Footer */}
+                    {interactionTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                        <p className="text-sm text-muted-foreground">
+                          Mostrando {((interactionCurrentPage - 1) * interactionPageSize) + 1} a {Math.min(interactionCurrentPage * interactionPageSize, interactionTotalCount)} de {interactionTotalCount} registros
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInteractionPage(1)}
+                            disabled={interactionCurrentPage <= 1 || isLoadingInteractions}
+                          >
+                            Primeira
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInteractionPage(p => Math.max(1, p - 1))}
+                            disabled={interactionCurrentPage <= 1 || isLoadingInteractions}
+                          >
+                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInteractionPage(p => Math.min(interactionTotalPages || 1, p + 1))}
+                            disabled={interactionCurrentPage >= (interactionTotalPages || 1) || isLoadingInteractions}
+                          >
+                            Próxima
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInteractionPage(interactionTotalPages)}
+                            disabled={interactionCurrentPage >= (interactionTotalPages || 1) || isLoadingInteractions}
+                          >
+                            Última
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
