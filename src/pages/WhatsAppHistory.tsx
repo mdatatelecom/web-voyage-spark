@@ -23,8 +23,11 @@ import {
   Zap,
   BarChart3,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CalendarDays,
+  TrendingUp
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,7 +113,9 @@ const WhatsAppHistory = () => {
     stats: interactionStats,
     totalCount: interactionTotalCount,
     totalPages: interactionTotalPages,
-    currentPage: interactionCurrentPage
+    currentPage: interactionCurrentPage,
+    trendData,
+    isTrendLoading
   } = useWhatsAppInteractions({
     ...interactionFilters,
     page: interactionPage,
@@ -616,6 +621,104 @@ const WhatsAppHistory = () => {
                     </div>
                     <Zap className="h-8 w-8 text-yellow-500" />
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Trend Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Distribuição por Hora
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isTrendLoading ? (
+                    <Skeleton className="h-[200px] w-full" />
+                  ) : trendData?.hourly && trendData.hourly.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={trendData.hourly}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="label" 
+                          fontSize={10} 
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          interval={2}
+                        />
+                        <YAxis 
+                          fontSize={10} 
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '6px'
+                          }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                        />
+                        <Bar 
+                          dataKey="count" 
+                          fill="hsl(var(--primary))" 
+                          radius={[2, 2, 0, 0]}
+                          name="Interações"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                      Sem dados para exibir
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4" />
+                    Distribuição por Dia da Semana
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isTrendLoading ? (
+                    <Skeleton className="h-[200px] w-full" />
+                  ) : trendData?.daily && trendData.daily.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={trendData.daily}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="label" 
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis 
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '6px'
+                          }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                        />
+                        <Bar 
+                          dataKey="count" 
+                          fill="hsl(var(--chart-2))" 
+                          radius={[2, 2, 0, 0]}
+                          name="Interações"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                      Sem dados para exibir
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

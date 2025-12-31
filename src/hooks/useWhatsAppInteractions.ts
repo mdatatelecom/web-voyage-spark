@@ -32,6 +32,16 @@ export interface InteractionStats {
   commandCounts: Record<string, number>;
 }
 
+export interface TrendDataPoint {
+  label: string;
+  count: number;
+}
+
+export interface TrendData {
+  hourly: TrendDataPoint[];
+  daily: TrendDataPoint[];
+}
+
 export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
   const page = filters.page || 1;
   const pageSize = filters.pageSize || 20;
@@ -107,6 +117,64 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
     },
   });
 
+  // Query for trend data (hourly and daily distribution)
+  const { data: trendData, isLoading: isTrendLoading } = useQuery({
+    queryKey: ['whatsapp-interactions-trend', { 
+      startDate: filters.startDate, 
+      endDate: filters.endDate 
+    }],
+    queryFn: async () => {
+      let query = supabase
+        .from('whatsapp_interactions')
+        .select('created_at, response_status');
+
+      if (filters.startDate) {
+        query = query.gte('created_at', filters.startDate.toISOString());
+      }
+      if (filters.endDate) {
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Group by hour
+      const hourlyMap: Record<string, number> = {};
+      for (let i = 0; i < 24; i++) {
+        hourlyMap[`${i.toString().padStart(2, '0')}h`] = 0;
+      }
+
+      // Group by day of week
+      const dayOrder = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+      const dailyMap: Record<string, number> = {
+        'dom': 0, 'seg': 0, 'ter': 0, 'qua': 0, 'qui': 0, 'sex': 0, 'sáb': 0
+      };
+
+      data?.forEach(item => {
+        const date = new Date(item.created_at);
+        const hour = `${date.getHours().toString().padStart(2, '0')}h`;
+        const dayIndex = date.getDay();
+        const day = dayOrder[dayIndex];
+
+        hourlyMap[hour] = (hourlyMap[hour] || 0) + 1;
+        dailyMap[day] = (dailyMap[day] || 0) + 1;
+      });
+
+      const hourly: TrendDataPoint[] = Object.entries(hourlyMap)
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => parseInt(a.label) - parseInt(b.label));
+
+      const daily: TrendDataPoint[] = dayOrder.map(day => ({
+        label: day,
+        count: dailyMap[day]
+      }));
+
+      return { hourly, daily };
+    },
+  });
+
   // Calculate stats from all filtered records
   const stats: InteractionStats = {
     total: statsData?.length || 0,
@@ -143,6 +211,8 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
     totalPages,
     currentPage: page,
     pageSize,
+    trendData: trendData as TrendData | undefined,
+    isTrendLoading,
   };
 }
 
