@@ -19,7 +19,14 @@ export interface RackPosition {
     name: string;
     size_u: number;
     room_id: string;
+    room?: {
+      name: string;
+    };
   };
+  // Calculated fields
+  equipment_count?: number;
+  used_u?: number;
+  occupancy_percent?: number;
 }
 
 export const useRackPositions = (floorPlanId?: string) => {
@@ -28,16 +35,49 @@ export const useRackPositions = (floorPlanId?: string) => {
   const { data: rackPositions, isLoading } = useQuery({
     queryKey: ['rack_positions', floorPlanId],
     queryFn: async () => {
+      // Fetch rack positions with rack and room info
       const { data, error } = await supabase
         .from('rack_positions')
         .select(`
           *,
-          rack:racks(id, name, size_u, room_id)
+          rack:racks(
+            id, name, size_u, room_id,
+            room:rooms(name)
+          )
         `)
         .eq('floor_plan_id', floorPlanId!);
       
       if (error) throw error;
-      return data as RackPosition[];
+      if (!data || data.length === 0) return [];
+
+      // Get rack IDs to fetch equipment
+      const rackIds = data.map(p => p.rack_id);
+      
+      // Fetch equipment for these racks to calculate occupancy
+      const { data: equipment } = await supabase
+        .from('equipment')
+        .select('rack_id, position_u_start, position_u_end')
+        .in('rack_id', rackIds);
+
+      // Calculate occupancy for each rack
+      const enrichedData = data.map(pos => {
+        const rackEquip = equipment?.filter(e => e.rack_id === pos.rack_id) || [];
+        const usedU = rackEquip.reduce((sum, e) => {
+          if (e.position_u_start != null && e.position_u_end != null) {
+            return sum + Math.abs(e.position_u_end - e.position_u_start) + 1;
+          }
+          return sum;
+        }, 0);
+        const sizeU = pos.rack?.size_u || 42;
+        return {
+          ...pos,
+          equipment_count: rackEquip.length,
+          used_u: usedU,
+          occupancy_percent: Math.round((usedU / sizeU) * 100),
+        };
+      });
+
+      return enrichedData as RackPosition[];
     },
     enabled: !!floorPlanId,
   });
