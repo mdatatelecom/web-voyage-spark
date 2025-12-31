@@ -27,8 +27,11 @@ import {
   RotateCcwSquare,
   Trash2,
   Search,
-  X
+  X,
+  Ruler,
+  Maximize2
 } from 'lucide-react';
+import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -102,6 +105,15 @@ export default function FloorPlan() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(20);
   const [snapToGrid, setSnapToGrid] = useState(false);
+  
+  // Measurement states
+  const [measureMode, setMeasureMode] = useState(false);
+  const [measureScale, setMeasureScale] = useState(100);
+  const [currentZoom, setCurrentZoom] = useState(1);
+  
+  // Hover tooltip state
+  const [hoveredPosition, setHoveredPosition] = useState<EquipmentPosition | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -188,7 +200,7 @@ export default function FloorPlan() {
     setTimeout(() => setFocusedPositionId(null), 3000);
   }, []);
 
-  // Keyboard shortcut for search (Ctrl+F / Cmd+F)
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F) and measurement (M)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -199,10 +211,49 @@ export default function FloorPlan() {
       if (e.key === 'Escape') {
         setSearchOpen(false);
         setSearchQuery('');
+        setMeasureMode(false);
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        if (!searchOpen && document.activeElement?.tagName !== 'INPUT') {
+          setMeasureMode(prev => !prev);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchOpen]);
+
+  // Hover handlers for tooltip
+  const handleHover = useCallback((position: EquipmentPosition, screenX: number, screenY: number) => {
+    setHoveredPosition(position);
+    setTooltipPos({ x: screenX, y: screenY });
+  }, []);
+
+  const handleHoverEnd = useCallback(() => {
+    setHoveredPosition(null);
+  }, []);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    const newZoom = Math.min(5, currentZoom * 1.25);
+    viewerRef.current?.setZoom(newZoom);
+    setCurrentZoom(newZoom);
+  }, [currentZoom]);
+
+  const handleZoomOut = useCallback(() => {
+    const newZoom = Math.max(0.25, currentZoom / 1.25);
+    viewerRef.current?.setZoom(newZoom);
+    setCurrentZoom(newZoom);
+  }, [currentZoom]);
+
+  const handleZoomPreset = useCallback((zoom: number) => {
+    viewerRef.current?.setZoom(zoom);
+    setCurrentZoom(zoom);
+  }, []);
+
+  const handleFitToView = useCallback(() => {
+    viewerRef.current?.fitToView();
+    setCurrentZoom(1);
   }, []);
 
   const handleAddClick = (x: number, y: number) => {
@@ -478,7 +529,28 @@ export default function FloorPlan() {
                   showGrid={showGrid}
                   gridSize={gridSize}
                   snapToGrid={snapToGrid}
+                  measureMode={measureMode}
+                  measureScale={measureScale}
+                  onHover={handleHover}
+                  onHoverEnd={handleHoverEnd}
                 />
+
+                {/* Floating Tooltip */}
+                {hoveredPosition && (
+                  <div 
+                    className="fixed z-50 pointer-events-none"
+                    style={{ 
+                      left: tooltipPos.x, 
+                      top: tooltipPos.y - 20,
+                      transform: 'translate(-50%, -100%)'
+                    }}
+                  >
+                    <EquipmentTooltip 
+                      equipment={hoveredPosition.equipment} 
+                      customLabel={hoveredPosition.custom_label}
+                    />
+                  </div>
+                )}
 
                 {/* Mode indicator */}
                 {viewMode !== 'view' && (
@@ -519,34 +591,144 @@ export default function FloorPlan() {
                   </div>
                 )}
 
-                {/* Bottom Controls - Zoom and Grid */}
+                {/* Measurement Mode indicator */}
+                {measureMode && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2">
+                    <Badge variant="default" className="gap-1 bg-primary">
+                      <Ruler className="h-3 w-3" />
+                      Modo Medição • Clique para definir pontos • ESC para sair
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Bottom Controls - Zoom, Measurement and Grid */}
                 <div className="absolute bottom-4 left-4 flex gap-2">
                   {/* Zoom controls */}
-                  <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
+                  <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ZoomIn className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Zoom In (Scroll)</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={handleZoomOut}
+                        >
                           <ZoomOut className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Zoom Out (Scroll)</TooltipContent>
+                      <TooltipContent>Zoom Out (-)</TooltipContent>
                     </Tooltip>
+                    
+                    {/* Zoom Presets Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs min-w-[60px]">
+                          {Math.round(currentZoom * 100)}%
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="bg-popover">
+                        <DropdownMenuItem onClick={() => handleZoomPreset(0.25)}>
+                          25%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(0.5)}>
+                          50%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(0.75)}>
+                          75%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(1)}>
+                          100%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(1.5)}>
+                          150%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(2)}>
+                          200%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(3)}>
+                          300%
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleZoomPreset(5)}>
+                          500%
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Hand className="h-4 w-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={handleZoomIn}
+                        >
+                          <ZoomIn className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Arrastar (Pan)</TooltipContent>
+                      <TooltipContent>Zoom In (+)</TooltipContent>
                     </Tooltip>
+                    
+                    <div className="w-px h-6 bg-border" />
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={handleFitToView}
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Ajustar à tela</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  
+                  {/* Measurement Tool */}
+                  <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant={measureMode ? 'default' : 'ghost'} 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => setMeasureMode(!measureMode)}
+                        >
+                          <Ruler className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Medir distância (M)</TooltipContent>
+                    </Tooltip>
+                    
+                    {measureMode && (
+                      <DropdownMenu>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                                {measureScale}px/m
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>Escala de medição</TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent className="bg-popover">
+                          <DropdownMenuItem onClick={() => setMeasureScale(50)}>
+                            50px/m (Escala grande)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setMeasureScale(100)}>
+                            100px/m (Padrão)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setMeasureScale(200)}>
+                            200px/m (Detalhado)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setMeasureScale(500)}>
+                            500px/m (Alta precisão)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                   
                   {/* Grid controls (only in edit/add mode) */}
