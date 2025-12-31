@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Rect, Line, Group } from 'react-konva';
 import useImage from 'use-image';
 import { EquipmentMarker } from './EquipmentMarker';
 import { ConnectionLines } from './ConnectionLines';
@@ -14,14 +14,19 @@ interface FloorPlanViewerProps {
   focusedId?: string | null;
   onSelect: (id: string | null) => void;
   onPositionChange?: (id: string, x: number, y: number) => void;
+  onRotationChange?: (id: string, rotation: number) => void;
   onAddClick?: (x: number, y: number) => void;
   editable?: boolean;
   addMode?: boolean;
   showConnections?: boolean;
+  showGrid?: boolean;
+  gridSize?: number;
+  snapToGrid?: boolean;
 }
 
 export interface FloorPlanViewerRef {
   getStage: () => any;
+  getScale: () => number;
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -31,10 +36,14 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   focusedId,
   onSelect,
   onPositionChange,
+  onRotationChange,
   onAddClick,
   editable = false,
   addMode = false,
   showConnections = true,
+  showGrid = false,
+  gridSize = 20,
+  snapToGrid = false,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
@@ -49,9 +58,10 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   // Fetch connections between positioned equipment
   const { data: connections } = useFloorPlanConnections(positions);
 
-  // Expose stage ref to parent
+  // Expose stage ref and scale to parent
   useImperativeHandle(ref, () => ({
     getStage: () => stageRef.current,
+    getScale: () => scale,
   }));
 
   // Calculate stage dimensions based on container
@@ -98,6 +108,43 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   }, [image, dimensions]);
 
   const imageDims = getImageDimensions();
+
+  // Generate grid lines
+  const renderGrid = useCallback(() => {
+    if (!showGrid) return null;
+    
+    const lines: JSX.Element[] = [];
+    const gridColor = '#4b5563';
+    const gridOpacity = 0.3;
+    
+    // Vertical lines
+    for (let x = imageDims.x; x <= imageDims.x + imageDims.width; x += gridSize) {
+      lines.push(
+        <Line
+          key={`v-${x}`}
+          points={[x, imageDims.y, x, imageDims.y + imageDims.height]}
+          stroke={gridColor}
+          strokeWidth={1}
+          opacity={gridOpacity}
+        />
+      );
+    }
+    
+    // Horizontal lines
+    for (let y = imageDims.y; y <= imageDims.y + imageDims.height; y += gridSize) {
+      lines.push(
+        <Line
+          key={`h-${y}`}
+          points={[imageDims.x, y, imageDims.x + imageDims.width, y]}
+          stroke={gridColor}
+          strokeWidth={1}
+          opacity={gridOpacity}
+        />
+      );
+    }
+    
+    return <Group>{lines}</Group>;
+  }, [showGrid, gridSize, imageDims]);
 
   // Center on focused equipment with animation
   useEffect(() => {
@@ -175,7 +222,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   const handleStageClick = (e: any) => {
     const clickedOnEmpty = e.target === e.target.getStage() || 
                           e.target.name() === 'background' ||
-                          e.target.name() === 'floor-plan-image';
+                          e.target.name() === 'floor-plan-image' ||
+                          e.target.name() === 'grid-line';
     
     if (clickedOnEmpty) {
       if (addMode && onAddClick) {
@@ -183,8 +231,18 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
         const pointer = stage.getPointerPosition();
         
         // Convert click position to relative coordinates (0-1) based on image bounds
-        const relX = (pointer.x / scale - position.x / scale - imageDims.x) / imageDims.width;
-        const relY = (pointer.y / scale - position.y / scale - imageDims.y) / imageDims.height;
+        let relX = (pointer.x / scale - position.x / scale - imageDims.x) / imageDims.width;
+        let relY = (pointer.y / scale - position.y / scale - imageDims.y) / imageDims.height;
+        
+        // Apply snap if enabled
+        if (snapToGrid) {
+          const absX = imageDims.x + relX * imageDims.width;
+          const absY = imageDims.y + relY * imageDims.height;
+          const snappedX = Math.round(absX / gridSize) * gridSize;
+          const snappedY = Math.round(absY / gridSize) * gridSize;
+          relX = (snappedX - imageDims.x) / imageDims.width;
+          relY = (snappedY - imageDims.y) / imageDims.height;
+        }
         
         // Only add if within image bounds
         if (relX >= 0 && relX <= 1 && relY >= 0 && relY <= 1) {
@@ -240,6 +298,9 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
             />
           )}
           
+          {/* Alignment Grid */}
+          {renderGrid()}
+          
           {/* Connection Lines (rendered behind markers) */}
           {showConnections && connections && connections.length > 0 && (
             <ConnectionLines
@@ -267,6 +328,9 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               isFocused={focusedId === pos.id}
               isDragging={draggingId === pos.id}
               editable={editable}
+              currentScale={scale}
+              gridSize={gridSize}
+              snapToGrid={snapToGrid}
               onSelect={() => onSelect(pos.id)}
               onDragStart={() => setDraggingId(pos.id)}
               onDragEnd={(x, y) => {
@@ -278,6 +342,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
                   onPositionChange(pos.id, newX, newY);
                 }
               }}
+              onRotationChange={onRotationChange ? (rotation) => onRotationChange(pos.id, rotation) : undefined}
             />
           ))}
         </Layer>
