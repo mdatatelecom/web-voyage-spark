@@ -477,6 +477,62 @@ export type Database = {
           },
         ]
       }
+      floor_plan_measurements: {
+        Row: {
+          area: number | null
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          floor_plan_id: string
+          id: string
+          is_closed: boolean | null
+          name: string
+          points: Json
+          scale: number
+          total_distance: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          area?: number | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          floor_plan_id: string
+          id?: string
+          is_closed?: boolean | null
+          name: string
+          points: Json
+          scale?: number
+          total_distance?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          area?: number | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          floor_plan_id?: string
+          id?: string
+          is_closed?: boolean | null
+          name?: string
+          points?: Json
+          scale?: number
+          total_distance?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "floor_plan_measurements_floor_plan_id_fkey"
+            columns: ["floor_plan_id"]
+            isOneToOne: false
+            referencedRelation: "floor_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       floor_plans: {
         Row: {
           created_at: string | null

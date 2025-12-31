@@ -44,6 +44,8 @@ export interface FloorPlanViewerRef {
   clearMeasurement: () => void;
   getMeasurePointsCount: () => number;
   getMeasurePoints: () => MeasurementPoint[];
+  isPolygonClosed: () => boolean;
+  setMeasurePointsExternal: (points: MeasurementPoint[], closed: boolean) => void;
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -78,6 +80,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   // Measurement state - array of points for multi-point measurement
   const [measurePoints, setMeasurePoints] = useState<MeasurementPoint[]>([]);
   const [tempMeasurePoint, setTempMeasurePoint] = useState<MeasurementPoint | null>(null);
+  const [isPolygonClosedState, setIsPolygonClosedState] = useState(false);
   
   const [image] = useImage(floorPlan.file_url, 'anonymous');
   
@@ -152,13 +155,20 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     },
     undoLastMeasurePoint: () => {
       setMeasurePoints(prev => prev.slice(0, -1));
+      setIsPolygonClosedState(false);
     },
     clearMeasurement: () => {
       setMeasurePoints([]);
       setTempMeasurePoint(null);
+      setIsPolygonClosedState(false);
     },
     getMeasurePointsCount: () => measurePoints.length,
     getMeasurePoints: () => measurePoints,
+    isPolygonClosed: () => isPolygonClosedState,
+    setMeasurePointsExternal: (points: MeasurementPoint[], closed: boolean) => {
+      setMeasurePoints(points);
+      setIsPolygonClosedState(closed);
+    },
   }));
 
   // Calculate stage dimensions based on container
@@ -335,8 +345,27 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     
     // In measure mode, ALWAYS add a point regardless of what was clicked
     if (measureMode) {
-      setMeasurePoints(prev => [...prev, { x: actualX, y: actualY }]);
-      setTempMeasurePoint(null);
+      // Check if clicking near the first point to close polygon
+      if (measurePoints.length >= 3 && !isPolygonClosedState) {
+        const firstPoint = measurePoints[0];
+        const distToFirst = Math.sqrt(
+          Math.pow(actualX - firstPoint.x, 2) + 
+          Math.pow(actualY - firstPoint.y, 2)
+        );
+        const closeThreshold = 20 / scale; // 20 pixels adjusted for zoom
+        
+        if (distToFirst < closeThreshold) {
+          setIsPolygonClosedState(true);
+          setTempMeasurePoint(null);
+          return; // Close polygon, don't add new point
+        }
+      }
+      
+      // If polygon is not closed, add the point
+      if (!isPolygonClosedState) {
+        setMeasurePoints(prev => [...prev, { x: actualX, y: actualY }]);
+        setTempMeasurePoint(null);
+      }
       return;
     }
     
@@ -373,7 +402,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
 
   // Handle mouse move for temp measurement line
   const handleMouseMove = useCallback((e: any) => {
-    if (!measureMode || measurePoints.length === 0) return;
+    if (!measureMode || measurePoints.length === 0 || isPolygonClosedState) return;
     
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
@@ -382,7 +411,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       const actualY = (pointer.y - position.y) / scale;
       setTempMeasurePoint({ x: actualX, y: actualY });
     }
-  }, [measureMode, measurePoints.length, position, scale]);
+  }, [measureMode, measurePoints.length, position, scale, isPolygonClosedState]);
 
   const cursorStyle = measureMode ? 'cursor-crosshair' : addMode ? 'cursor-crosshair' : 'cursor-grab';
   
@@ -490,6 +519,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               tempEndPoint={tempMeasurePoint}
               scale={measureScale}
               currentZoom={scale}
+              isClosed={isPolygonClosedState}
             />
           )}
           
