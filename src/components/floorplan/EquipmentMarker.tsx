@@ -186,16 +186,24 @@ function EquipmentMarkerComponent({
           />
         )}
         
+        {/* White halo for visibility */}
+        <Circle
+          radius={size * 0.95}
+          fill="rgba(255, 255, 255, 0.15)"
+          stroke="#ffffff"
+          strokeWidth={1}
+        />
+        
         {/* Background circle */}
         <Circle
           radius={size * 0.8}
-          fill="#1a1a2e"
-          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : '#374151'}
+          fill="#1f2937"
+          stroke={isDragging ? '#ffffff' : isFocused ? '#fbbf24' : '#ffffff'}
           strokeWidth={isDragging ? 3 : isFocused ? 3 : 2}
           shadowColor="#000000"
-          shadowBlur={isDragging ? 10 : 5}
-          shadowOpacity={0.3}
-          opacity={isDragging ? 0.8 : 1}
+          shadowBlur={isDragging ? 12 : 8}
+          shadowOpacity={0.5}
+          opacity={isDragging ? 0.9 : 1}
         />
         
         {/* Equipment-specific SVG icon */}

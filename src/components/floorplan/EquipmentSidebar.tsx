@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Search, Trash2, RotateCw, Tag, ChevronRight } from 'lucide-react';
+import { Search, Trash2, Tag, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { FloorPlanLegend } from './FloorPlanLegend';
 
@@ -152,10 +153,16 @@ export function EquipmentSidebar({
 
       <Separator />
 
-      {/* Legend */}
-      <div className="p-3">
-        <FloorPlanLegend />
-      </div>
+      {/* Collapsible Legend */}
+      <Collapsible defaultOpen={false} className="p-3">
+        <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-medium hover:text-foreground/80 transition-colors">
+          <span>Legenda</span>
+          <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <FloorPlanLegend />
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
