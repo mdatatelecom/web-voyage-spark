@@ -23,7 +23,8 @@ import {
   Magnet,
   RotateCcw,
   RotateCw,
-  RotateCcwSquare
+  RotateCcwSquare,
+  Trash2
 } from 'lucide-react';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions } from '@/hooks/useEquipmentPositions';
@@ -457,7 +458,7 @@ export default function FloorPlan() {
                     </div>
                   )}
                   
-                  {/* Rotation controls (only when something is selected in edit mode) */}
+                  {/* Rotation and Delete controls (only when something is selected in edit mode) */}
                   {viewMode === 'edit' && selectedPositionId && (
                     <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
                       <Tooltip>
@@ -500,6 +501,22 @@ export default function FloorPlan() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Resetar rotação</TooltipContent>
+                      </Tooltip>
+                      
+                      {/* Delete button */}
+                      <div className="w-px bg-border mx-1" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteConfirmOpen(true)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Excluir equipamento</TooltipContent>
                       </Tooltip>
                     </div>
                   )}

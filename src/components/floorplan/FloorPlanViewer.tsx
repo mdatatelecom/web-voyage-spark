@@ -276,14 +276,14 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
         }}
       >
         <Layer>
-          {/* Background */}
+        {/* Background - lighter for better icon visibility */}
           <Rect
             name="background"
             width={dimensions.width * 3}
             height={dimensions.height * 3}
             x={-dimensions.width}
             y={-dimensions.height}
-            fill="#1a1a2e"
+            fill="#374151"
           />
           
           {/* Floor Plan Image */}
