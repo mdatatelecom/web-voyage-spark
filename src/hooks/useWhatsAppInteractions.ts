@@ -24,12 +24,30 @@ export interface InteractionFilters {
   pageSize?: number;
 }
 
+export interface CommandStats {
+  command: string;
+  total: number;
+  success: number;
+  errors: number;
+  successRate: number;
+  avgTime: number;
+}
+
+export interface ErrorTrendPoint {
+  date: string;
+  rate: number;
+  total: number;
+  errors: number;
+}
+
 export interface InteractionStats {
   total: number;
   success: number;
   error: number;
   avgProcessingTime: number;
   commandCounts: Record<string, number>;
+  commandStats: CommandStats[];
+  errorTrend: ErrorTrendPoint[];
 }
 
 export interface TrendDataPoint {
@@ -94,7 +112,7 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
     queryFn: async () => {
       let query = supabase
         .from('whatsapp_interactions')
-        .select('response_status, processing_time_ms, command');
+        .select('response_status, processing_time_ms, command, created_at');
 
       if (filters.startDate) {
         query = query.gte('created_at', filters.startDate.toISOString());
@@ -179,7 +197,77 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
     },
   });
 
+  // Calculate command stats with success rates
+  const commandMap: Record<string, { total: number; success: number; errors: number; times: number[] }> = {};
+  const errorByDay: Record<string, { total: number; errors: number }> = {};
+  
+  statsData?.forEach(i => {
+    if (i.command) {
+      if (!commandMap[i.command]) {
+        commandMap[i.command] = { total: 0, success: 0, errors: 0, times: [] };
+      }
+      commandMap[i.command].total++;
+      if (i.response_status === 'success') commandMap[i.command].success++;
+      if (i.response_status === 'error') commandMap[i.command].errors++;
+      if (i.processing_time_ms) commandMap[i.command].times.push(i.processing_time_ms);
+    }
+  });
+
+  // Calculate error trend by day (last 7 days)
+  const recentData = statsData?.filter(item => {
+    const itemDate = new Date(item.created_at || '');
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return itemDate >= sevenDaysAgo;
+  }) || [];
+
+  recentData.forEach(item => {
+    if (!item.created_at) return;
+    const dateKey = new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    if (!errorByDay[dateKey]) {
+      errorByDay[dateKey] = { total: 0, errors: 0 };
+    }
+    errorByDay[dateKey].total++;
+    if (item.response_status === 'error') {
+      errorByDay[dateKey].errors++;
+    }
+  });
+
+  const errorTrend: ErrorTrendPoint[] = Object.entries(errorByDay)
+    .map(([date, data]) => ({
+      date,
+      rate: data.total > 0 ? Math.round((data.errors / data.total) * 100 * 10) / 10 : 0,
+      total: data.total,
+      errors: data.errors
+    }))
+    .sort((a, b) => {
+      const [dayA, monthA] = a.date.split('/').map(Number);
+      const [dayB, monthB] = b.date.split('/').map(Number);
+      return (monthA * 100 + dayA) - (monthB * 100 + dayB);
+    })
+    .slice(-7);
+
+  const commandStats: CommandStats[] = Object.entries(commandMap)
+    .map(([cmd, cmdStats]) => ({
+      command: cmd,
+      total: cmdStats.total,
+      success: cmdStats.success,
+      errors: cmdStats.errors,
+      successRate: Math.round((cmdStats.success / cmdStats.total) * 100 * 10) / 10,
+      avgTime: cmdStats.times.length > 0 
+        ? Math.round(cmdStats.times.reduce((a, b) => a + b, 0) / cmdStats.times.length)
+        : 0
+    }))
+    .sort((a, b) => b.total - a.total);
+
   // Calculate stats from all filtered records
+  const commandCounts: Record<string, number> = {};
+  statsData?.forEach(i => {
+    if (i.command) {
+      commandCounts[i.command] = (commandCounts[i.command] || 0) + 1;
+    }
+  });
+
   const stats: InteractionStats = {
     total: statsData?.length || 0,
     success: statsData?.filter(i => i.response_status === 'success').length || 0,
@@ -192,15 +280,10 @@ export function useWhatsAppInteractions(filters: InteractionFilters = {}) {
           (statsData.filter(i => i.processing_time_ms).length || 1)
         )
       : 0,
-    commandCounts: {},
+    commandCounts,
+    commandStats,
+    errorTrend,
   };
-
-  // Count commands
-  statsData?.forEach(i => {
-    if (i.command) {
-      stats.commandCounts[i.command] = (stats.commandCounts[i.command] || 0) + 1;
-    }
-  });
 
   const totalCount = data?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / pageSize);

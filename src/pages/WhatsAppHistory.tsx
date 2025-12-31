@@ -101,11 +101,26 @@ const WhatsAppHistory = () => {
   const [interactionFilters, setInteractionFilters] = useState<InteractionFilters>({});
   const [interactionPage, setInteractionPage] = useState(1);
   const interactionPageSize = 20;
+  const [notificationPage, setNotificationPage] = useState(1);
+  const notificationPageSize = 50;
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('notifications');
 
-  const { notifications, isLoading, error, refetch, stats } = useWhatsAppHistory(filters);
+  const { 
+    notifications, 
+    isLoading, 
+    error, 
+    refetch, 
+    stats,
+    totalCount: notificationTotalCount,
+    totalPages: notificationTotalPages,
+    currentPage: notificationCurrentPage
+  } = useWhatsAppHistory({
+    ...filters,
+    page: notificationPage,
+    pageSize: notificationPageSize
+  });
   const { 
     interactions, 
     isLoading: isLoadingInteractions, 
@@ -207,9 +222,6 @@ const WhatsAppHistory = () => {
     }
   };
 
-  const topCommands = Object.entries(interactionStats.commandCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
 
   return (
     <AppLayout>
@@ -398,7 +410,10 @@ const WhatsAppHistory = () => {
                     variant="ghost"
                     size="sm"
                     className="mt-2"
-                    onClick={() => setFilters({ status: 'all', messageType: 'all' })}
+                    onClick={() => {
+                      setFilters({ status: 'all', messageType: 'all' });
+                      setNotificationPage(1);
+                    }}
                   >
                     Limpar filtros
                   </Button>
@@ -406,13 +421,37 @@ const WhatsAppHistory = () => {
               </CardContent>
             </Card>
 
-            {/* Messages Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Mensagens</CardTitle>
-                <CardDescription>
-                  {notifications.length} mensagem(ns) encontrada(s)
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Mensagens</CardTitle>
+                    <CardDescription>
+                      {notificationTotalCount} mensagem(ns) encontrada(s) • Página {notificationCurrentPage} de {notificationTotalPages || 1}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNotificationPage(p => Math.max(1, p - 1))}
+                      disabled={notificationCurrentPage <= 1 || isLoading}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground min-w-[80px] text-center">
+                      {notificationCurrentPage} / {notificationTotalPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNotificationPage(p => Math.min(notificationTotalPages || 1, p + 1))}
+                      disabled={notificationCurrentPage >= (notificationTotalPages || 1) || isLoading}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -587,12 +626,12 @@ const WhatsAppHistory = () => {
           {/* Interactions Tab */}
           <TabsContent value="interactions" className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <Card>
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Interações</p>
+                      <p className="text-sm text-muted-foreground">Total</p>
                       <p className="text-2xl font-bold">{interactionStats.total}</p>
                     </div>
                     <Terminal className="h-8 w-8 text-muted-foreground" />
@@ -625,10 +664,38 @@ const WhatsAppHistory = () => {
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between">
                     <div>
+                      <p className="text-sm text-muted-foreground">Taxa Erro</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {interactionStats.total > 0 
+                          ? ((interactionStats.error / interactionStats.total) * 100).toFixed(1) 
+                          : 0}%
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-orange-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
                       <p className="text-sm text-muted-foreground">Tempo Médio</p>
                       <p className="text-2xl font-bold">{interactionStats.avgProcessingTime}ms</p>
                     </div>
                     <Zap className="h-8 w-8 text-yellow-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Cmd Únicos</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {Object.keys(interactionStats.commandCounts).length}
+                      </p>
+                    </div>
+                    <BarChart3 className="h-8 w-8 text-purple-500" />
                   </div>
                 </CardContent>
               </Card>
@@ -732,26 +799,118 @@ const WhatsAppHistory = () => {
               </Card>
             </div>
 
-            {/* Top Commands */}
-            {topCommands.length > 0 && (
+            {/* Top Commands Chart + Error Trend */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Top Commands Bar Chart */}
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <BarChart3 className="h-4 w-4" />
-                    Comandos Mais Usados
+                    Top 10 Comandos Mais Usados
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {topCommands.map(([cmd, count]) => (
-                      <Badge key={cmd} variant="secondary" className="text-sm">
-                        {cmd}: {count}
-                      </Badge>
-                    ))}
-                  </div>
+                  {interactionStats.commandStats.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart 
+                        data={interactionStats.commandStats.slice(0, 10)} 
+                        layout="vertical"
+                        margin={{ left: 60, right: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          type="number" 
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis 
+                          dataKey="command" 
+                          type="category" 
+                          width={55}
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '6px'
+                          }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'successRate') return [`${value}%`, 'Taxa Sucesso'];
+                            return [value, name === 'total' ? 'Total' : name];
+                          }}
+                        />
+                        <Bar 
+                          dataKey="total" 
+                          fill="hsl(var(--primary))" 
+                          radius={[0, 2, 2, 0]}
+                          name="Total"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      Sem dados para exibir
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )}
+
+              {/* Error Trend Chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    Taxa de Erro por Dia (Últimos 7 dias)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {interactionStats.errorTrend.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={interactionStats.errorTrend}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis 
+                          fontSize={10}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          unit="%"
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '6px'
+                          }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'rate') return [`${value}%`, 'Taxa Erro'];
+                            if (name === 'errors') return [value, 'Erros'];
+                            if (name === 'total') return [value, 'Total'];
+                            return [value, name];
+                          }}
+                        />
+                        <Bar 
+                          dataKey="rate" 
+                          fill="hsl(var(--destructive))" 
+                          radius={[2, 2, 0, 0]}
+                          name="Taxa Erro"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      Sem dados de erro no período
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Filters */}
             <Card>

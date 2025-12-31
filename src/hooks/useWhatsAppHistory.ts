@@ -30,6 +30,8 @@ export interface WhatsAppHistoryFilters {
   phoneSearch?: string;
   ticketId?: string;
   messageType?: 'all' | 'notification' | 'test' | 'alert' | 'manual';
+  page?: number;
+  pageSize?: number;
 }
 
 // Cache constants
@@ -85,15 +87,20 @@ const normalizePhone = (phone: string): string => {
 
 export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
   const { startDate, endDate, status, phoneSearch, ticketId, messageType } = filters;
+  const page = filters.page || 1;
+  const pageSize = filters.pageSize || 50;
 
   const {
-    data: notifications,
+    data,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['whatsapp-history', startDate, endDate, status, phoneSearch, ticketId, messageType],
+    queryKey: ['whatsapp-history', startDate, endDate, status, phoneSearch, ticketId, messageType, page, pageSize],
     queryFn: async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('whatsapp_notifications')
         .select(`
@@ -102,8 +109,9 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
             ticket_number,
             title
           )
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       // Apply filters
       if (startDate) {
@@ -128,10 +136,7 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
         query = query.eq('message_type', messageType);
       }
 
-      // Limit to 500 records for performance
-      query = query.limit(500);
-
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) throw error;
 
@@ -233,24 +238,32 @@ export const useWhatsAppHistory = (filters: WhatsAppHistoryFilters = {}) => {
         });
       }
 
-      return enrichedNotifications;
+      return { notifications: enrichedNotifications, totalCount: count || 0 };
     },
   });
 
+  const notifications = data?.notifications || [];
+  const totalCount = data?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
+
   // Get stats for the filtered period
   const stats = notifications ? {
-    total: notifications.length,
+    total: totalCount,
     sent: notifications.filter(n => n.status === 'sent').length,
     error: notifications.filter(n => n.status === 'error').length,
     pending: notifications.filter(n => n.status === 'pending').length,
   } : { total: 0, sent: 0, error: 0, pending: 0 };
 
   return {
-    notifications: notifications || [],
+    notifications,
     isLoading,
     error,
     refetch,
     stats,
+    totalCount,
+    totalPages,
+    currentPage: page,
+    pageSize,
   };
 };
 
