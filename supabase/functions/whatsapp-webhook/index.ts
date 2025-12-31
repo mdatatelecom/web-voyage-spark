@@ -25,10 +25,57 @@ const extractTicketNumber = (text: string): string | null => {
 const extractCommand = (text: string): { command: string; args: string } | null => {
   const lowerText = text.toLowerCase().trim();
 
-  // Check for interactive list response (listResponseMessage)
-  // Format: when user selects from list, it sends the rowId as text
-  // We also check for common rowId patterns
-  
+  // Menu principal - detectar números 1-8
+  const menuMainMap: Record<string, string> = {
+    '1': 'submenu_consultas',
+    '2': 'submenu_criar',
+    '3': 'submenu_status',
+    '4': 'submenu_atribuicao',
+    '5': 'submenu_estatisticas',
+    '6': 'submenu_anexar',
+    '7': 'submenu_prioridade',
+    '8': 'submenu_infra'
+  };
+
+  if (menuMainMap[lowerText]) {
+    return { command: menuMainMap[lowerText], args: '' };
+  }
+
+  // Detectar formato "1." ou "1-" ou "1)"
+  const numMatch = lowerText.match(/^(\d)[\.\-\)\s]?$/);
+  if (numMatch && menuMainMap[numMatch[1]]) {
+    return { command: menuMainMap[numMatch[1]], args: '' };
+  }
+
+  // Subopções do menu (formato X.Y)
+  const subMenuMap: Record<string, { command: string; args: string }> = {
+    // Consultas
+    '1.1': { command: 'list', args: '' },
+    '1.2': { command: 'list', args: 'all' },
+    '1.3': { command: 'available', args: '' },
+    '1.4': { command: 'status_prompt', args: '' },
+    '1.5': { command: 'details_prompt', args: '' },
+    // Criar chamado
+    '2.1': { command: 'start_wizard', args: '' },
+    '2.2': { command: 'novo', args: '' },
+    '2.3': { command: 'novo_rapido_prompt', args: '' },
+    // Infraestrutura
+    '8.1': { command: 'racks', args: '' },
+    '8.2': { command: 'plantas', args: '' },
+    '8.3': { command: 'cameras', args: '' },
+    '8.4': { command: 'nvrs', args: '' },
+    '8.5': { command: 'localizar_prompt', args: '' },
+  };
+
+  if (subMenuMap[lowerText]) {
+    return subMenuMap[lowerText];
+  }
+
+  // Voltar ao menu (opção 0)
+  if (lowerText === '0' || lowerText === 'voltar') {
+    return { command: 'menu', args: '' };
+  }
+
   // Check for status command
   if (lowerText.startsWith('status ')) {
     return { command: 'status', args: lowerText.replace('status ', '').trim() };
@@ -1309,56 +1356,255 @@ serve(async (req) => {
 
       switch (command.command) {
         case 'menu': {
-          // Try to send interactive list menu first
-          const listSent = await sendListMessage(
-            '🤖 Datacenter Bot',
-            'Olá! Escolha uma opção abaixo para começar:',
-            '📋 Ver Opções',
-            [
-              {
-                title: '📋 Chamados',
-                rows: [
-                  { title: '📝 Meus Chamados', description: 'Ver seus tickets abertos', rowId: 'meus chamados' },
-                  { title: '➕ Criar Chamado', description: 'Abrir novo ticket guiado', rowId: 'criar chamado' },
-                  { title: '🔍 Disponíveis', description: 'Chamados sem técnico', rowId: 'disponiveis' }
-                ]
-              },
-              {
-                title: '🏗️ Infraestrutura',
-                rows: [
-                  { title: '🗄️ Racks', description: 'Listar todos os racks', rowId: 'racks' },
-                  { title: '📐 Plantas', description: 'Ver plantas baixas', rowId: 'plantas' },
-                  { title: '📹 Câmeras', description: 'Ver câmeras IP', rowId: 'cameras' },
-                  { title: '💾 NVRs', description: 'Ver gravadores', rowId: 'nvrs' }
-                ]
-              },
-              {
-                title: '📊 Outros',
-                rows: [
-                  { title: '❓ Ajuda', description: 'Ver todos os comandos', rowId: 'ajuda' },
-                  { title: '📈 Minhas Estatísticas', description: 'Seu desempenho (técnicos)', rowId: 'minhas estatisticas' },
-                  { title: '🔎 Localizar', description: 'Buscar em todo sistema', rowId: 'localizar' }
-                ]
-              }
-            ]
-          );
+          const menuMessage = 
+            `🤖 *DATACENTER BOT*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📋 *Digite o número da opção:*\n\n` +
+            `*1* - 📖 CONSULTAS\n` +
+            `      _Meus chamados, status, detalhes_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*2* - ➕ CRIAR CHAMADO\n` +
+            `      _Abrir novo ticket_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*3* - 🔄 ALTERAR STATUS _(Técnicos)_\n` +
+            `      _Iniciar, resolver, encerrar_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*4* - 👨‍🔧 ATRIBUIÇÃO _(Técnicos)_\n` +
+            `      _Assumir, transferir, cancelar_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*5* - 📊 ESTATÍSTICAS _(Técnicos)_\n` +
+            `      _Meu desempenho, resolvidos_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*6* - 📎 ANEXAR ARQUIVOS\n` +
+            `      _Adicionar fotos/docs a chamados_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*7* - ⚡ PRIORIDADE\n` +
+            `      _Alterar urgência do chamado_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*8* - 🏗️ INFRAESTRUTURA\n` +
+            `      _Racks, plantas, câmeras, NVRs_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `💡 _Digite *0* ou *menu* a qualquer momento para voltar_`;
 
-          // Fallback to text menu if list fails
-          if (!listSent) {
-            console.log('⚠️ Interactive list failed, sending text menu');
-            const menuMessage = `🤖 *BEM-VINDO AO DATACENTER BOT!*\n\n` +
-              `O que você deseja fazer?\n\n` +
-              `📋 *CHAMADOS*\n` +
-              `• *meus chamados* - Seus tickets\n` +
-              `• *criar chamado* - Novo ticket\n` +
-              `• *disponiveis* - Sem técnico\n\n` +
-              `🏗️ *INFRAESTRUTURA*\n` +
-              `• *racks* / *plantas* / *cameras* / *nvrs*\n` +
-              `• *localizar [termo]* - Buscar\n\n` +
-              `💡 Digite *ajuda* para mais comandos`;
-            
-            await sendResponse(menuMessage);
-          }
+          await sendResponse(menuMessage);
+          await saveInteraction(menuMessage);
+          break;
+        }
+
+        // =============== SUBMENUS ===============
+
+        case 'submenu_consultas': {
+          const msg = 
+            `📖 *CONSULTAS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Escolha uma opção:\n\n` +
+            `*1.1* - 📝 Meus chamados abertos\n` +
+            `*1.2* - 📋 Todos meus chamados\n` +
+            `*1.3* - 🔍 Chamados disponíveis\n` +
+            `*1.4* - 📊 Status de um chamado\n` +
+            `*1.5* - 📑 Detalhes de um chamado\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💡 _Ou digite diretamente:_\n` +
+            `• *meus chamados*\n` +
+            `• *status 00001*\n` +
+            `• *detalhes 00001*\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_criar': {
+          const msg = 
+            `➕ *CRIAR CHAMADO*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Escolha como deseja criar:\n\n` +
+            `*2.1* - ✨ Wizard guiado (recomendado)\n` +
+            `*2.2* - 🏷️ Menu de categorias\n` +
+            `*2.3* - ⚡ Criação rápida\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💡 _Ou digite diretamente:_\n` +
+            `• *criar chamado* - Wizard\n` +
+            `• *novo* - Menu categorias\n` +
+            `• *novo: [título]* - Rápido\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_status': {
+          const msg = 
+            `🔄 *ALTERAR STATUS*\n` +
+            `_(Apenas Técnicos/Admin)_\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Ações disponíveis:\n\n` +
+            `📋 *iniciar [nº]* - Em Andamento\n` +
+            `✅ *resolver [nº]* - Marcar resolvido\n` +
+            `🔒 *encerrar [nº]* - Fechar chamado\n` +
+            `🔓 *reabrir [nº]* - Reabrir fechado\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 *Exemplos:*\n` +
+            `• *iniciar 00001*\n` +
+            `• *resolver 00001*\n` +
+            `• *encerrar 00001*\n\n` +
+            `⚠️ _Resolver e encerrar pedem confirmação_\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_atribuicao': {
+          const msg = 
+            `👨‍🔧 *ATRIBUIÇÃO*\n` +
+            `_(Apenas Técnicos/Admin)_\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Ações disponíveis:\n\n` +
+            `✋ *atribuir [nº]* - Assumir chamado\n` +
+            `🔄 *transferir [nº] [tel]* - Passar para outro\n` +
+            `❌ *cancelar [nº]* - Remover atribuição\n` +
+            `📋 *disponiveis* - Ver sem técnico\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 *Exemplos:*\n` +
+            `• *atribuir 00001*\n` +
+            `• *transferir 00001 5511999999999*\n` +
+            `• *disponiveis*\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_estatisticas': {
+          const msg = 
+            `📊 *ESTATÍSTICAS*\n` +
+            `_(Apenas Técnicos/Admin)_\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Comandos disponíveis:\n\n` +
+            `📈 *minhas estatisticas*\n` +
+            `   _Seu desempenho geral_\n\n` +
+            `✅ *meus resolvidos*\n` +
+            `   _Histórico de resolvidos_\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_anexar': {
+          const msg = 
+            `📎 *ANEXAR ARQUIVOS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Para adicionar fotos ou documentos:\n\n` +
+            `1️⃣ Primeiro, envie:\n` +
+            `   *anexar [nº do chamado]*\n` +
+            `   Exemplo: *anexar 00001*\n\n` +
+            `2️⃣ Depois, envie a foto ou arquivo\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 *Tipos aceitos:*\n` +
+            `📷 Fotos/Imagens\n` +
+            `📄 Documentos (PDF, DOC)\n` +
+            `🎥 Vídeos curtos\n` +
+            `🎤 Áudios\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_prioridade': {
+          const msg = 
+            `⚡ *ALTERAR PRIORIDADE*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Comando:\n` +
+            `*prioridade [nº] [nível]*\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 *Níveis disponíveis:*\n\n` +
+            `🟢 *baixa* - Sem urgência\n` +
+            `🟡 *media* - Atenção normal\n` +
+            `🟠 *alta* - Requer atenção\n` +
+            `🔴 *critica* - Urgente!\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 *Exemplos:*\n` +
+            `• *prioridade 00001 alta*\n` +
+            `• *prioridade 00001 critica*\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_infra': {
+          const msg = 
+            `🏗️ *INFRAESTRUTURA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Consultas disponíveis:\n\n` +
+            `*8.1* - 🗄️ Racks\n` +
+            `*8.2* - 📐 Plantas baixas\n` +
+            `*8.3* - 📹 Câmeras IP\n` +
+            `*8.4* - 💾 NVRs/DVRs\n` +
+            `*8.5* - 🔍 Buscar equipamento\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💡 _Ou digite diretamente:_\n` +
+            `• *racks* / *rack [nome]*\n` +
+            `• *plantas* / *planta [nome]*\n` +
+            `• *cameras* / *camera [nome]*\n` +
+            `• *nvrs* / *nvr [nome]*\n` +
+            `• *localizar [termo]*\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        // =============== PROMPTS ===============
+
+        case 'status_prompt': {
+          const msg = 
+            `📊 *CONSULTAR STATUS*\n\n` +
+            `Digite o número do chamado:\n` +
+            `Exemplo: *status 00001*`;
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'details_prompt': {
+          const msg = 
+            `📑 *VER DETALHES*\n\n` +
+            `Digite o número do chamado:\n` +
+            `Exemplo: *detalhes 00001*`;
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'novo_rapido_prompt': {
+          const msg = 
+            `⚡ *CRIAÇÃO RÁPIDA*\n\n` +
+            `Digite o título do chamado:\n` +
+            `Exemplo: *novo: Problema na impressora*`;
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'localizar_prompt': {
+          const msg = 
+            `🔍 *BUSCAR EQUIPAMENTO*\n\n` +
+            `Digite o termo de busca:\n` +
+            `Exemplo: *localizar switch principal*`;
+          await sendResponse(msg);
+          await saveInteraction(msg);
           break;
         }
 
