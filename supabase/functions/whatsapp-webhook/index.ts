@@ -3526,12 +3526,19 @@ serve(async (req) => {
                 mimeType = 'image/jpeg';
               }
 
-              console.log(`📤 Sending floor plan: ${plan.name}`);
+              console.log(`📤 Sending floor plan: ${plan.name}, URL: ${plan.file_url}, MIME: ${mimeType}`);
               
               const sent = await sendMediaMessage(plan.file_url, mimeType, plan.name, caption);
               
               if (!sent) {
-                await sendResponse(`⚠️ Falha ao enviar: ${plan.name}\n🔗 ${plan.file_url}`);
+                console.error(`❌ Failed to send floor plan: ${plan.name}`);
+                await sendResponse(
+                  `⚠️ Falha ao enviar: *${plan.name}*\n\n` +
+                  `🔗 *Acesse diretamente:*\n${plan.file_url}\n\n` +
+                  `_Copie e cole o link no navegador_`
+                );
+              } else {
+                console.log(`✅ Floor plan sent successfully: ${plan.name}`);
               }
               
               // Small delay between sends to avoid rate limiting
