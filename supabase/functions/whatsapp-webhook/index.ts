@@ -178,13 +178,24 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'ocupacao', args };
   }
   
-  if (lowerText === 'plantas' || lowerText === 'listar plantas') {
-    return { command: 'plantas', args: '' };
+  if (lowerText === 'plantas' || lowerText === 'listar plantas' || lowerText.startsWith('plantas ')) {
+    const args = lowerText.replace(/^(listar\s+)?plantas\s*/, '').trim();
+    return { command: 'plantas', args };
   }
   
   if (lowerText.startsWith('planta ') || lowerText.startsWith('ver planta ')) {
     const args = lowerText.replace(/^(ver\s+)?planta\s+/, '').trim();
     return { command: 'planta', args };
+  }
+  
+  // Camera commands
+  if (lowerText === 'cameras' || lowerText === 'câmeras' || lowerText === 'listar cameras') {
+    return { command: 'cameras', args: '' };
+  }
+  
+  if (lowerText.startsWith('camera ') || lowerText.startsWith('câmera ')) {
+    const args = lowerText.replace(/^(camera|câmera)\s+/, '').trim();
+    return { command: 'camera', args };
   }
   
   if (lowerText === 'equipamentos' || lowerText === 'listar equipamentos') {
@@ -1236,6 +1247,9 @@ serve(async (req) => {
             `• *ocupacao [nome]* - Ver ocupação\n` +
             `• *plantas* - Listar plantas\n` +
             `• *planta [nome]* - Receber imagem 📷\n` +
+            `• *plantas [prédio]* - Todas de um prédio\n` +
+            `• *cameras* - Listar câmeras IP\n` +
+            `• *camera [nome]* - Detalhes câmera 📷\n` +
             `• *equipamentos* - Listar equips.\n\n` +
             `💡 _Responda uma notificação para comentar_`;
           
@@ -3299,12 +3313,17 @@ serve(async (req) => {
         }
 
         case 'plantas': {
-          // List floor plans
+          // List floor plans or send multiple for a building
+          const buildingFilter = command.args.trim();
+          
+          // Get all active floor plans
           const { data: plansData } = await supabase
             .from('floor_plans')
             .select(`
               id,
               name,
+              file_url,
+              file_type,
               is_active,
               floors (
                 name,
@@ -3312,17 +3331,79 @@ serve(async (req) => {
               )
             `)
             .eq('is_active', true)
-            .order('name')
-            .limit(15);
+            .order('name');
 
           if (!plansData || plansData.length === 0) {
             await sendResponse('📋 Nenhuma planta baixa cadastrada.');
             break;
           }
 
+          // If building filter is provided, send images
+          if (buildingFilter) {
+            const filteredPlans = plansData.filter(p => {
+              const floor = p.floors as any;
+              const building = floor?.buildings?.name || '';
+              const floorName = floor?.name || '';
+              const planName = p.name || '';
+              const lowerFilter = buildingFilter.toLowerCase();
+              return building.toLowerCase().includes(lowerFilter) ||
+                     floorName.toLowerCase().includes(lowerFilter) ||
+                     planName.toLowerCase().includes(lowerFilter);
+            });
+
+            if (filteredPlans.length === 0) {
+              await sendResponse(
+                `❌ Nenhuma planta encontrada para "${buildingFilter}".\n\n` +
+                `💡 Digite *plantas* para ver todas.`
+              );
+              break;
+            }
+
+            // Limit to 5 plants at a time
+            const plantsToSend = filteredPlans.slice(0, 5);
+            
+            await sendResponse(
+              `🗺️ *PLANTAS: ${buildingFilter.toUpperCase()}*\n\n` +
+              `📤 Enviando ${plantsToSend.length} planta(s)...`
+            );
+
+            // Send each floor plan as image with small delay between them
+            for (const plan of plantsToSend) {
+              const floor = plan.floors as any;
+              const building = floor?.buildings as any;
+              const caption = `🗺️ *${plan.name}*\n📍 ${building?.name || '-'} → ${floor?.name || '-'}`;
+              
+              // Determine MIME type
+              let mimeType = 'image/png';
+              if (plan.file_type === 'pdf') {
+                mimeType = 'application/pdf';
+              } else if (plan.file_type === 'jpg' || plan.file_type === 'jpeg') {
+                mimeType = 'image/jpeg';
+              }
+
+              console.log(`📤 Sending floor plan: ${plan.name}`);
+              
+              const sent = await sendMediaMessage(plan.file_url, mimeType, plan.name, caption);
+              
+              if (!sent) {
+                await sendResponse(`⚠️ Falha ao enviar: ${plan.name}\n🔗 ${plan.file_url}`);
+              }
+              
+              // Small delay between sends to avoid rate limiting
+              await new Promise(r => setTimeout(r, 1500));
+            }
+
+            if (filteredPlans.length > 5) {
+              await sendResponse(`ℹ️ Mostrando 5 de ${filteredPlans.length} plantas. Refine a busca para ver outras.`);
+            }
+            
+            break;
+          }
+
+          // No filter - list all floor plans
           let message = `🗺️ *PLANTAS BAIXAS*\n\n`;
           
-          for (const plan of plansData) {
+          for (const plan of plansData.slice(0, 15)) {
             const floor = plan.floors as any;
             const building = floor?.buildings as any;
             
@@ -3330,8 +3411,9 @@ serve(async (req) => {
             message += `  📍 ${building?.name || '-'} → ${floor?.name || '-'}\n\n`;
           }
           
-          message += `💡 Para receber a imagem, digite:\n`;
-          message += `*planta [nome]*`;
+          message += `💡 *Comandos disponíveis:*\n`;
+          message += `• *planta [nome]* - Receber uma imagem\n`;
+          message += `• *plantas [prédio]* - Todas de um prédio`;
           
           await sendResponse(message);
           break;
@@ -3379,41 +3461,162 @@ serve(async (req) => {
             break;
           }
 
-          const floor = planData.floors as any;
-          const building = floor?.buildings as any;
+          const floorPlan = planData.floors as any;
+          const buildingPlan = floorPlan?.buildings as any;
 
           // Build caption
-          const caption = 
+          const captionPlan = 
             `🗺️ *${planData.name}*\n\n` +
-            `📍 ${building?.name || '-'} → ${floor?.name || '-'}`;
+            `📍 ${buildingPlan?.name || '-'} → ${floorPlan?.name || '-'}`;
 
           // Determine MIME type from file_type
-          let mimeType = 'image/png';
+          let mimeTypePlan = 'image/png';
           if (planData.file_type === 'pdf') {
-            mimeType = 'application/pdf';
+            mimeTypePlan = 'application/pdf';
           } else if (planData.file_type === 'jpg' || planData.file_type === 'jpeg') {
-            mimeType = 'image/jpeg';
+            mimeTypePlan = 'image/jpeg';
           } else if (planData.file_type === 'png') {
-            mimeType = 'image/png';
+            mimeTypePlan = 'image/png';
           }
 
-          console.log(`📤 Sending floor plan image: ${planData.name} (${mimeType})`);
+          console.log(`📤 Sending floor plan image: ${planData.name} (${mimeTypePlan})`);
+          console.log(`📤 File URL: ${planData.file_url}`);
 
           // Send the image using the existing sendMediaMessage function
           const imageSent = await sendMediaMessage(
             planData.file_url,
-            mimeType,
+            mimeTypePlan,
             planData.name,
-            caption
+            captionPlan
           );
 
           if (!imageSent) {
             await sendResponse(
-              `⚠️ Não foi possível enviar a imagem.\n\n` +
-              `🔗 Acesse diretamente:\n${planData.file_url}`
+              `⚠️ Não foi possível enviar a imagem automaticamente.\n\n` +
+              `🔗 *Acesse diretamente:*\n${planData.file_url}\n\n` +
+              `_Copie e cole o link no navegador_`
             );
+          } else {
+            console.log(`✅ Floor plan image sent: ${planData.name}`);
           }
           
+          break;
+        }
+
+        case 'cameras': {
+          // List IP cameras
+          const { data: cameras } = await supabase
+            .from('equipment')
+            .select(`
+              id, name, ip_address, manufacturer, model, equipment_status,
+              racks (
+                name,
+                rooms (
+                  name,
+                  floors (
+                    name,
+                    buildings (name)
+                  )
+                )
+              )
+            `)
+            .eq('type', 'ip_camera')
+            .order('name')
+            .limit(20);
+
+          if (!cameras || cameras.length === 0) {
+            await sendResponse('📷 Nenhuma câmera IP cadastrada.');
+            break;
+          }
+
+          let camMessage = `📷 *CÂMERAS IP*\n\n`;
+          
+          for (const cam of cameras) {
+            const status = cam.equipment_status === 'active' ? '🟢' : '🔴';
+            const rack = cam.racks as any;
+            const room = rack?.rooms as any;
+            const floor = room?.floors as any;
+            const building = floor?.buildings as any;
+            
+            camMessage += `${status} *${cam.name}*\n`;
+            camMessage += `  🌐 ${cam.ip_address || '-'}\n`;
+            camMessage += `  📍 ${building?.name || rack?.name || '-'}\n\n`;
+          }
+          
+          camMessage += `💡 Para detalhes: *camera [nome]*`;
+          await sendResponse(camMessage);
+          break;
+        }
+
+        case 'camera': {
+          // Show camera details
+          const searchCam = command.args.trim();
+          
+          if (!searchCam) {
+            await sendResponse(
+              `📷 *Consultar Câmera*\n\n` +
+              `Use: *camera [nome]*\n\n` +
+              `Exemplo: *camera pátio*\n\n` +
+              `💡 Digite *cameras* para ver a lista.`
+            );
+            break;
+          }
+
+          const { data: cam } = await supabase
+            .from('equipment')
+            .select(`
+              id, name, ip_address, manufacturer, model, equipment_status,
+              serial_number, hostname, notes, primary_mac_address,
+              racks (
+                name,
+                rooms (
+                  name,
+                  floors (
+                    name,
+                    buildings (name)
+                  )
+                )
+              )
+            `)
+            .eq('type', 'ip_camera')
+            .ilike('name', `%${searchCam}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (!cam) {
+            await sendResponse(
+              `❌ Câmera "${searchCam}" não encontrada.\n\n` +
+              `💡 Digite *cameras* para ver a lista.`
+            );
+            break;
+          }
+
+          const rackCam = cam.racks as any;
+          const roomCam = rackCam?.rooms as any;
+          const floorCam = roomCam?.floors as any;
+          const buildingCam = floorCam?.buildings as any;
+          const statusCam = cam.equipment_status === 'active' ? '🟢 Online' : '🔴 Offline';
+
+          let camDetail = `📷 *${cam.name}*\n\n`;
+          camDetail += `📊 *Status:* ${statusCam}\n`;
+          camDetail += `🌐 *IP:* ${cam.ip_address || '-'}\n`;
+          if (cam.hostname) camDetail += `🖥️ *Hostname:* ${cam.hostname}\n`;
+          camDetail += `🏭 *Fabricante:* ${cam.manufacturer || '-'}\n`;
+          camDetail += `📦 *Modelo:* ${cam.model || '-'}\n`;
+          if (cam.serial_number) camDetail += `🔢 *Serial:* ${cam.serial_number}\n`;
+          if (cam.primary_mac_address) camDetail += `📟 *MAC:* ${cam.primary_mac_address}\n`;
+          
+          camDetail += `\n📍 *Localização:*\n`;
+          if (buildingCam?.name) camDetail += `  🏢 ${buildingCam.name}\n`;
+          if (floorCam?.name) camDetail += `  🏠 ${floorCam.name}\n`;
+          if (roomCam?.name) camDetail += `  🚪 ${roomCam.name}\n`;
+          if (rackCam?.name) camDetail += `  📦 ${rackCam.name}\n`;
+          
+          if (cam.notes) {
+            camDetail += `\n📝 *Notas:* ${cam.notes}`;
+          }
+
+          await sendResponse(camDetail);
           break;
         }
 
