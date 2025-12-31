@@ -11,6 +11,7 @@ export interface RackPosition {
   rotation: number;
   width: number;
   height: number;
+  icon_style?: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -118,6 +119,7 @@ export const useRackPositions = (floorPlanId?: string) => {
       rotation?: number;
       width?: number;
       height?: number;
+      icon_style?: string;
     }) => {
       const { error } = await supabase
         .from('rack_positions')

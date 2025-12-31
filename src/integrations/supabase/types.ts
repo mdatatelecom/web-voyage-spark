@@ -912,6 +912,7 @@ export type Database = {
           created_by: string | null
           floor_plan_id: string
           height: number | null
+          icon_style: string | null
           id: string
           position_x: number
           position_y: number
@@ -925,6 +926,7 @@ export type Database = {
           created_by?: string | null
           floor_plan_id: string
           height?: number | null
+          icon_style?: string | null
           id?: string
           position_x: number
           position_y: number
@@ -938,6 +940,7 @@ export type Database = {
           created_by?: string | null
           floor_plan_id?: string
           height?: number | null
+          icon_style?: string | null
           id?: string
           position_x?: number
           position_y?: number
