@@ -29,7 +29,8 @@ import {
   Search,
   X,
   Ruler,
-  Maximize2
+  Maximize2,
+  Undo2
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
@@ -200,13 +201,20 @@ export default function FloorPlan() {
     setTimeout(() => setFocusedPositionId(null), 3000);
   }, []);
 
-  // Keyboard shortcut for search (Ctrl+F / Cmd+F) and measurement (M)
+  // Keyboard shortcut for search (Ctrl+F / Cmd+F), measurement (M), and undo (Ctrl+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setSearchOpen(true);
         setTimeout(() => searchInputRef.current?.focus(), 100);
+      }
+      // Ctrl+Z to undo last measurement point
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        if (measureMode && viewerRef.current?.getMeasurePointsCount() > 0) {
+          e.preventDefault();
+          viewerRef.current?.undoLastMeasurePoint();
+        }
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
@@ -221,7 +229,7 @@ export default function FloorPlan() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen]);
+  }, [searchOpen, measureMode]);
 
   // Hover handlers for tooltip
   const handleHover = useCallback((position: EquipmentPosition, screenX: number, screenY: number) => {
@@ -716,32 +724,64 @@ export default function FloorPlan() {
                     </Tooltip>
                     
                     {measureMode && (
-                      <DropdownMenu>
+                      <>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
-                                {measureScale}px/m
-                              </Button>
-                            </DropdownMenuTrigger>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => viewerRef.current?.undoLastMeasurePoint()}
+                            >
+                              <Undo2 className="h-4 w-4" />
+                            </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Escala de medição</TooltipContent>
+                          <TooltipContent>Desfazer último ponto (Ctrl+Z)</TooltipContent>
                         </Tooltip>
-                        <DropdownMenuContent className="bg-popover">
-                          <DropdownMenuItem onClick={() => setMeasureScale(50)}>
-                            50px/m (Escala grande)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setMeasureScale(100)}>
-                            100px/m (Padrão)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setMeasureScale(200)}>
-                            200px/m (Detalhado)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setMeasureScale(500)}>
-                            500px/m (Alta precisão)
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => viewerRef.current?.clearMeasurement()}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Limpar medição</TooltipContent>
+                        </Tooltip>
+                        
+                        <div className="w-px h-6 bg-border" />
+                        
+                        <DropdownMenu>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                                  {measureScale}px/m
+                                </Button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Escala de medição</TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent className="bg-popover">
+                            <DropdownMenuItem onClick={() => setMeasureScale(50)}>
+                              50px/m (Escala grande)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setMeasureScale(100)}>
+                              100px/m (Padrão)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setMeasureScale(200)}>
+                              200px/m (Detalhado)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setMeasureScale(500)}>
+                              500px/m (Alta precisão)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
                     )}
                   </div>
                   

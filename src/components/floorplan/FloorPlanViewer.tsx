@@ -40,6 +40,9 @@ export interface FloorPlanViewerRef {
   setZoom: (zoom: number) => void;
   fitToView: () => void;
   resetView: () => void;
+  undoLastMeasurePoint: () => void;
+  clearMeasurement: () => void;
+  getMeasurePointsCount: () => number;
 }
 
 export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerProps>(({
@@ -71,10 +74,9 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   const [isAnimating, setIsAnimating] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Measurement state
-  const [measureStart, setMeasureStart] = useState<MeasurementPoint | null>(null);
-  const [measureEnd, setMeasureEnd] = useState<MeasurementPoint | null>(null);
-  const [tempMeasureEnd, setTempMeasureEnd] = useState<MeasurementPoint | null>(null);
+  // Measurement state - array of points for multi-point measurement
+  const [measurePoints, setMeasurePoints] = useState<MeasurementPoint[]>([]);
+  const [tempMeasurePoint, setTempMeasurePoint] = useState<MeasurementPoint | null>(null);
   
   const [image] = useImage(floorPlan.file_url, 'anonymous');
   
@@ -131,6 +133,14 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       setScale(1);
       setPosition({ x: 0, y: 0 });
     },
+    undoLastMeasurePoint: () => {
+      setMeasurePoints(prev => prev.slice(0, -1));
+    },
+    clearMeasurement: () => {
+      setMeasurePoints([]);
+      setTempMeasurePoint(null);
+    },
+    getMeasurePointsCount: () => measurePoints.length,
   }));
 
   // Calculate stage dimensions based on container
@@ -265,9 +275,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   // Clear measurement when mode changes
   useEffect(() => {
     if (!measureMode) {
-      setMeasureStart(null);
-      setMeasureEnd(null);
-      setTempMeasureEnd(null);
+      setMeasurePoints([]);
+      setTempMeasurePoint(null);
     }
   }, [measureMode]);
 
@@ -313,18 +322,9 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       const actualY = (pointer.y - position.y) / scale;
       
       if (measureMode) {
-        // Measurement mode logic
-        if (!measureStart) {
-          setMeasureStart({ x: actualX, y: actualY });
-          setMeasureEnd(null);
-        } else if (!measureEnd) {
-          setMeasureEnd({ x: actualX, y: actualY });
-          setTempMeasureEnd(null);
-        } else {
-          // Start new measurement
-          setMeasureStart({ x: actualX, y: actualY });
-          setMeasureEnd(null);
-        }
+        // Add point to measurement array
+        setMeasurePoints(prev => [...prev, { x: actualX, y: actualY }]);
+        setTempMeasurePoint(null);
       } else if (addMode && onAddClick) {
         // Convert click position to relative coordinates (0-1) based on image bounds
         let relX = (actualX - imageDims.x) / imageDims.width;
@@ -352,16 +352,16 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
 
   // Handle mouse move for temp measurement line
   const handleMouseMove = useCallback((e: any) => {
-    if (!measureMode || !measureStart || measureEnd) return;
+    if (!measureMode || measurePoints.length === 0) return;
     
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     if (pointer) {
       const actualX = (pointer.x - position.x) / scale;
       const actualY = (pointer.y - position.y) / scale;
-      setTempMeasureEnd({ x: actualX, y: actualY });
+      setTempMeasurePoint({ x: actualX, y: actualY });
     }
-  }, [measureMode, measureStart, measureEnd, position, scale]);
+  }, [measureMode, measurePoints.length, position, scale]);
 
   const cursorStyle = measureMode ? 'cursor-crosshair' : addMode ? 'cursor-crosshair' : 'cursor-grab';
   
@@ -464,9 +464,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
           {/* Measurement Tool */}
           {measureMode && (
             <MeasurementTool
-              startPoint={measureStart}
-              endPoint={measureEnd}
-              tempEndPoint={tempMeasureEnd}
+              points={measurePoints}
+              tempEndPoint={tempMeasurePoint}
               scale={measureScale}
               currentZoom={scale}
             />
