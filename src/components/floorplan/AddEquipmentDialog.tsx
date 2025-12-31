@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, MapPin, Package } from 'lucide-react';
+import { Search, MapPin, Package, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useEquipmentPositions } from '@/hooks/useEquipmentPositions';
+import { ICON_OPTIONS } from './equipment-icons';
 
 interface AddEquipmentDialogProps {
   open: boolean;
@@ -55,6 +56,7 @@ export function AddEquipmentDialog({
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [customLabel, setCustomLabel] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState<string>('auto');
 
   const { positions, createPosition, isCreating } = useEquipmentPositions(floorPlanId);
 
@@ -93,6 +95,7 @@ export function AddEquipmentDialog({
         x: clickPosition.x,
         y: clickPosition.y,
         customLabel: customLabel || undefined,
+        customIcon: selectedIcon !== 'auto' ? selectedIcon : undefined,
       }, {
         onSuccess: () => {
           handleClose();
@@ -106,6 +109,7 @@ export function AddEquipmentDialog({
     setTypeFilter('all');
     setSelectedId(null);
     setCustomLabel('');
+    setSelectedIcon('auto');
     onOpenChange(false);
   };
 
@@ -113,6 +117,7 @@ export function AddEquipmentDialog({
     if (!open) {
       setSelectedId(null);
       setCustomLabel('');
+      setSelectedIcon('auto');
     }
   }, [open]);
 
@@ -207,6 +212,41 @@ export function AddEquipmentDialog({
                 onChange={(e) => setCustomLabel(e.target.value)}
                 placeholder="Ex: Câmera Recepção"
               />
+            </div>
+          )}
+
+          {/* Icon Selection */}
+          {selectedId && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                Ícone na Planta
+              </Label>
+              <div className="grid grid-cols-5 gap-2">
+                {ICON_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedIcon(opt.value)}
+                    className={`
+                      flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all
+                      ${selectedIcon === opt.value 
+                        ? 'border-primary bg-primary/10' 
+                        : 'border-muted hover:border-primary/50'
+                      }
+                    `}
+                    title={opt.label}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                      style={{ backgroundColor: opt.color || '#6b7280' }}
+                    />
+                    <span className="text-[10px] mt-1 text-center truncate w-full">
+                      {opt.label.split(' ')[0]}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
