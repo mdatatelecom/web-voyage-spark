@@ -164,6 +164,28 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'attach', args };
   }
   
+  // Infrastructure commands
+  if (lowerText === 'racks' || lowerText === 'listar racks') {
+    return { command: 'racks', args: '' };
+  }
+  
+  if (lowerText.startsWith('rack ')) {
+    return { command: 'rack', args: lowerText.replace('rack ', '').trim() };
+  }
+  
+  if (lowerText.startsWith('ocupacao ') || lowerText.startsWith('ocupação ')) {
+    const args = lowerText.replace(/^(ocupacao|ocupação)\s+/, '').trim();
+    return { command: 'ocupacao', args };
+  }
+  
+  if (lowerText === 'plantas' || lowerText === 'listar plantas') {
+    return { command: 'plantas', args: '' };
+  }
+  
+  if (lowerText === 'equipamentos' || lowerText === 'listar equipamentos') {
+    return { command: 'equipamentos', args: '' };
+  }
+  
   return null;
 };
 
@@ -1201,6 +1223,14 @@ serve(async (req) => {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `• *prioridade 00001 alta*\n` +
             `  📋 baixa | média | alta | crítica\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🏗️ *INFRAESTRUTURA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `• *racks* - Listar todos os racks\n` +
+            `• *rack [nome]* - Detalhes do rack\n` +
+            `• *ocupacao [nome]* - Ver ocupação\n` +
+            `• *plantas* - Listar plantas\n` +
+            `• *equipamentos* - Listar equips.\n\n` +
             `💡 _Responda uma notificação para comentar_`;
           
           await sendResponse(helpMessage);
@@ -3010,6 +3040,347 @@ serve(async (req) => {
           );
           
           console.log('✅ Media attached successfully to ticket:', ticketNum);
+          break;
+        }
+
+        case 'racks': {
+          // List all racks with occupancy
+          const { data: racksData, error: racksError } = await supabase
+            .from('racks')
+            .select(`
+              id,
+              name,
+              size_u,
+              rooms (
+                name,
+                floors (
+                  name,
+                  buildings (name)
+                )
+              )
+            `)
+            .order('name')
+            .limit(15);
+
+          if (racksError || !racksData || racksData.length === 0) {
+            await sendResponse('📋 Nenhum rack cadastrado no sistema.');
+            break;
+          }
+
+          // Get equipment count and used U for each rack
+          const rackIds = racksData.map(r => r.id);
+          const { data: equipData } = await supabase
+            .from('equipment')
+            .select('rack_id, position_u_start, position_u_end')
+            .in('rack_id', rackIds);
+
+          // Calculate occupancy per rack
+          const occupancyMap: Record<string, { count: number; usedU: number }> = {};
+          equipData?.forEach((eq: any) => {
+            if (!occupancyMap[eq.rack_id]) {
+              occupancyMap[eq.rack_id] = { count: 0, usedU: 0 };
+            }
+            occupancyMap[eq.rack_id].count++;
+            if (eq.position_u_start && eq.position_u_end) {
+              occupancyMap[eq.rack_id].usedU += (eq.position_u_end - eq.position_u_start + 1);
+            }
+          });
+
+          let message = `📦 *RACKS DO SISTEMA*\n\n`;
+          
+          for (const rack of racksData) {
+            const occupancy = occupancyMap[rack.id] || { count: 0, usedU: 0 };
+            const percentage = Math.round((occupancy.usedU / rack.size_u) * 100);
+            const room = rack.rooms as any;
+            const location = room?.name || 'Sem sala';
+            
+            // Occupancy bar
+            let bar = '';
+            if (percentage >= 90) bar = '🔴';
+            else if (percentage >= 70) bar = '🟠';
+            else if (percentage >= 50) bar = '🟡';
+            else bar = '🟢';
+            
+            message += `• *${rack.name}* (${rack.size_u}U)\n`;
+            message += `  📍 ${location}\n`;
+            message += `  ${bar} Ocupação: ${percentage}% (${occupancy.usedU}/${rack.size_u}U)\n`;
+            message += `  🖥️ ${occupancy.count} equipamentos\n\n`;
+          }
+          
+          message += `💡 _Use *rack [nome]* para ver detalhes_`;
+          
+          await sendResponse(message);
+          break;
+        }
+
+        case 'rack': {
+          // Rack details by name
+          if (!command.args.trim()) {
+            await sendResponse('⚠️ Informe o nome do rack.\n\nExemplo: *rack RACK-01*');
+            break;
+          }
+
+          const searchName = command.args.trim();
+          
+          const { data: rackData } = await supabase
+            .from('racks')
+            .select(`
+              id,
+              name,
+              size_u,
+              notes,
+              rooms (
+                name,
+                floors (
+                  name,
+                  buildings (name)
+                )
+              )
+            `)
+            .ilike('name', `%${searchName}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (!rackData) {
+            await sendResponse(`❌ Rack "${searchName}" não encontrado.`);
+            break;
+          }
+
+          // Get equipment in this rack
+          const { data: equipList } = await supabase
+            .from('equipment')
+            .select('name, type, position_u_start, position_u_end, ip_address')
+            .eq('rack_id', rackData.id)
+            .order('position_u_start');
+
+          const room = rackData.rooms as any;
+          const floor = room?.floors as any;
+          const building = floor?.buildings as any;
+
+          let message = `📦 *RACK ${rackData.name}*\n\n`;
+          
+          message += `📍 *Localização:*\n`;
+          message += `  🏢 ${building?.name || '-'}\n`;
+          message += `  🏬 ${floor?.name || '-'}\n`;
+          message += `  🚪 ${room?.name || '-'}\n\n`;
+          
+          message += `📐 *Tamanho:* ${rackData.size_u}U\n`;
+          
+          if (rackData.notes) {
+            message += `📝 *Notas:* ${rackData.notes}\n`;
+          }
+
+          // Calculate occupancy
+          let usedU = 0;
+          equipList?.forEach((eq: any) => {
+            if (eq.position_u_start && eq.position_u_end) {
+              usedU += (eq.position_u_end - eq.position_u_start + 1);
+            }
+          });
+          const percentage = Math.round((usedU / rackData.size_u) * 100);
+          
+          message += `\n📊 *Ocupação:* ${percentage}% (${usedU}/${rackData.size_u}U)\n`;
+
+          if (equipList && equipList.length > 0) {
+            message += `\n🖥️ *Equipamentos (${equipList.length}):*\n`;
+            equipList.slice(0, 10).forEach((eq: any) => {
+              const uRange = eq.position_u_start && eq.position_u_end 
+                ? `U${eq.position_u_start}-${eq.position_u_end}` 
+                : '';
+              message += `  • ${eq.name} ${uRange}\n`;
+              if (eq.ip_address) {
+                message += `    📡 ${eq.ip_address}\n`;
+              }
+            });
+            if (equipList.length > 10) {
+              message += `  _... e mais ${equipList.length - 10} equipamentos_\n`;
+            }
+          } else {
+            message += `\n🖥️ *Equipamentos:* Nenhum\n`;
+          }
+          
+          await sendResponse(message);
+          break;
+        }
+
+        case 'ocupacao': {
+          // Rack occupancy details
+          if (!command.args.trim()) {
+            await sendResponse('⚠️ Informe o nome do rack.\n\nExemplo: *ocupacao RACK-01*');
+            break;
+          }
+
+          const searchName = command.args.trim();
+          
+          const { data: rackData } = await supabase
+            .from('racks')
+            .select('id, name, size_u')
+            .ilike('name', `%${searchName}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (!rackData) {
+            await sendResponse(`❌ Rack "${searchName}" não encontrado.`);
+            break;
+          }
+
+          // Get all equipment
+          const { data: equipList } = await supabase
+            .from('equipment')
+            .select('name, position_u_start, position_u_end')
+            .eq('rack_id', rackData.id)
+            .order('position_u_start');
+
+          // Build occupancy map
+          const usedUnits: Set<number> = new Set();
+          equipList?.forEach((eq: any) => {
+            if (eq.position_u_start && eq.position_u_end) {
+              for (let u = eq.position_u_start; u <= eq.position_u_end; u++) {
+                usedUnits.add(u);
+              }
+            }
+          });
+
+          const freeU = rackData.size_u - usedUnits.size;
+          const percentage = Math.round((usedUnits.size / rackData.size_u) * 100);
+
+          // Find free ranges
+          const freeRanges: string[] = [];
+          let rangeStart = 0;
+          for (let u = 1; u <= rackData.size_u; u++) {
+            if (!usedUnits.has(u)) {
+              if (rangeStart === 0) rangeStart = u;
+            } else {
+              if (rangeStart > 0) {
+                const rangeEnd = u - 1;
+                freeRanges.push(rangeStart === rangeEnd ? `U${rangeStart}` : `U${rangeStart}-${rangeEnd}`);
+                rangeStart = 0;
+              }
+            }
+          }
+          if (rangeStart > 0) {
+            const rangeEnd = rackData.size_u;
+            freeRanges.push(rangeStart === rangeEnd ? `U${rangeStart}` : `U${rangeStart}-${rangeEnd}`);
+          }
+
+          let message = `📊 *OCUPAÇÃO: ${rackData.name}*\n\n`;
+          
+          // Visual bar
+          let bar = '';
+          if (percentage >= 90) bar = '🔴🔴🔴🔴🔴';
+          else if (percentage >= 70) bar = '🟠🟠🟠🟠⚪';
+          else if (percentage >= 50) bar = '🟡🟡🟡⚪⚪';
+          else if (percentage >= 30) bar = '🟢🟢⚪⚪⚪';
+          else bar = '🟢⚪⚪⚪⚪';
+          
+          message += `${bar} *${percentage}%*\n\n`;
+          message += `📐 *Total:* ${rackData.size_u}U\n`;
+          message += `🔴 *Ocupado:* ${usedUnits.size}U\n`;
+          message += `🟢 *Livre:* ${freeU}U\n\n`;
+          
+          if (freeRanges.length > 0) {
+            message += `📍 *Posições Livres:*\n`;
+            message += `  ${freeRanges.slice(0, 8).join(', ')}\n`;
+            if (freeRanges.length > 8) {
+              message += `  _... e mais ${freeRanges.length - 8} faixas_\n`;
+            }
+          } else {
+            message += `⚠️ *Rack completamente ocupado!*\n`;
+          }
+          
+          await sendResponse(message);
+          break;
+        }
+
+        case 'plantas': {
+          // List floor plans
+          const { data: plansData } = await supabase
+            .from('floor_plans')
+            .select(`
+              id,
+              name,
+              is_active,
+              floors (
+                name,
+                buildings (name)
+              )
+            `)
+            .eq('is_active', true)
+            .order('name')
+            .limit(15);
+
+          if (!plansData || plansData.length === 0) {
+            await sendResponse('📋 Nenhuma planta baixa cadastrada.');
+            break;
+          }
+
+          let message = `🗺️ *PLANTAS BAIXAS*\n\n`;
+          
+          for (const plan of plansData) {
+            const floor = plan.floors as any;
+            const building = floor?.buildings as any;
+            
+            message += `• *${plan.name}*\n`;
+            message += `  📍 ${building?.name || '-'} → ${floor?.name || '-'}\n\n`;
+          }
+          
+          message += `💡 _Acesse o sistema para visualizar_`;
+          
+          await sendResponse(message);
+          break;
+        }
+
+        case 'equipamentos': {
+          // List equipment summary
+          const { data: equipStats } = await supabase
+            .from('equipment')
+            .select('type');
+
+          if (!equipStats || equipStats.length === 0) {
+            await sendResponse('📋 Nenhum equipamento cadastrado.');
+            break;
+          }
+
+          // Count by type
+          const typeCount: Record<string, number> = {};
+          equipStats.forEach((eq: any) => {
+            typeCount[eq.type] = (typeCount[eq.type] || 0) + 1;
+          });
+
+          const typeLabels: Record<string, string> = {
+            switch: '🔌 Switch',
+            switch_poe: '🔌 Switch PoE',
+            router: '📡 Router',
+            server: '🖥️ Servidor',
+            patch_panel: '📋 Patch Panel',
+            firewall: '🛡️ Firewall',
+            storage: '💾 Storage',
+            ups: '🔋 UPS',
+            pdu: '⚡ PDU',
+            nvr: '📹 NVR',
+            ip_camera: '📷 Câmera IP',
+            access_point: '📶 Access Point',
+            other: '📦 Outros'
+          };
+
+          let message = `🖥️ *EQUIPAMENTOS*\n\n`;
+          message += `📊 *Total:* ${equipStats.length} equipamentos\n\n`;
+          message += `*Por Tipo:*\n`;
+          
+          const sortedTypes = Object.entries(typeCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+          
+          for (const [type, count] of sortedTypes) {
+            const label = typeLabels[type] || `📦 ${type}`;
+            message += `  ${label}: ${count}\n`;
+          }
+          
+          if (Object.keys(typeCount).length > 10) {
+            message += `  _... e mais ${Object.keys(typeCount).length - 10} tipos_\n`;
+          }
+          
+          await sendResponse(message);
           break;
         }
       }
