@@ -24,6 +24,10 @@ const extractTicketNumber = (text: string): string | null => {
 // Helper to extract command from message
 const extractCommand = (text: string): { command: string; args: string } | null => {
   const lowerText = text.toLowerCase().trim();
+
+  // Check for interactive list response (listResponseMessage)
+  // Format: when user selects from list, it sends the rowId as text
+  // We also check for common rowId patterns
   
   // Check for status command
   if (lowerText.startsWith('status ')) {
@@ -757,6 +761,60 @@ serve(async (req) => {
       }
     };
 
+    // Helper function to send interactive list message
+    const sendListMessage = async (
+      title: string,
+      description: string,
+      buttonText: string,
+      sections: Array<{
+        title: string;
+        rows: Array<{ title: string; description: string; rowId: string }>;
+      }>
+    ): Promise<boolean> => {
+      if (!settings?.evolutionApiUrl || !settings?.evolutionApiKey || !settings?.evolutionInstance) {
+        console.log('⚠️ Cannot send list - missing settings');
+        return false;
+      }
+
+      const apiUrl = settings.evolutionApiUrl.replace(/\/$/, '');
+      const targetNumber = isGroup && groupId ? groupId : senderPhone;
+
+      try {
+        console.log(`📋 Sending interactive list to ${targetNumber}`);
+
+        const response = await fetch(
+          `${apiUrl}/message/sendList/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: targetNumber,
+              title: title,
+              description: description,
+              buttonText: buttonText,
+              footerText: '🤖 Datacenter Bot',
+              sections: sections
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Error sending list:', response.status, errorText);
+          return false;
+        }
+
+        console.log('✅ Interactive list sent successfully');
+        return true;
+      } catch (err) {
+        console.error('❌ Error sending list:', err);
+        return false;
+      }
+    };
+
     // Check for quoted message that might reference a ticket
     const contextInfo = data.message?.extendedTextMessage?.contextInfo || data.contextInfo;
     const quotedMessage = contextInfo?.quotedMessage?.conversation || 
@@ -1251,41 +1309,56 @@ serve(async (req) => {
 
       switch (command.command) {
         case 'menu': {
-          const menuMessage = `🤖 *BEM-VINDO AO DATACENTER BOT!*\n\n` +
-            `O que você deseja fazer?\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📋 *CONSULTAS*\n` +
-            `• *meus chamados* - Seus tickets\n` +
-            `• *status XXXXX* - Ver status\n` +
-            `• *detalhes XXXXX* - Ver detalhes\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `➕ *CRIAR CHAMADO*\n` +
-            `• *criar chamado* - Wizard guiado ✨\n` +
-            `• *novo* - Menu categorias\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🔧 *ALTERAR STATUS* (Técnicos)\n` +
-            `• *iniciar / resolver / encerrar XXXXX*\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `👨‍🔧 *ATRIBUIÇÃO* (Técnicos)\n` +
-            `• *atribuir / transferir XXXXX*\n` +
-            `• *disponiveis* - Ver disponíveis\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📊 *ESTATÍSTICAS* (Técnicos)\n` +
-            `• *minhas estatisticas*\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `📎 *ANEXAR ARQUIVOS*\n` +
-            `• *anexar XXXXX* + foto/doc\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `⚡ *PRIORIDADE*\n` +
-            `• *prioridade XXXXX alta*\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🏗️ *INFRAESTRUTURA*\n` +
-            `• *racks / plantas / cameras / nvrs*\n` +
-            `• *localizar [termo]*\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `💡 Digite *ajuda* para mais detalhes`;
-          
-          await sendResponse(menuMessage);
+          // Try to send interactive list menu first
+          const listSent = await sendListMessage(
+            '🤖 Datacenter Bot',
+            'Olá! Escolha uma opção abaixo para começar:',
+            '📋 Ver Opções',
+            [
+              {
+                title: '📋 Chamados',
+                rows: [
+                  { title: '📝 Meus Chamados', description: 'Ver seus tickets abertos', rowId: 'meus chamados' },
+                  { title: '➕ Criar Chamado', description: 'Abrir novo ticket guiado', rowId: 'criar chamado' },
+                  { title: '🔍 Disponíveis', description: 'Chamados sem técnico', rowId: 'disponiveis' }
+                ]
+              },
+              {
+                title: '🏗️ Infraestrutura',
+                rows: [
+                  { title: '🗄️ Racks', description: 'Listar todos os racks', rowId: 'racks' },
+                  { title: '📐 Plantas', description: 'Ver plantas baixas', rowId: 'plantas' },
+                  { title: '📹 Câmeras', description: 'Ver câmeras IP', rowId: 'cameras' },
+                  { title: '💾 NVRs', description: 'Ver gravadores', rowId: 'nvrs' }
+                ]
+              },
+              {
+                title: '📊 Outros',
+                rows: [
+                  { title: '❓ Ajuda', description: 'Ver todos os comandos', rowId: 'ajuda' },
+                  { title: '📈 Minhas Estatísticas', description: 'Seu desempenho (técnicos)', rowId: 'minhas estatisticas' },
+                  { title: '🔎 Localizar', description: 'Buscar em todo sistema', rowId: 'localizar' }
+                ]
+              }
+            ]
+          );
+
+          // Fallback to text menu if list fails
+          if (!listSent) {
+            console.log('⚠️ Interactive list failed, sending text menu');
+            const menuMessage = `🤖 *BEM-VINDO AO DATACENTER BOT!*\n\n` +
+              `O que você deseja fazer?\n\n` +
+              `📋 *CHAMADOS*\n` +
+              `• *meus chamados* - Seus tickets\n` +
+              `• *criar chamado* - Novo ticket\n` +
+              `• *disponiveis* - Sem técnico\n\n` +
+              `🏗️ *INFRAESTRUTURA*\n` +
+              `• *racks* / *plantas* / *cameras* / *nvrs*\n` +
+              `• *localizar [termo]* - Buscar\n\n` +
+              `💡 Digite *ajuda* para mais comandos`;
+            
+            await sendResponse(menuMessage);
+          }
           break;
         }
 
