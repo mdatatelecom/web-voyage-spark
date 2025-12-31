@@ -38,6 +38,42 @@ const TYPE_COLORS: Record<string, string> = {
   default: '#6b7280',
 };
 
+// Equipment type labels in Portuguese
+export const EQUIPMENT_TYPE_LABELS: Record<string, string> = {
+  switch: 'Switch',
+  switch_poe: 'Switch PoE',
+  router: 'Roteador',
+  server: 'Servidor',
+  patch_panel: 'Patch Panel',
+  patch_panel_fiber: 'Patch Panel Fibra',
+  firewall: 'Firewall',
+  storage: 'Storage',
+  access_point: 'Access Point',
+  pdu: 'PDU',
+  pdu_smart: 'PDU Smart',
+  ups: 'UPS/Nobreak',
+  nvr: 'NVR',
+  dvr: 'DVR',
+  ip_camera: 'Câmera IP',
+  media_converter: 'Conversor de Mídia',
+  environment_sensor: 'Sensor Ambiental',
+  kvm: 'KVM',
+  console_server: 'Console Server',
+  pabx: 'PABX',
+  voip_gateway: 'VoIP Gateway',
+  modem: 'Modem',
+  olt: 'OLT',
+  onu: 'ONU',
+  load_balancer: 'Load Balancer',
+  waf: 'WAF',
+  rack_monitor: 'Monitor de Rack',
+  default: 'Equipamento',
+  other: 'Outro',
+};
+
+// Equipment type color mapping (exported for external use)
+export const EQUIPMENT_TYPE_COLORS: Record<string, string> = { ...TYPE_COLORS };
+
 // Icon options for user selection
 export const ICON_OPTIONS = [
   { value: 'auto', label: 'Automático', color: null },
