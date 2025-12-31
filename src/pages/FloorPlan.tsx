@@ -19,7 +19,11 @@ import {
   RefreshCw,
   GitCompare,
   Cable,
-  CableIcon
+  Grid3X3,
+  Magnet,
+  RotateCcw,
+  RotateCw,
+  RotateCcwSquare
 } from 'lucide-react';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions } from '@/hooks/useEquipmentPositions';
@@ -42,6 +46,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type ViewMode = 'view' | 'edit' | 'add';
 
@@ -63,6 +73,11 @@ export default function FloorPlan() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [showConnections, setShowConnections] = useState(true);
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  
+  // Grid and alignment states
+  const [showGrid, setShowGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(20);
+  const [snapToGrid, setSnapToGrid] = useState(false);
 
   // Fetch floor info with building type for terminology
   const { data: floor } = useQuery({
@@ -121,6 +136,23 @@ export default function FloorPlan() {
 
   const handlePositionChange = (id: string, x: number, y: number) => {
     updatePosition({ id, x, y });
+  };
+
+  const handleRotationChange = (id: string, rotation: number) => {
+    updatePosition({ id, rotation });
+  };
+
+  const handleRotateSelected = (delta: number) => {
+    if (!selectedPositionId) return;
+    const pos = positions?.find(p => p.id === selectedPositionId);
+    if (!pos) return;
+    const newRotation = ((pos.rotation || 0) + delta + 360) % 360;
+    updatePosition({ id: selectedPositionId, rotation: newRotation });
+  };
+
+  const handleResetRotation = () => {
+    if (!selectedPositionId) return;
+    updatePosition({ id: selectedPositionId, rotation: 0 });
   };
 
   const handleDeletePosition = () => {
@@ -285,10 +317,14 @@ export default function FloorPlan() {
                   focusedId={focusedPositionId}
                   onSelect={setSelectedPositionId}
                   onPositionChange={viewMode === 'edit' ? handlePositionChange : undefined}
+                  onRotationChange={viewMode === 'edit' ? handleRotationChange : undefined}
                   onAddClick={viewMode === 'add' ? handleAddClick : undefined}
                   editable={viewMode === 'edit'}
                   addMode={viewMode === 'add'}
                   showConnections={showConnections}
+                  showGrid={showGrid}
+                  gridSize={gridSize}
+                  snapToGrid={snapToGrid}
                 />
 
                 {/* Mode indicator */}
@@ -310,6 +346,16 @@ export default function FloorPlan() {
                   </div>
                 )}
 
+                {/* Grid indicator */}
+                {showGrid && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2">
+                    <Badge variant="outline" className="gap-1 bg-background/80">
+                      <Grid3X3 className="h-3 w-3" />
+                      Grid {gridSize}px {snapToGrid && '• Snap ativo'}
+                    </Badge>
+                  </div>
+                )}
+
                 {/* Connection indicator */}
                 {showConnections && (
                   <div className="absolute top-4 right-4">
@@ -320,32 +366,143 @@ export default function FloorPlan() {
                   </div>
                 )}
 
-                {/* Zoom controls */}
-                <div className="absolute bottom-4 left-4 flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ZoomIn className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Zoom In (Scroll)</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ZoomOut className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Zoom Out (Scroll)</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Hand className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Arrastar (Pan)</TooltipContent>
-                  </Tooltip>
+                {/* Bottom Controls - Zoom and Grid */}
+                <div className="absolute bottom-4 left-4 flex gap-2">
+                  {/* Zoom controls */}
+                  <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Zoom In (Scroll)</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ZoomOut className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Zoom Out (Scroll)</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Hand className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Arrastar (Pan)</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  
+                  {/* Grid controls (only in edit/add mode) */}
+                  {viewMode !== 'view' && (
+                    <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant={showGrid ? 'default' : 'ghost'} 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => setShowGrid(!showGrid)}
+                          >
+                            <Grid3X3 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {showGrid ? 'Ocultar grid' : 'Mostrar grid'}
+                        </TooltipContent>
+                      </Tooltip>
+                      
+                      <DropdownMenu>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                                {gridSize}px
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>Tamanho do grid</TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent className="bg-popover">
+                          <DropdownMenuItem onClick={() => setGridSize(10)}>
+                            10px (fino)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setGridSize(20)}>
+                            20px (médio)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setGridSize(50)}>
+                            50px (grosso)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant={snapToGrid ? 'default' : 'ghost'} 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => setSnapToGrid(!snapToGrid)}
+                          >
+                            <Magnet className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {snapToGrid ? 'Desativar snap' : 'Ativar snap ao grid'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                  
+                  {/* Rotation controls (only when something is selected in edit mode) */}
+                  {viewMode === 'edit' && selectedPositionId && (
+                    <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleRotateSelected(-45)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Rotacionar -45°</TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleRotateSelected(45)}
+                          >
+                            <RotateCw className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Rotacionar +45°</TooltipContent>
+                      </Tooltip>
+                      
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={handleResetRotation}
+                          >
+                            <RotateCcwSquare className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Resetar rotação</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
                 </div>
               </>
             )}
