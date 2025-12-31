@@ -544,6 +544,8 @@ export type Database = {
           name: string
           original_height: number | null
           original_width: number | null
+          pixels_per_cm: number | null
+          scale_ratio: number | null
           updated_at: string | null
           uploaded_by: string | null
         }
@@ -557,6 +559,8 @@ export type Database = {
           name: string
           original_height?: number | null
           original_width?: number | null
+          pixels_per_cm?: number | null
+          scale_ratio?: number | null
           updated_at?: string | null
           uploaded_by?: string | null
         }
@@ -570,6 +574,8 @@ export type Database = {
           name?: string
           original_height?: number | null
           original_width?: number | null
+          pixels_per_cm?: number | null
+          scale_ratio?: number | null
           updated_at?: string | null
           uploaded_by?: string | null
         }
@@ -890,6 +896,77 @@ export type Database = {
           },
           {
             foreignKeyName: "rack_annotations_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_b_id"]
+          },
+        ]
+      }
+      rack_positions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          floor_plan_id: string
+          height: number | null
+          id: string
+          position_x: number
+          position_y: number
+          rack_id: string
+          rotation: number | null
+          updated_at: string | null
+          width: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          floor_plan_id: string
+          height?: number | null
+          id?: string
+          position_x: number
+          position_y: number
+          rack_id: string
+          rotation?: number | null
+          updated_at?: string | null
+          width?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          floor_plan_id?: string
+          height?: number | null
+          id?: string
+          position_x?: number
+          position_y?: number
+          rack_id?: string
+          rotation?: number | null
+          updated_at?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rack_positions_floor_plan_id_fkey"
+            columns: ["floor_plan_id"]
+            isOneToOne: false
+            referencedRelation: "floor_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_positions_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "racks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_positions_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_a_id"]
+          },
+          {
+            foreignKeyName: "rack_positions_rack_id_fkey"
             columns: ["rack_id"]
             isOneToOne: false
             referencedRelation: "v_connection_details"
