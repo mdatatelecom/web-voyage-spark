@@ -3,6 +3,16 @@ import { Group, Rect, Text, Line, Circle } from 'react-konva';
 import { RackPosition } from '@/hooks/useRackPositions';
 import Konva from 'konva';
 
+// Same size constants as EquipmentMarker for consistency
+const SIZE_MAP: Record<string, number> = {
+  small: 14,
+  medium: 21,
+  large: 28,
+};
+
+const MIN_ICON_SCALE = 0.4;
+const MAX_ICON_SCALE = 2.5;
+
 interface RackMarkerProps {
   position: RackPosition;
   currentZoom: number;
@@ -17,6 +27,7 @@ interface RackMarkerProps {
   onContextMenu?: (screenX: number, screenY: number) => void;
   onRotate?: (rotation: number) => void;
   occupancy?: number; // 0-100 percentage
+  iconSize?: 'small' | 'medium' | 'large';
 }
 
 export const RackMarker: React.FC<RackMarkerProps> = ({
@@ -33,6 +44,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   onContextMenu,
   onRotate,
   occupancy,
+  iconSize = 'medium',
 }) => {
   const groupRef = useRef<Konva.Group>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -45,6 +57,11 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   
   // Use calculated occupancy from position if available
   const realOccupancy = occupancy ?? position.occupancy_percent ?? 0;
+  
+  // Icon size calculation (same as EquipmentMarker)
+  const baseIconSize = SIZE_MAP[iconSize];
+  const compensatedScale = Math.max(MIN_ICON_SCALE, Math.min(MAX_ICON_SCALE, 1 / currentZoom));
+  const iconRadius = baseIconSize * compensatedScale;
   
   // Scale factors
   const strokeWidth = Math.max(1, 2 / currentZoom);
@@ -63,10 +80,6 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
 
   const width = baseWidth;
   const height = baseHeight;
-  
-  // Server module dimensions
-  const serverHeight = (height - 40 / currentZoom) / 4;
-  const serverWidth = width - 16 / currentZoom;
   
   // Handle resize start
   const handleResizeStart = (e: Konva.KonvaEventObject<MouseEvent>, cornerIndex: number) => {
@@ -258,12 +271,13 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
       
       {/* Circular rack icon */}
       {(() => {
-        const radius = Math.min(width, height) / 2;
+        // Use iconRadius for consistent size with equipment markers
+        const radius = iconRadius;
         const rackInnerWidth = radius * 0.6;
         const rackInnerHeight = radius * 1.2;
         const shelfCount = 5;
         const shelfSpacing = rackInnerHeight / (shelfCount + 1);
-        const railWidth = 3 / currentZoom;
+        const railWidth = 2 / currentZoom;
         
         return (
           <Group>
@@ -274,7 +288,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               radius={radius}
               fill="transparent"
               stroke={isSelected ? '#2563eb' : '#3b82f6'}
-              strokeWidth={3 / currentZoom}
+              strokeWidth={2 / currentZoom}
             />
             
             {/* Inner circle with white background */}
