@@ -14,6 +14,8 @@ interface RackMarkerProps {
   onDelete?: () => void;
   onHover?: (screenX: number, screenY: number) => void;
   onHoverEnd?: () => void;
+  onContextMenu?: (screenX: number, screenY: number) => void;
+  onRotate?: (rotation: number) => void;
   occupancy?: number; // 0-100 percentage
 }
 
@@ -28,6 +30,8 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   onDelete,
   onHover,
   onHoverEnd,
+  onContextMenu,
+  onRotate,
   occupancy,
 }) => {
   const groupRef = useRef<Konva.Group>(null);
@@ -167,6 +171,29 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
     onDelete?.();
   };
 
+  // Handle context menu (right click)
+  const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.evt.preventDefault();
+    if (onContextMenu) {
+      const stage = e.target.getStage();
+      const container = stage?.container();
+      const rect = container?.getBoundingClientRect();
+      const pointer = stage?.getPointerPosition();
+      if (rect && pointer) {
+        onContextMenu(rect.left + pointer.x, rect.top + pointer.y);
+      }
+    }
+  };
+
+  // Handle rotate button click
+  const handleRotateClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true;
+    if (onRotate) {
+      const newRotation = ((position.rotation || 0) + 90) % 360;
+      onRotate(newRotation);
+    }
+  };
+
   // Corner positions for resize handles
   const corners = [
     { x: -width / 2, y: -height / 2 - fontSize - 6 / currentZoom }, // top-left
@@ -189,6 +216,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
       style={{ cursor: isEditing ? 'move' : 'pointer' }}
     >
       {/* Selection glow */}
@@ -359,32 +387,78 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
         align="center"
       />
       
-      {/* Delete button when selected and editing */}
-      {isSelected && isEditing && onDelete && (
-        <Group
-          x={width / 2 + 8 / currentZoom}
-          y={-height / 2 - fontSize - 6 / currentZoom}
-          onClick={handleDeleteClick}
-          onTap={handleDeleteClick}
-        >
-          <Circle
-            radius={10 / currentZoom}
-            fill="#ef4444"
-            stroke="#ffffff"
-            strokeWidth={1 / currentZoom}
-            shadowColor="#000000"
-            shadowBlur={4 / currentZoom}
-            shadowOpacity={0.3}
-          />
-          <Text
-            x={-4 / currentZoom}
-            y={-5 / currentZoom}
-            text="×"
-            fontSize={14 / currentZoom}
-            fill="#ffffff"
-            fontStyle="bold"
-          />
-        </Group>
+      {/* Action buttons when selected and editing */}
+      {isSelected && isEditing && (
+        <>
+          {/* Delete button */}
+          {onDelete && (
+            <Group
+              x={width / 2 + 8 / currentZoom}
+              y={-height / 2 - fontSize - 6 / currentZoom}
+              onClick={handleDeleteClick}
+              onTap={handleDeleteClick}
+            >
+              <Circle
+                radius={10 / currentZoom}
+                fill="#ef4444"
+                stroke="#ffffff"
+                strokeWidth={1 / currentZoom}
+                shadowColor="#000000"
+                shadowBlur={4 / currentZoom}
+                shadowOpacity={0.3}
+              />
+              <Text
+                x={-4 / currentZoom}
+                y={-5 / currentZoom}
+                text="×"
+                fontSize={14 / currentZoom}
+                fill="#ffffff"
+                fontStyle="bold"
+              />
+            </Group>
+          )}
+          
+          {/* Rotate button */}
+          {onRotate && (
+            <Group
+              x={width / 2 + 30 / currentZoom}
+              y={-height / 2 - fontSize - 6 / currentZoom}
+              onClick={handleRotateClick}
+              onTap={handleRotateClick}
+            >
+              <Circle
+                radius={10 / currentZoom}
+                fill="#3b82f6"
+                stroke="#ffffff"
+                strokeWidth={1 / currentZoom}
+                shadowColor="#000000"
+                shadowBlur={4 / currentZoom}
+                shadowOpacity={0.3}
+              />
+              {/* Rotation arrow icon */}
+              <Line
+                points={[
+                  -4 / currentZoom, 0,
+                  4 / currentZoom, 0,
+                  2 / currentZoom, -3 / currentZoom,
+                ]}
+                stroke="#ffffff"
+                strokeWidth={1.5 / currentZoom}
+                lineCap="round"
+                lineJoin="round"
+              />
+              <Line
+                points={[
+                  4 / currentZoom, 0,
+                  2 / currentZoom, 3 / currentZoom,
+                ]}
+                stroke="#ffffff"
+                strokeWidth={1.5 / currentZoom}
+                lineCap="round"
+              />
+            </Group>
+          )}
+        </>
       )}
       
       {/* Corner resize handles when selected and editing */}

@@ -47,6 +47,8 @@ interface FloorPlanViewerProps {
   onRackDelete?: (id: string) => void;
   onRackHover?: (position: RackPosition, screenX: number, screenY: number) => void;
   onRackHoverEnd?: () => void;
+  onRackContextMenu?: (position: RackPosition, screenX: number, screenY: number) => void;
+  onRackRotate?: (id: string, rotation: number) => void;
 }
 
 export interface FloorPlanViewerRef {
@@ -93,6 +95,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   onRackDelete,
   onRackHover,
   onRackHoverEnd,
+  onRackContextMenu,
+  onRackRotate,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
@@ -567,6 +571,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               onDelete={() => onRackDelete?.(pos.id)}
               onHover={(screenX, screenY) => onRackHover?.(pos, screenX, screenY)}
               onHoverEnd={onRackHoverEnd}
+              onContextMenu={(screenX, screenY) => onRackContextMenu?.(pos, screenX, screenY)}
+              onRotate={(rotation) => onRackRotate?.(pos.id, rotation)}
             />
           ))}
           
