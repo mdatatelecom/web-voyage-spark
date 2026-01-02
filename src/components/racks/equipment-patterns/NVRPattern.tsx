@@ -10,6 +10,7 @@ interface NVRPatternProps {
   isHovered: boolean;
   status?: string;
   isNVR?: boolean;
+  hasPoe?: boolean;
 }
 
 export const NVRPattern = ({
@@ -22,6 +23,7 @@ export const NVRPattern = ({
   isHovered,
   status,
   isNVR = true,
+  hasPoe = false,
 }: NVRPatternProps) => {
   const ledColors = getStatusLEDColors(status);
   const manufacturerInfo = manufacturer ? getManufacturerDisplay(manufacturer) : null;
@@ -129,8 +131,18 @@ export const NVRPattern = ({
       {/* Status display */}
       <rect x={x + width - 46} y={y + 4} width={40} height={14} fill="#001a00" rx="1" />
       <text x={x + width - 26} y={y + 14} fill="#00ff00" fontSize="7" textAnchor="middle" fontWeight="bold">
-        {isNVR ? 'NVR' : 'DVR'}
+        {isNVR ? (hasPoe ? 'NVR-P' : 'NVR') : 'DVR'}
       </text>
+      
+      {/* PoE indicator for NVR with PoE */}
+      {isNVR && hasPoe && (
+        <g>
+          <rect x={x + width - 46} y={y + 20} width={40} height={10} fill="#eab308" opacity="0.2" rx="1" />
+          <text x={x + width - 26} y={y + 27} fill="#eab308" fontSize="5" textAnchor="middle" fontWeight="bold">
+            PoE {channelCount}P
+          </text>
+        </g>
+      )}
       
       {/* Manufacturer badge */}
       {manufacturerInfo && (

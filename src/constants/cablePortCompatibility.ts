@@ -18,6 +18,13 @@ export const CABLE_PORT_COMPATIBILITY: Record<CableType, PortType[]> = {
   // DAC para conexões diretas SFP de alta velocidade
   'dac': ['sfp_plus', 'sfp28', 'qsfp', 'qsfp28'],
   
+  // Cabos coaxiais para CFTV analógico - funcionam com portas BNC
+  'coaxial_rg59': ['bnc'],
+  'coaxial_rg6': ['bnc'],
+  
+  // UTP com balun - converte par trançado para BNC (CFTV analógico)
+  'utp_balun': ['bnc'],
+  
   // Outro aceita qualquer porta (flexível)
   'other': [] as PortType[] // Vazio significa que aceita qualquer porta
 };
@@ -45,8 +52,8 @@ export const PORT_CABLE_COMPATIBILITY: Partial<Record<PortType, CableType[]>> = 
   'qsfp28': ['fiber_om3', 'fiber_om4', 'fiber_os2', 'dac', 'other'],
   'fiber_lc': ['fiber_om3', 'fiber_om4', 'fiber_os2', 'other'],
   'fiber_sc': ['fiber_om3', 'fiber_om4', 'fiber_os2', 'other'],
-  'bnc': ['other'],
-  'other': ['other', 'utp_cat5e', 'utp_cat6', 'utp_cat6a', 'fiber_om3', 'fiber_om4', 'fiber_os2', 'dac']
+  'bnc': ['coaxial_rg59', 'coaxial_rg6', 'utp_balun', 'other'],
+  'other': ['other', 'utp_cat5e', 'utp_cat6', 'utp_cat6a', 'fiber_om3', 'fiber_om4', 'fiber_os2', 'dac', 'coaxial_rg59', 'coaxial_rg6', 'utp_balun']
 };
 
 export interface CableCompatibilityResult {
@@ -156,6 +163,9 @@ function getCableTypeLabel(cableType: CableType): string {
     'fiber_om4': 'Fibra OM4',
     'fiber_os2': 'Fibra OS2',
     'dac': 'DAC',
+    'coaxial_rg59': 'Coaxial RG59',
+    'coaxial_rg6': 'Coaxial RG6',
+    'utp_balun': 'UTP com Balun',
     'other': 'Outro'
   };
   return labels[cableType] || cableType;
