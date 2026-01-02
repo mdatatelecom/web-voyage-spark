@@ -308,3 +308,69 @@ export function useAvailableIPs(subnetId?: string) {
     enabled: true
   });
 }
+
+// Get available IPs filtered by VLAN
+export function useAvailableIPsByVlan(vlanUuid?: string) {
+  return useQuery({
+    queryKey: ['available-ips-by-vlan', vlanUuid],
+    queryFn: async () => {
+      if (!vlanUuid) {
+        // If no VLAN selected, return all available IPs
+        const { data, error } = await supabase
+          .from('ip_addresses')
+          .select(`
+            id,
+            ip_address,
+            name,
+            ip_type,
+            status,
+            subnet:subnets(id, name, cidr, vlan_uuid)
+          `)
+          .eq('status', 'available')
+          .neq('ip_type', 'network')
+          .neq('ip_type', 'broadcast')
+          .order('ip_address')
+          .limit(200);
+
+        if (error) throw error;
+        return data || [];
+      }
+
+      // First, get all subnets that belong to this VLAN
+      const { data: subnets, error: subnetsError } = await supabase
+        .from('subnets')
+        .select('id')
+        .eq('vlan_uuid', vlanUuid);
+
+      if (subnetsError) throw subnetsError;
+      
+      if (!subnets || subnets.length === 0) {
+        return [];
+      }
+
+      const subnetIds = subnets.map(s => s.id);
+
+      // Then get available IPs from those subnets
+      const { data, error } = await supabase
+        .from('ip_addresses')
+        .select(`
+          id,
+          ip_address,
+          name,
+          ip_type,
+          status,
+          subnet:subnets(id, name, cidr, vlan_uuid)
+        `)
+        .in('subnet_id', subnetIds)
+        .eq('status', 'available')
+        .neq('ip_type', 'network')
+        .neq('ip_type', 'broadcast')
+        .order('ip_address')
+        .limit(200);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: true
+  });
+}

@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ChevronRight, ChevronLeft, Camera, Zap, MapPin, Cable, Check, AlertCircle, Loader2, Upload, X, ImageIcon } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Camera, Zap, MapPin, Cable, Check, AlertCircle, Loader2, Upload, X, ImageIcon, Network } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useRooms } from '@/hooks/useRooms';
@@ -41,6 +41,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { VlanSelector } from '@/components/ipam/VlanSelector';
+import { IPSelector } from '@/components/ipam/IPSelector';
 
 interface CameraWizardProps {
   open: boolean;
@@ -75,6 +77,9 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
     hasAudio: false,
     hasSD: true,
     locationDescription: '',
+    // Network configuration for IP cameras
+    vlanUuid: '',
+    ipAddress: '',
   });
   
   // Step 4: Location + Photo
@@ -256,6 +261,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
           position_u_end: 0,
           manufacturer: cameraData.manufacturer,
           model: cameraData.model,
+          ip_address: isIPCamera && cameraData.ipAddress ? cameraData.ipAddress : null,
           notes: JSON.stringify({
             connectionType,
             resolution: cameraData.resolution,
@@ -267,6 +273,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             hasSD: isIPCamera ? cameraData.hasSD : false,
             locationDescription: cameraData.locationDescription,
             powerSource: isIPCamera ? powerSource : 'external',
+            vlanUuid: isIPCamera ? cameraData.vlanUuid : null,
           }),
           power_consumption_watts: isIPCamera ? cameraData.powerConsumption : null,
           equipment_status: 'active',
@@ -378,6 +385,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       hasAudio: false,
       hasSD: true,
       locationDescription: '',
+      vlanUuid: '',
+      ipAddress: '',
     });
     setLocationData({ buildingId: '', floorId: '', roomId: '' });
     setPowerSource('switch_poe');
@@ -744,6 +753,49 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                   <p className="text-xs text-muted-foreground">
                     ⚡ A classe PoE determina a potência máxima que o switch pode fornecer. 
                     Selecione a classe compatível com sua câmera (verifique no datasheet).
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Network Configuration for IP cameras */}
+            {isIPCamera && (
+              <Card className="border-blue-500/50 bg-blue-500/5">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Network className="w-5 h-5 text-blue-500" />
+                    <Label className="text-base font-semibold">Configuração de Rede</Label>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>VLAN (opcional)</Label>
+                      <VlanSelector
+                        value={cameraData.vlanUuid}
+                        onChange={(vlanId, vlanUuid) => setCameraData({ 
+                          ...cameraData, 
+                          vlanUuid: vlanUuid || '',
+                          ipAddress: '' // Clear IP when VLAN changes
+                        })}
+                        showCreateOption={false}
+                        placeholder="Filtrar por VLAN"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Endereço IP</Label>
+                      <IPSelector
+                        value={cameraData.ipAddress}
+                        onChange={(ip) => setCameraData({ ...cameraData, ipAddress: ip })}
+                        vlanUuid={cameraData.vlanUuid}
+                        placeholder={cameraData.vlanUuid ? "Selecione um IP da VLAN" : "Selecione ou digite um IP"}
+                        allowManual={true}
+                      />
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    🌐 Selecione uma VLAN para filtrar os IPs disponíveis ou digite o IP manualmente.
                   </p>
                 </CardContent>
               </Card>

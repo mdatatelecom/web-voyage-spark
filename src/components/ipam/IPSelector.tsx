@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, ChevronsUpDown, X, Search, Network } from 'lucide-react';
+import { Check, ChevronsUpDown, X, Search, Network, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,12 +17,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { useIPSearch, useAvailableIPs } from '@/hooks/useIPAddresses';
+import { useIPSearch, useAvailableIPs, useAvailableIPsByVlan } from '@/hooks/useIPAddresses';
 import { validateIPAddress } from '@/lib/cidr-utils';
 
 interface IPSelectorProps {
   value: string;
   onChange: (value: string) => void;
+  vlanUuid?: string;
+  subnetId?: string;
   placeholder?: string;
   disabled?: boolean;
   allowManual?: boolean;
@@ -32,6 +34,8 @@ interface IPSelectorProps {
 export function IPSelector({
   value,
   onChange,
+  vlanUuid,
+  subnetId,
   placeholder = 'Selecione ou digite um IP',
   disabled = false,
   allowManual = true,
@@ -44,12 +48,16 @@ export function IPSelector({
   const [manualError, setManualError] = useState<string | null>(null);
 
   const { data: searchResults = [] } = useIPSearch(search);
-  const { data: availableIPs = [] } = useAvailableIPs();
+  const { data: availableIPs = [] } = useAvailableIPs(subnetId);
+  const { data: vlanIPs = [] } = useAvailableIPsByVlan(vlanUuid);
+
+  // Use VLAN-filtered IPs if vlanUuid is provided, otherwise use all available
+  const baseIPs = vlanUuid ? vlanIPs : availableIPs;
 
   // Combine available IPs with search results
   const displayIPs = search.length >= 2 
     ? searchResults.filter(ip => ip.status === 'available')
-    : availableIPs;
+    : baseIPs;
 
   useEffect(() => {
     setManualValue(value);
@@ -158,8 +166,17 @@ export function IPSelector({
               <CommandEmpty>
                 <div className="p-4 text-center text-sm">
                   <p className="text-muted-foreground mb-2">
-                    Nenhum IP disponível encontrado
+                    {vlanUuid 
+                      ? 'Nenhum IP disponível nesta VLAN'
+                      : 'Nenhum IP disponível encontrado'
+                    }
                   </p>
+                  {vlanUuid && (
+                    <p className="text-xs text-amber-600 mb-2 flex items-center justify-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Considere criar uma sub-rede para esta VLAN
+                    </p>
+                  )}
                   {allowManual && (
                     <Button
                       variant="outline"
