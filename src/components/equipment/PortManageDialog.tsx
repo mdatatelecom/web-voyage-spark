@@ -454,6 +454,7 @@ const queryClient = useQueryClient();
                   <SelectContent>
                     <SelectItem value="available">Disponível</SelectItem>
                     <SelectItem value="reserved">Reservado</SelectItem>
+                    <SelectItem value="disabled">Desabilitado</SelectItem>
                     <SelectItem value="faulty">Defeituoso</SelectItem>
                   </SelectContent>
                 </Select>

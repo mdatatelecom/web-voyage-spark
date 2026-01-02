@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PortManageDialog } from '@/components/equipment/PortManageDialog';
+import { PortStatusDialog } from '@/components/equipment/PortStatusDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
 import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
 import { NvrChannelGrid } from '@/components/equipment/NvrChannelGrid';
@@ -74,6 +75,8 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [selectedPortIdForLocation, setSelectedPortIdForLocation] = useState<string | null>(null);
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
   const [orphanCleanupOpen, setOrphanCleanupOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedPortIdForStatus, setSelectedPortIdForStatus] = useState<string | null>(null);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
@@ -147,6 +150,11 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
     if (!selectedPortIdForLocation || !equipment?.ports) return null;
     return equipment.ports.find((p: any) => p.id === selectedPortIdForLocation) || null;
   }, [selectedPortIdForLocation, equipment?.ports]);
+  
+  const selectedPortForStatus = useMemo(() => {
+    if (!selectedPortIdForStatus || !equipment?.ports) return null;
+    return equipment.ports.find((p: any) => p.id === selectedPortIdForStatus) || null;
+  }, [selectedPortIdForStatus, equipment?.ports]);
 
   const filteredPorts = equipment?.ports?.filter((port: any) => {
     const matchesStatus = statusFilter === 'all' || port.status === statusFilter;
@@ -208,6 +216,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
       available: { label: 'Disponível', color: 'bg-green-500' },
       in_use: { label: 'Em Uso', color: 'bg-red-500' },
       reserved: { label: 'Reservado', color: 'bg-yellow-500' },
+      disabled: { label: 'Desabilitado', color: 'bg-slate-500' },
       faulty: { label: 'Defeituoso', color: 'bg-gray-500' }
     };
     const { label, color } = config[status] || { label: status, color: 'bg-gray-500' };
@@ -238,6 +247,21 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
         navigate('/equipment');
       }
     });
+  };
+  
+  const queryClient = useQueryClient();
+  
+  const handleStatusChange = async (portId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('ports')
+      .update({ status: newStatus as 'available' | 'in_use' | 'reserved' | 'disabled' })
+      .eq('id', portId);
+      
+    if (error) {
+      throw error;
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['equipment', id] });
   };
 
   if (isLoading) {
@@ -662,7 +686,10 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                               <MapPin className="w-4 h-4 mr-2" />
                               Ver Localização
                             </DropdownMenuItem>
-                            <DropdownMenuItem>Alterar Status</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedPortIdForStatus(port.id);
+                              setStatusDialogOpen(true);
+                            }}>Alterar Status</DropdownMenuItem>
                             {port.status === 'in_use' && port.connection && (
                               <DropdownMenuItem
                                 onClick={() => navigate(`/connections/${port.connection.id}`)}
@@ -770,6 +797,14 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
         <OrphanImagesCleanup
           open={orphanCleanupOpen}
           onOpenChange={setOrphanCleanupOpen}
+        />
+
+        {/* Port Status Dialog */}
+        <PortStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          port={selectedPortForStatus}
+          onStatusChange={handleStatusChange}
         />
       </div>
     </AppLayout>
