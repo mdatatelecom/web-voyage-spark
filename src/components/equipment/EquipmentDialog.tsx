@@ -11,10 +11,12 @@ import { useRooms } from '@/hooks/useRooms';
 import { useRacks } from '@/hooks/useRacks';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronLeft, X, Plus, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
 import { Cable, Info, Zap } from 'lucide-react';
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
+import { VlanSelector } from '@/components/ipam/VlanSelector';
+import { IPSelector } from '@/components/ipam/IPSelector';
 
 interface EquipmentDialogProps {
   open: boolean;
@@ -56,6 +58,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     serialNumber: '',
     hostname: '',
     ipAddress: '',
+    vlanUuid: '', // VLAN UUID for IP filtering
     notes: '',
     mountSide: 'front',
     // New fields inspired by NetBox
@@ -165,7 +168,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           buildingId: '', floorId: '', roomId: '', rackId: '',
           positionStart: '', positionEnd: '', name: '', type: '',
           manufacturer: '', model: '', serialNumber: '', hostname: '',
-          ipAddress: '', notes: '', mountSide: 'front',
+          ipAddress: '', vlanUuid: '', notes: '', mountSide: 'front',
           assetTag: '', macAddress: '', powerConsumption: '', airflow: '',
           weightKg: '', equipmentStatus: 'active', poeBudget: ''
         });
@@ -481,29 +484,59 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
             {/* Network fields - only for network-capable equipment */}
             {fieldConfig.hasNetwork && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  {fieldConfig.fields.hostname && (
-                    <div>
-                      <Label>Hostname</Label>
-                      <Input
-                        value={formData.hostname}
-                        onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
-                        placeholder="Ex: sw-core-01.infratrack.local"
-                      />
-                    </div>
-                  )}
+                {fieldConfig.fields.hostname && (
+                  <div>
+                    <Label>Hostname</Label>
+                    <Input
+                      value={formData.hostname}
+                      onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
+                      placeholder="Ex: sw-core-01.infratrack.local"
+                    />
+                  </div>
+                )}
 
-                  {fieldConfig.fields.ipAddress && (
-                    <div>
-                      <Label>Endereço IP</Label>
-                      <Input
-                        value={formData.ipAddress}
-                        onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
-                        placeholder="Ex: 192.168.1.1"
-                      />
+                {/* VLAN + IP Selection */}
+                {fieldConfig.fields.ipAddress && (
+                  <div className="p-4 border rounded-lg space-y-4 bg-muted/30">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Network className="w-4 h-4" />
+                      Configuração de Rede
                     </div>
-                  )}
-                </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>VLAN (opcional)</Label>
+                        <VlanSelector
+                          value={formData.vlanUuid}
+                          onChange={(vlanId, vlanUuid) => setFormData({ 
+                            ...formData, 
+                            vlanUuid: vlanUuid || '',
+                            ipAddress: '' // Clear IP when VLAN changes
+                          })}
+                          showCreateOption={false}
+                          placeholder="Filtrar por VLAN"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Endereço IP</Label>
+                        <IPSelector
+                          value={formData.ipAddress}
+                          onChange={(ip) => setFormData({ ...formData, ipAddress: ip })}
+                          vlanUuid={formData.vlanUuid}
+                          placeholder={formData.vlanUuid ? "Selecione um IP da VLAN" : "Selecione ou digite um IP"}
+                          allowManual={true}
+                        />
+                      </div>
+                    </div>
+                    
+                    {formData.vlanUuid && !formData.ipAddress && (
+                      <p className="text-xs text-muted-foreground">
+                        💡 Selecione um IP disponível na VLAN ou digite manualmente
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {fieldConfig.fields.macAddress && (
                   <div>
