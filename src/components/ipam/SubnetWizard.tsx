@@ -283,12 +283,12 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
 
       <div className="space-y-2">
         <Label htmlFor="building">Prédio Associado (opcional)</Label>
-        <Select value={buildingId} onValueChange={setBuildingId}>
+        <Select value={buildingId || 'none'} onValueChange={(v) => setBuildingId(v === 'none' ? '' : v)}>
           <SelectTrigger>
             <SelectValue placeholder="Selecione um prédio" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="none">Nenhum</SelectItem>
             {buildings.map((building) => (
               <SelectItem key={building.id} value={building.id}>
                 {building.name}
