@@ -12,6 +12,8 @@ import { parseCIDR, validateCIDR, generateIPRecords, formatIPCount, type CIDRInf
 import { useSubnets } from '@/hooks/useSubnets';
 import { useIPAddresses } from '@/hooks/useIPAddresses';
 import { useBuildings } from '@/hooks/useBuildings';
+import { useVlans } from '@/hooks/useVlans';
+import { VlanSelector } from './VlanSelector';
 import { Network, ArrowRight, ArrowLeft, Check, AlertTriangle, Info, Loader2 } from 'lucide-react';
 
 interface SubnetWizardProps {
@@ -34,6 +36,7 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
   const [reserveGateway, setReserveGateway] = useState(true);
   const [gatewayName, setGatewayName] = useState('');
   const [vlanId, setVlanId] = useState('');
+  const [vlanUuid, setVlanUuid] = useState('');
   const [buildingId, setBuildingId] = useState('');
   
   // Validation state
@@ -44,6 +47,7 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
   const { createSubnet, isCreating, checkCIDROverlap } = useSubnets();
   const { createBatch, isCreatingBatch } = useIPAddresses(undefined);
   const { buildings } = useBuildings();
+  const { vlans } = useVlans();
 
   // Reset on close
   useEffect(() => {
@@ -56,6 +60,7 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
       setReserveGateway(true);
       setGatewayName('');
       setVlanId('');
+      setVlanUuid('');
       setBuildingId('');
       setCidrInfo(null);
       setValidation({ valid: false, errors: [], warnings: [] });
@@ -110,6 +115,7 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
         total_addresses: cidrInfo.totalAddresses,
         usable_addresses: cidrInfo.usableAddresses,
         vlan_id: vlanId ? parseInt(vlanId, 10) : undefined,
+        vlan_uuid: vlanUuid || undefined,
         building_id: buildingId || undefined
       });
 
@@ -271,14 +277,19 @@ export function SubnetWizard({ open, onOpenChange }: SubnetWizardProps) {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="vlanId">VLAN ID (opcional)</Label>
-        <Input
-          id="vlanId"
-          type="number"
-          placeholder="Ex: 100"
-          value={vlanId}
-          onChange={(e) => setVlanId(e.target.value)}
+        <Label>VLAN (opcional)</Label>
+        <VlanSelector
+          value={vlanUuid || undefined}
+          onChange={(selectedVlanId, uuid) => {
+            setVlanId(selectedVlanId?.toString() || '');
+            setVlanUuid(uuid || '');
+          }}
         />
+        {vlanUuid && (
+          <p className="text-xs text-muted-foreground">
+            VLAN {vlans.find(v => v.id === vlanUuid)?.vlan_id} selecionada
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

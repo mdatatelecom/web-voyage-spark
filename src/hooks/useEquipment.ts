@@ -195,6 +195,16 @@ export const useEquipment = (rackId?: string) => {
         throw new Error(`Não é possível excluir. Existem ${count} portas em uso.`);
       }
 
+      // Liberar IPs vinculados ao equipamento antes de excluir
+      await supabase
+        .from('ip_addresses')
+        .update({ 
+          status: 'available', 
+          equipment_id: null,
+          name: null 
+        })
+        .eq('equipment_id', id);
+
       const { error } = await supabase
         .from('equipment')
         .delete()
@@ -205,6 +215,7 @@ export const useEquipment = (rackId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['equipment'] });
       queryClient.invalidateQueries({ queryKey: ['racks'] });
+      queryClient.invalidateQueries({ queryKey: ['ip-addresses'] });
       toast.success('Equipamento excluído com sucesso!');
     },
     onError: (error: Error) => {

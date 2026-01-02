@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, ChevronsUpDown, X, Search, Network, AlertCircle } from 'lucide-react';
+import { Check, ChevronsUpDown, X, Search, Network, AlertCircle, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,32 +138,43 @@ export function IPSelector({
   }
 
   return (
-    <div className={cn('flex gap-2', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn(
-              'flex-1 justify-between font-mono',
-              !value && 'text-muted-foreground'
-            )}
-            disabled={disabled}
-          >
-            {value || placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-0" align="start">
-          <Command>
-            <CommandInput 
-              placeholder="Buscar IP ou nome..." 
-              value={search}
-              onValueChange={setSearch}
-            />
-            <CommandList>
-              <CommandEmpty>
+    <div className={cn('space-y-2', className)}>
+      {/* Indicador de IPs disponíveis */}
+      {vlanUuid && (
+        <div className="flex items-center gap-2">
+          <Badge variant={baseIPs.length > 0 ? 'secondary' : 'outline'} className="text-xs">
+            <Database className="h-3 w-3 mr-1" />
+            {baseIPs.length} IP{baseIPs.length !== 1 ? 's' : ''} disponível{baseIPs.length !== 1 ? 'is' : ''}
+          </Badge>
+        </div>
+      )}
+      
+      <div className="flex gap-2">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className={cn(
+                'flex-1 justify-between font-mono',
+                !value && 'text-muted-foreground'
+              )}
+              disabled={disabled}
+            >
+              {value || placeholder}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[400px] p-0" align="start">
+            <Command>
+              <CommandInput 
+                placeholder="Buscar IP ou nome..." 
+                value={search}
+                onValueChange={setSearch}
+              />
+              <CommandList>
+                <CommandEmpty>
                 <div className="p-4 text-center text-sm">
                   <p className="text-muted-foreground mb-2">
                     {vlanUuid 
@@ -231,30 +242,31 @@ export function IPSelector({
         </PopoverContent>
       </Popover>
 
-      {value && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={handleClear}
-          disabled={disabled}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      )}
+        {value && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={handleClear}
+            disabled={disabled}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
 
-      {allowManual && (
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => setManualMode(true)}
-          disabled={disabled}
-          title="Digitar manualmente"
-        >
-          <span className="text-xs font-mono">IP</span>
-        </Button>
-      )}
+        {allowManual && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setManualMode(true)}
+            disabled={disabled}
+            title="Digitar manualmente"
+          >
+            <span className="text-xs font-mono">IP</span>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
