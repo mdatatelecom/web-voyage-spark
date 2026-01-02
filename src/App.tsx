@@ -43,6 +43,8 @@ import AuditReports from "./pages/AuditReports";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Subnets from "./pages/Subnets";
 import SubnetDetails from "./pages/SubnetDetails";
+import Vlans from "./pages/Vlans";
+import VlanDetails from "./pages/VlanDetails";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -344,6 +346,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <SubnetDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/vlans"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <Vlans />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/vlans/:id"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <VlanDetails />
                 </ProtectedRoute>
               } 
             />
