@@ -41,6 +41,8 @@ import Profile from "./pages/Profile";
 import NvrReport from "./pages/NvrReport";
 import AuditReports from "./pages/AuditReports";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import Subnets from "./pages/Subnets";
+import SubnetDetails from "./pages/SubnetDetails";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -326,6 +328,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <KnowledgeBase />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/ipam"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <Subnets />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/ipam/:id"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <SubnetDetails />
                 </ProtectedRoute>
               } 
             />

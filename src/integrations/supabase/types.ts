@@ -636,6 +636,84 @@ export type Database = {
           },
         ]
       }
+      ip_addresses: {
+        Row: {
+          created_at: string | null
+          equipment_id: string | null
+          id: string
+          ip_address: string
+          ip_type: string
+          last_seen: string | null
+          name: string | null
+          notes: string | null
+          status: string
+          subnet_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          equipment_id?: string | null
+          id?: string
+          ip_address: string
+          ip_type?: string
+          last_seen?: string | null
+          name?: string | null
+          notes?: string | null
+          status?: string
+          subnet_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          equipment_id?: string | null
+          id?: string
+          ip_address?: string
+          ip_type?: string
+          last_seen?: string | null
+          name?: string | null
+          notes?: string | null
+          status?: string
+          subnet_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ip_addresses_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ip_addresses_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_a_id"]
+          },
+          {
+            foreignKeyName: "ip_addresses_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_b_id"]
+          },
+          {
+            foreignKeyName: "ip_addresses_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_port_availability"
+            referencedColumns: ["equipment_id"]
+          },
+          {
+            foreignKeyName: "ip_addresses_subnet_id_fkey"
+            columns: ["subnet_id"]
+            isOneToOne: false
+            referencedRelation: "subnets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labels: {
         Row: {
           connection_id: string
@@ -1061,6 +1139,77 @@ export type Database = {
             columns: ["floor_id"]
             isOneToOne: false
             referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subnets: {
+        Row: {
+          broadcast_address: string | null
+          building_id: string | null
+          cidr: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          gateway_ip: string | null
+          gateway_name: string | null
+          id: string
+          ip_version: string
+          is_active: boolean | null
+          name: string
+          network_address: string
+          prefix_length: number
+          total_addresses: number
+          updated_at: string | null
+          usable_addresses: number
+          vlan_id: number | null
+        }
+        Insert: {
+          broadcast_address?: string | null
+          building_id?: string | null
+          cidr: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          gateway_ip?: string | null
+          gateway_name?: string | null
+          id?: string
+          ip_version?: string
+          is_active?: boolean | null
+          name: string
+          network_address: string
+          prefix_length: number
+          total_addresses: number
+          updated_at?: string | null
+          usable_addresses: number
+          vlan_id?: number | null
+        }
+        Update: {
+          broadcast_address?: string | null
+          building_id?: string | null
+          cidr?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          gateway_ip?: string | null
+          gateway_name?: string | null
+          id?: string
+          ip_version?: string
+          is_active?: boolean | null
+          name?: string
+          network_address?: string
+          prefix_length?: number
+          total_addresses?: number
+          updated_at?: string | null
+          usable_addresses?: number
+          vlan_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subnets_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
         ]
