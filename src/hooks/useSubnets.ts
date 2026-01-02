@@ -17,6 +17,7 @@ export interface Subnet {
   total_addresses: number;
   usable_addresses: number;
   vlan_id: number | null;
+  vlan_uuid: string | null;
   building_id: string | null;
   is_active: boolean;
   created_at: string;
@@ -42,6 +43,7 @@ export interface CreateSubnetData {
   total_addresses: number;
   usable_addresses: number;
   vlan_id?: number;
+  vlan_uuid?: string;
   building_id?: string;
 }
 
@@ -52,6 +54,7 @@ export interface UpdateSubnetData {
   gateway_ip?: string;
   gateway_name?: string;
   vlan_id?: number | null;
+  vlan_uuid?: string | null;
   building_id?: string | null;
   is_active?: boolean;
 }

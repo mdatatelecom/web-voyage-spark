@@ -12,6 +12,7 @@ import { useVlans, VLAN_CATEGORIES, CreateVlanData } from '@/hooks/useVlans';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useSubnets, CreateSubnetData } from '@/hooks/useSubnets';
 import { validateCIDR, parseCIDR } from '@/lib/cidr-utils';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -172,10 +173,17 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
       
       await createVlan(vlanData);
       
-      // Create subnet if requested
+      // Create subnet if requested - using the newly created VLAN's UUID
       if (createSubnet && cidr && subnetName) {
         const parsed = parseCIDR(cidr);
         if (parsed) {
+          // Fetch the newly created VLAN to get its UUID
+          const { data: newVlan } = await supabase
+            .from('vlans')
+            .select('id')
+            .eq('vlan_id', parseInt(vlanId, 10))
+            .single();
+          
           const subnetData: CreateSubnetData = {
             name: subnetName,
             cidr: parsed.cidr,
@@ -188,6 +196,7 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
             total_addresses: parsed.totalAddresses,
             usable_addresses: parsed.usableAddresses,
             vlan_id: parseInt(vlanId, 10),
+            vlan_uuid: newVlan?.id || undefined,
             building_id: buildingId || undefined,
           };
           await createSubnetMutation(subnetData);
