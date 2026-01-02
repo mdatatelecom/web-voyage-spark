@@ -242,6 +242,7 @@ export type Database = {
           vlan_id: number | null
           vlan_name: string | null
           vlan_tagging: string | null
+          vlan_uuid: string | null
         }
         Insert: {
           cable_color?: string | null
@@ -260,6 +261,7 @@ export type Database = {
           vlan_id?: number | null
           vlan_name?: string | null
           vlan_tagging?: string | null
+          vlan_uuid?: string | null
         }
         Update: {
           cable_color?: string | null
@@ -278,6 +280,7 @@ export type Database = {
           vlan_id?: number | null
           vlan_name?: string | null
           vlan_tagging?: string | null
+          vlan_uuid?: string | null
         }
         Relationships: [
           {
@@ -292,6 +295,13 @@ export type Database = {
             columns: ["port_b_id"]
             isOneToOne: false
             referencedRelation: "ports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_vlan_uuid_fkey"
+            columns: ["vlan_uuid"]
+            isOneToOne: false
+            referencedRelation: "vlans"
             referencedColumns: ["id"]
           },
         ]
@@ -1163,6 +1173,7 @@ export type Database = {
           updated_at: string | null
           usable_addresses: number
           vlan_id: number | null
+          vlan_uuid: string | null
         }
         Insert: {
           broadcast_address?: string | null
@@ -1183,6 +1194,7 @@ export type Database = {
           updated_at?: string | null
           usable_addresses: number
           vlan_id?: number | null
+          vlan_uuid?: string | null
         }
         Update: {
           broadcast_address?: string | null
@@ -1203,6 +1215,7 @@ export type Database = {
           updated_at?: string | null
           usable_addresses?: number
           vlan_id?: number | null
+          vlan_uuid?: string | null
         }
         Relationships: [
           {
@@ -1210,6 +1223,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subnets_vlan_uuid_fkey"
+            columns: ["vlan_uuid"]
+            isOneToOne: false
+            referencedRelation: "vlans"
             referencedColumns: ["id"]
           },
         ]
@@ -1521,6 +1541,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vlans: {
+        Row: {
+          building_id: string | null
+          category: string
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+          vlan_id: number
+        }
+        Insert: {
+          building_id?: string | null
+          category?: string
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+          vlan_id: number
+        }
+        Update: {
+          building_id?: string | null
+          category?: string
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+          vlan_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vlans_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_groups: {
         Row: {
