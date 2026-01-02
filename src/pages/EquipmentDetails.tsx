@@ -514,10 +514,12 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
               );
             })()}
 
-            {/* NVR Channel Grid - only for NVR equipment */}
-            {equipment?.type === 'nvr' && (
+            {/* NVR Channel Grid - for NVR/DVR equipment */}
+            {(equipment?.type === 'nvr' || equipment?.type === 'dvr') && (
               <NvrChannelGrid 
-                notes={equipment.notes} 
+                notes={equipment.notes}
+                ports={equipment.ports}
+                defaultTotalChannels={equipment.type === 'dvr' ? 8 : 16}
                 onPlanCamera={(channel) => {
                   setSelectedChannel(channel);
                   setPlanCameraDialogOpen(true);
@@ -750,8 +752,8 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
           />
         )}
         
-        {/* Plan Camera Dialog for NVR */}
-        {equipment?.type === 'nvr' && (
+        {/* Plan Camera Dialog for NVR/DVR */}
+        {(equipment?.type === 'nvr' || equipment?.type === 'dvr') && (
           <PlanCameraDialog
             open={planCameraDialogOpen}
             onOpenChange={setPlanCameraDialogOpen}
@@ -805,6 +807,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
           onOpenChange={setStatusDialogOpen}
           port={selectedPortForStatus}
           onStatusChange={handleStatusChange}
+          equipmentType={equipment?.type}
         />
       </div>
     </AppLayout>
