@@ -218,6 +218,51 @@ export const ANALOG_CAMERA_TEMPLATES: AnalogCameraTemplate[] = [
   { id: 'generic_cvbs_dome', manufacturer: 'Genérico', model: 'CVBS-700TVL-DOME', resolution: '700tvl', connectionType: 'cvbs', cameraType: 'dome', hasIR: true, irRange: 15, hasAudio: false },
 ];
 
+// NVR Templates (Standard and PoE models)
+export interface NvrTemplate {
+  id: string;
+  manufacturer: string;
+  model: string;
+  channels: number;
+  hasPoE: boolean;
+  poePortCount?: number;
+  poeBudgetWatts?: number;
+  resolution: string;
+  hddBays: number;
+}
+
+export const NVR_TEMPLATES: NvrTemplate[] = [
+  // NVR Padrão (Sem PoE) - Requer Switch PoE, Injetor PoE ou Fonte Externa
+  { id: 'hik_ds7608nxi', manufacturer: 'Hikvision', model: 'DS-7608NXI-K2', channels: 8, hasPoE: false, resolution: '4K', hddBays: 2 },
+  { id: 'hik_ds7616nxii', manufacturer: 'Hikvision', model: 'DS-7616NXI-K2', channels: 16, hasPoE: false, resolution: '4K', hddBays: 2 },
+  { id: 'int_nvd1408', manufacturer: 'Intelbras', model: 'NVD 1408', channels: 8, hasPoE: false, resolution: '4K', hddBays: 1 },
+  { id: 'int_nvd1416', manufacturer: 'Intelbras', model: 'NVD 1416', channels: 16, hasPoE: false, resolution: '4K', hddBays: 1 },
+  { id: 'int_nvd3316', manufacturer: 'Intelbras', model: 'NVD 3316', channels: 16, hasPoE: false, resolution: '4K', hddBays: 2 },
+  { id: 'dh_nvr4216', manufacturer: 'Dahua', model: 'DHI-NVR4216-4KS2', channels: 16, hasPoE: false, resolution: '4K', hddBays: 2 },
+  { id: 'dh_nvr4208', manufacturer: 'Dahua', model: 'DHI-NVR4208-4KS2', channels: 8, hasPoE: false, resolution: '4K', hddBays: 2 },
+  
+  // NVR com PoE Integrado - Conecta câmeras IP diretamente
+  { id: 'hik_ds7608ni8p', manufacturer: 'Hikvision', model: 'DS-7608NI-K2/8P', channels: 8, hasPoE: true, poePortCount: 8, poeBudgetWatts: 110, resolution: '4K', hddBays: 2 },
+  { id: 'hik_ds7616ni16p', manufacturer: 'Hikvision', model: 'DS-7616NI-K2/16P', channels: 16, hasPoE: true, poePortCount: 16, poeBudgetWatts: 200, resolution: '4K', hddBays: 2 },
+  { id: 'int_nvd1416p', manufacturer: 'Intelbras', model: 'NVD 1416 P', channels: 16, hasPoE: true, poePortCount: 16, poeBudgetWatts: 200, resolution: '4K', hddBays: 1 },
+  { id: 'int_nvd1408p', manufacturer: 'Intelbras', model: 'NVD 1408 P', channels: 8, hasPoE: true, poePortCount: 8, poeBudgetWatts: 110, resolution: '4K', hddBays: 1 },
+  { id: 'int_nvd3316p', manufacturer: 'Intelbras', model: 'NVD 3316 P', channels: 16, hasPoE: true, poePortCount: 16, poeBudgetWatts: 200, resolution: '4K', hddBays: 2 },
+  { id: 'dh_nvr4108hs8p', manufacturer: 'Dahua', model: 'DHI-NVR4108HS-8P-4KS2/L', channels: 8, hasPoE: true, poePortCount: 8, poeBudgetWatts: 80, resolution: '4K', hddBays: 1 },
+  { id: 'dh_nvr4116hs16p', manufacturer: 'Dahua', model: 'DHI-NVR4116HS-16P-4KS2/L', channels: 16, hasPoE: true, poePortCount: 16, poeBudgetWatts: 130, resolution: '4K', hddBays: 1 },
+];
+
+export const getNvrTemplatesByManufacturer = (manufacturer: string): NvrTemplate[] => {
+  return NVR_TEMPLATES.filter(t => t.manufacturer.toLowerCase().includes(manufacturer.toLowerCase()));
+};
+
+export const getPoeNvrTemplates = (): NvrTemplate[] => {
+  return NVR_TEMPLATES.filter(t => t.hasPoE);
+};
+
+export const getStandardNvrTemplates = (): NvrTemplate[] => {
+  return NVR_TEMPLATES.filter(t => !t.hasPoE);
+};
+
 export const getCameraTemplatesByManufacturer = (manufacturer: string): CameraTemplate[] => {
   return CAMERA_TEMPLATES.filter(t => t.manufacturer.toLowerCase().includes(manufacturer.toLowerCase()));
 };

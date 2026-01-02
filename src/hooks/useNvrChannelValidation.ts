@@ -42,7 +42,9 @@ export function useNvrChannelValidation(equipmentId: string | undefined) {
       }
 
       // Verifica se é NVR ou DVR
-      const isNvrOrDvr = equipment.type === 'nvr' || equipment.type === 'dvr';
+      const equipmentType = equipment.type as string;
+      const isNvrOrDvr = equipmentType === 'nvr' || equipmentType === 'nvr_poe' || equipmentType === 'dvr';
+      const hasIntegratedPoe = equipmentType === 'nvr_poe';
       
       if (!isNvrOrDvr) {
         return {
@@ -96,7 +98,21 @@ export function useNvrChannelValidation(equipmentId: string | undefined) {
  * Função para verificar se um equipamento é NVR/DVR
  */
 export function isNvrOrDvrType(equipmentType: string): boolean {
-  return equipmentType === 'nvr' || equipmentType === 'dvr';
+  return equipmentType === 'nvr' || equipmentType === 'nvr_poe' || equipmentType === 'dvr';
+}
+
+/**
+ * Função para verificar se é NVR com PoE integrado
+ */
+export function isNvrWithPoe(equipmentType: string): boolean {
+  return equipmentType === 'nvr_poe';
+}
+
+/**
+ * Função para verificar se NVR padrão (requer Switch PoE, Injetor ou Fonte Externa)
+ */
+export function requiresExternalPower(nvrType: string): boolean {
+  return nvrType === 'nvr';
 }
 
 /**
@@ -104,4 +120,11 @@ export function isNvrOrDvrType(equipmentType: string): boolean {
  */
 export function isIpCameraType(equipmentType: string): boolean {
   return equipmentType === 'ip_camera';
+}
+
+/**
+ * Função para verificar se a origem é uma câmera analógica
+ */
+export function isAnalogCameraType(equipmentType: string): boolean {
+  return equipmentType === 'analog_camera';
 }

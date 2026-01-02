@@ -1684,6 +1684,9 @@ export type Database = {
         | "fiber_os2"
         | "dac"
         | "other"
+        | "coaxial_rg59"
+        | "coaxial_rg6"
+        | "utp_balun"
       connection_status:
         | "active"
         | "inactive"
@@ -1914,6 +1917,9 @@ export const Constants = {
         "fiber_os2",
         "dac",
         "other",
+        "coaxial_rg59",
+        "coaxial_rg6",
+        "utp_balun",
       ],
       connection_status: [
         "active",

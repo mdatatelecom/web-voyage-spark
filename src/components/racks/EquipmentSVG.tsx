@@ -260,6 +260,23 @@ export const EquipmentSVG = ({
           isHovered={isHovered}
           status={status}
           isNVR={true}
+          hasPoe={false}
+        />
+      );
+    
+    case 'nvr_poe':
+      return (
+        <NVRPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isNVR={true}
+          hasPoe={true}
         />
       );
     
@@ -415,6 +432,21 @@ export const EquipmentSVG = ({
           manufacturer={manufacturer}
           isHovered={isHovered}
           status={status}
+        />
+      );
+    
+    case 'analog_camera':
+      return (
+        <IPCameraPattern
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          name={name}
+          manufacturer={manufacturer}
+          isHovered={isHovered}
+          status={status}
+          isAnalog={true}
         />
       );
     

@@ -6,6 +6,9 @@ export const CABLE_TYPES = [
   { value: 'fiber_om4', label: 'Fibra Óptica OM4 (Multimodo)' },
   { value: 'fiber_os2', label: 'Fibra Óptica OS2 (Monomodo)' },
   { value: 'dac', label: 'DAC (Direct Attach Copper)' },
+  { value: 'coaxial_rg59', label: 'Coaxial RG59 (CFTV)' },
+  { value: 'coaxial_rg6', label: 'Coaxial RG6 (CFTV longa distância)' },
+  { value: 'utp_balun', label: 'UTP com Balun (CFTV analógico)' },
   { value: 'other', label: 'Outro' }
 ];
 

@@ -10,7 +10,9 @@ interface FloorPlanEquipmentIconProps {
 // Colors by equipment type
 const TYPE_COLORS: Record<string, string> = {
   ip_camera: '#22c55e',
+  analog_camera: '#8b5cf6',
   nvr: '#3b82f6',
+  nvr_poe: '#0ea5e9',
   dvr: '#3b82f6',
   switch: '#8b5cf6',
   switch_poe: '#a855f7',
@@ -53,8 +55,10 @@ export const EQUIPMENT_TYPE_LABELS: Record<string, string> = {
   pdu_smart: 'PDU Smart',
   ups: 'UPS/Nobreak',
   nvr: 'NVR',
+  nvr_poe: 'NVR com PoE',
   dvr: 'DVR',
   ip_camera: 'Câmera IP',
+  analog_camera: 'Câmera Analógica',
   media_converter: 'Conversor de Mídia',
   environment_sensor: 'Sensor Ambiental',
   kvm: 'KVM',
@@ -78,7 +82,10 @@ export const EQUIPMENT_TYPE_COLORS: Record<string, string> = { ...TYPE_COLORS };
 export const ICON_OPTIONS = [
   { value: 'auto', label: 'Automático', color: null },
   { value: 'ip_camera', label: 'Câmera IP', color: '#22c55e' },
-  { value: 'nvr', label: 'NVR/DVR', color: '#3b82f6' },
+  { value: 'analog_camera', label: 'Câmera Analógica', color: '#8b5cf6' },
+  { value: 'nvr', label: 'NVR', color: '#3b82f6' },
+  { value: 'nvr_poe', label: 'NVR com PoE', color: '#0ea5e9' },
+  { value: 'dvr', label: 'DVR', color: '#3b82f6' },
   { value: 'switch', label: 'Switch', color: '#8b5cf6' },
   { value: 'switch_poe', label: 'Switch PoE', color: '#a855f7' },
   { value: 'access_point', label: 'Access Point', color: '#f59e0b' },

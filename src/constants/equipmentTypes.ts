@@ -65,8 +65,10 @@ export const EQUIPMENT_CATEGORIES = [
     icon: Video,
     types: [
       { value: 'dvr', label: 'DVR', icon: Video },
-      { value: 'nvr', label: 'NVR', icon: Camera },
+      { value: 'nvr', label: 'NVR (Padrão)', icon: Camera },
+      { value: 'nvr_poe', label: 'NVR com PoE', icon: Camera },
       { value: 'ip_camera', label: 'Câmera IP', icon: Camera },
+      { value: 'analog_camera', label: 'Câmera Analógica', icon: Video },
     ]
   },
   {
@@ -135,9 +137,13 @@ export const POE_POWER_CONSUMPTION: Record<string, number> = {
   // IP Cameras - typically 8-15W
   ip_camera: 12,
   
+  // Analog Cameras - External power (not PoE)
+  analog_camera: 0,
+  
   // DVR/NVR - Not PoE powered (external power)
   dvr: 0,
   nvr: 0,
+  nvr_poe: 0,
   
   // Access Points - typically 10-25W
   access_point: 15,
@@ -208,6 +214,7 @@ export const NON_NETWORK_EQUIPMENT_TYPES = [
   'poe_injector',
   'poe_splitter',
   'ip_camera',
+  'analog_camera',
   'environment_sensor',
   'fixed_shelf',
 ] as const;
@@ -572,6 +579,26 @@ export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
     recommendedMountSide: 'front',
     defaultUHeight: 1,
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  analog_camera: {
+    hasNetwork: false,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: false,
+    defaultPortTypes: ['bnc'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 1,
+    fields: { hostname: false, ipAddress: false, macAddress: false, assetTag: true, powerConsumption: true, airflow: false, weight: false }
+  },
+  nvr_poe: {
+    hasNetwork: true,
+    hasPorts: true,
+    hasConsolePorts: false,
+    hasPowerPorts: true,
+    defaultPortTypes: ['rj45', 'rj45_poe', 'hdmi'],
+    recommendedMountSide: 'front',
+    defaultUHeight: 2,
+    fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
   },
   
   // === NEW TELECOM ===

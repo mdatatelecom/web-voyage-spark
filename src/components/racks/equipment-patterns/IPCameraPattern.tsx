@@ -9,6 +9,7 @@ interface IPCameraPatternProps {
   manufacturer?: string;
   isHovered: boolean;
   status?: string;
+  isAnalog?: boolean;
 }
 
 export const IPCameraPattern = ({
@@ -20,6 +21,7 @@ export const IPCameraPattern = ({
   manufacturer,
   isHovered,
   status,
+  isAnalog = false,
 }: IPCameraPatternProps) => {
   const ledColors = getStatusLEDColors(status);
   const manufacturerInfo = manufacturer ? getManufacturerDisplay(manufacturer) : null;
@@ -94,12 +96,23 @@ export const IPCameraPattern = ({
         <text x={8} y={height - 14} fill="#9ca3af" fontSize="5" textAnchor="middle">REC</text>
       </g>
       
-      {/* PoE indicator */}
-      <g transform={`translate(${x + 175}, ${y + 6})`}>
-        <rect x={0} y={0} width={30} height={height - 14} fill="#eab308" opacity="0.1" rx="2" />
-        <text x={15} y={10} fill="#eab308" fontSize="6" textAnchor="middle" fontWeight="bold">PoE+</text>
-        <text x={15} y={height - 18} fill="#9ca3af" fontSize="5" textAnchor="middle">15W</text>
-      </g>
+      {/* PoE indicator (only for IP cameras) */}
+      {!isAnalog && (
+        <g transform={`translate(${x + 175}, ${y + 6})`}>
+          <rect x={0} y={0} width={30} height={height - 14} fill="#eab308" opacity="0.1" rx="2" />
+          <text x={15} y={10} fill="#eab308" fontSize="6" textAnchor="middle" fontWeight="bold">PoE+</text>
+          <text x={15} y={height - 18} fill="#9ca3af" fontSize="5" textAnchor="middle">15W</text>
+        </g>
+      )}
+      
+      {/* Analog indicator (only for analog cameras) */}
+      {isAnalog && (
+        <g transform={`translate(${x + 175}, ${y + 6})`}>
+          <rect x={0} y={0} width={30} height={height - 14} fill="#8b5cf6" opacity="0.1" rx="2" />
+          <text x={15} y={10} fill="#8b5cf6" fontSize="6" textAnchor="middle" fontWeight="bold">BNC</text>
+          <text x={15} y={height - 18} fill="#9ca3af" fontSize="5" textAnchor="middle">Coax</text>
+        </g>
+      )}
       
       {/* Right panel */}
       <rect
@@ -111,10 +124,20 @@ export const IPCameraPattern = ({
         rx="2"
       />
       
-      {/* Network port */}
-      <rect x={x + width - 48} y={y + 6} width={18} height={14} fill="#1e3a5f" rx="1" />
-      <circle cx={x + width - 39} cy={y + 24} r={2} fill="#22c55e" className="animate-pulse" />
-      <text x={x + width - 39} y={y + 32} fill="#64748b" fontSize="4" textAnchor="middle">LAN</text>
+      {/* Network port (IP) or BNC port (Analog) */}
+      {!isAnalog ? (
+        <>
+          <rect x={x + width - 48} y={y + 6} width={18} height={14} fill="#1e3a5f" rx="1" />
+          <circle cx={x + width - 39} cy={y + 24} r={2} fill="#22c55e" className="animate-pulse" />
+          <text x={x + width - 39} y={y + 32} fill="#64748b" fontSize="4" textAnchor="middle">LAN</text>
+        </>
+      ) : (
+        <>
+          <circle cx={x + width - 39} cy={y + 13} r={6} fill="#1e293b" stroke="#8b5cf6" strokeWidth="1" />
+          <circle cx={x + width - 39} cy={y + 13} r={2} fill="#8b5cf6" />
+          <text x={x + width - 39} y={y + 26} fill="#64748b" fontSize="4" textAnchor="middle">BNC</text>
+        </>
+      )}
       
       {/* Manufacturer badge */}
       {manufacturerInfo && (

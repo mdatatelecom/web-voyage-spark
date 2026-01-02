@@ -13,9 +13,9 @@ interface ConnectionSuggestion {
 }
 
 const getRecommendedCable = (portType: string): string => {
-  if (portType === 'rj45') return 'UTP Cat6';
-  if (portType.includes('sfp') || portType.includes('fiber')) return 'Fibra OM3';
-  if (portType === 'bnc') return 'Coaxial RG59';
+  if (portType === 'rj45' || portType?.includes('poe')) return 'UTP Cat6';
+  if (portType?.includes('sfp') || portType?.includes('fiber')) return 'Fibra OM3';
+  if (portType === 'bnc') return 'Coaxial RG59 ou UTP com Balun';
   return 'Verificar especificação';
 };
 
