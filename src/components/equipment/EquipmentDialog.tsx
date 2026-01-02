@@ -58,6 +58,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     serialNumber: '',
     hostname: '',
     ipAddress: '',
+    ipRecordId: '', // ID do registro IP para reserva automática
     vlanUuid: '', // VLAN UUID for IP filtering
     notes: '',
     mountSide: 'front',
@@ -154,7 +155,9 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         // PoE Budget
         poe_budget_watts: (formData.type === 'switch_poe' || formData.type === 'pdu_smart') && formData.poeBudget ? parseFloat(formData.poeBudget) : undefined
       },
-      portGroups: portsToCreate
+      portGroups: portsToCreate,
+      reserveIP: !!formData.ipRecordId,
+      ipRecordId: formData.ipRecordId || undefined
     }, {
       onSuccess: () => {
         onOpenChange(false);
@@ -168,7 +171,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           buildingId: '', floorId: '', roomId: '', rackId: '',
           positionStart: '', positionEnd: '', name: '', type: '',
           manufacturer: '', model: '', serialNumber: '', hostname: '',
-          ipAddress: '', vlanUuid: '', notes: '', mountSide: 'front',
+          ipAddress: '', ipRecordId: '', vlanUuid: '', notes: '', mountSide: 'front',
           assetTag: '', macAddress: '', powerConsumption: '', airflow: '',
           weightKg: '', equipmentStatus: 'active', poeBudget: ''
         });
@@ -522,7 +525,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
                         <Label>Endereço IP</Label>
                         <IPSelector
                           value={formData.ipAddress}
-                          onChange={(ip) => setFormData({ ...formData, ipAddress: ip })}
+                          onChange={(ip, ipId) => setFormData({ ...formData, ipAddress: ip, ipRecordId: ipId || '' })}
                           vlanUuid={formData.vlanUuid}
                           placeholder={formData.vlanUuid ? "Selecione um IP da VLAN" : "Selecione ou digite um IP"}
                           allowManual={true}

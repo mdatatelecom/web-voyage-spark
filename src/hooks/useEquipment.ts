@@ -39,6 +39,13 @@ interface EquipmentData {
   poe_power_per_port?: Record<string, number>;
 }
 
+interface CreateEquipmentParams {
+  equipment: EquipmentData;
+  portGroups: PortGroup[];
+  reserveIP?: boolean;
+  ipRecordId?: string;
+}
+
 export const useEquipment = (rackId?: string) => {
   const queryClient = useQueryClient();
 
@@ -74,8 +81,21 @@ export const useEquipment = (rackId?: string) => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (values: { equipment: EquipmentData; portGroups: PortGroup[] }) => {
-      // 1. Validar posição no rack
+    mutationFn: async (values: CreateEquipmentParams) => {
+      // 1. Validar disponibilidade do IP se informado
+      if (values.equipment.ip_address) {
+        const { data: existingIP } = await supabase
+          .from('ip_addresses')
+          .select('id, status, equipment_id')
+          .eq('ip_address', values.equipment.ip_address)
+          .maybeSingle();
+
+        if (existingIP && existingIP.status !== 'available') {
+          throw new Error(`IP ${values.equipment.ip_address} não está disponível (status: ${existingIP.status})`);
+        }
+      }
+      
+      // 2. Validar posição no rack
       const { data: existingEquipment } = await supabase
         .from('equipment')
         .select('position_u_start, position_u_end')
@@ -96,7 +116,7 @@ export const useEquipment = (rackId?: string) => {
         throw new Error('Posição já ocupada por outro equipamento');
       }
       
-      // 2. Inserir equipamento
+      // 3. Inserir equipamento
       const { data: newEquipment, error: eqError } = await supabase
         .from('equipment')
         .insert([values.equipment])
@@ -105,7 +125,7 @@ export const useEquipment = (rackId?: string) => {
       
       if (eqError) throw eqError;
       
-      // 3. Gerar e inserir portas
+      // 4. Gerar e inserir portas
       const portsToInsert = generatePorts(values.portGroups, newEquipment.id);
       
       if (portsToInsert.length > 0) {
@@ -116,11 +136,24 @@ export const useEquipment = (rackId?: string) => {
         if (portsError) throw portsError;
       }
       
+      // 5. Reservar IP no IPAM se solicitado
+      if (values.reserveIP && values.ipRecordId && values.equipment.ip_address) {
+        await supabase
+          .from('ip_addresses')
+          .update({
+            equipment_id: newEquipment.id,
+            status: 'used',
+            name: values.equipment.name
+          })
+          .eq('id', values.ipRecordId);
+      }
+      
       return newEquipment;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['equipment'] });
       queryClient.invalidateQueries({ queryKey: ['racks'] });
+      queryClient.invalidateQueries({ queryKey: ['ip-addresses'] });
       toast.success(`Equipamento ${data.name} criado com sucesso!`);
     },
     onError: (error: Error) => {

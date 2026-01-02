@@ -22,7 +22,7 @@ import { validateIPAddress } from '@/lib/cidr-utils';
 
 interface IPSelectorProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, ipId: string | null) => void;
   vlanUuid?: string;
   subnetId?: string;
   placeholder?: string;
@@ -68,27 +68,27 @@ export function IPSelector({
     
     if (!newValue) {
       setManualError(null);
-      onChange('');
+      onChange('', null);
       return;
     }
 
     const validation = validateIPAddress(newValue);
     if (validation.valid) {
       setManualError(null);
-      onChange(newValue);
+      onChange(newValue, null); // Manual entry has no IP record ID
     } else {
       setManualError(validation.error || 'IP inválido');
     }
   };
 
-  const handleSelectIP = (ip: string) => {
-    onChange(ip);
+  const handleSelectIP = (ip: string, ipId: string) => {
+    onChange(ip, ipId);
     setSearch('');
     setOpen(false);
   };
 
   const handleClear = () => {
-    onChange('');
+    onChange('', null);
     setManualValue('');
     setManualError(null);
   };
@@ -196,7 +196,7 @@ export function IPSelector({
                   <CommandItem
                     key={ip.id}
                     value={ip.ip_address}
-                    onSelect={() => handleSelectIP(ip.ip_address)}
+                    onSelect={() => handleSelectIP(ip.ip_address, ip.id)}
                   >
                     <Check
                       className={cn(
