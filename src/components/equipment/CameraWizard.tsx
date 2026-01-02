@@ -80,6 +80,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
     // Network configuration for IP cameras
     vlanUuid: '',
     ipAddress: '',
+    ipRecordId: '', // ID do registro IP para reserva automática
   });
   
   // Step 4: Location + Photo
@@ -226,6 +227,19 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         throw new Error('Selecione um switch e porta PoE');
       }
       
+      // Validar disponibilidade do IP se informado
+      if (isIPCamera && cameraData.ipAddress) {
+        const { data: existingIP } = await supabase
+          .from('ip_addresses')
+          .select('id, status, equipment_id')
+          .eq('ip_address', cameraData.ipAddress)
+          .maybeSingle();
+
+        if (existingIP && existingIP.status !== 'available') {
+          throw new Error(`IP ${cameraData.ipAddress} não está disponível (status: ${existingIP.status})`);
+        }
+      }
+      
       let rackId: string;
       
       // Get rack ID based on power source
@@ -348,6 +362,18 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
           .eq('id', selectedSwitchId);
       }
       
+      // Reservar IP no IPAM se existir ipRecordId
+      if (isIPCamera && cameraData.ipRecordId && cameraData.ipAddress) {
+        await supabase
+          .from('ip_addresses')
+          .update({
+            equipment_id: cameraEquipment.id,
+            status: 'used',
+            name: cameraData.name
+          })
+          .eq('id', cameraData.ipRecordId);
+      }
+      
       return cameraEquipment;
     },
     onSuccess: (data) => {
@@ -356,6 +382,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       queryClient.invalidateQueries({ queryKey: ['ports'] });
       queryClient.invalidateQueries({ queryKey: ['poe-switch-suggestions'] });
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['ip-addresses'] });
       toast.success(`Câmera ${data.name} criada com sucesso!`);
       handleClose();
     },
@@ -387,6 +414,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       locationDescription: '',
       vlanUuid: '',
       ipAddress: '',
+      ipRecordId: '',
     });
     setLocationData({ buildingId: '', floorId: '', roomId: '' });
     setPowerSource('switch_poe');
@@ -775,7 +803,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                         onChange={(vlanId, vlanUuid) => setCameraData({ 
                           ...cameraData, 
                           vlanUuid: vlanUuid || '',
-                          ipAddress: '' // Clear IP when VLAN changes
+                          ipAddress: '', // Clear IP when VLAN changes
+                          ipRecordId: ''
                         })}
                         showCreateOption={false}
                         placeholder="Filtrar por VLAN"
@@ -786,7 +815,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                       <Label>Endereço IP</Label>
                       <IPSelector
                         value={cameraData.ipAddress}
-                        onChange={(ip) => setCameraData({ ...cameraData, ipAddress: ip })}
+                        onChange={(ip, ipId) => setCameraData({ ...cameraData, ipAddress: ip, ipRecordId: ipId || '' })}
                         vlanUuid={cameraData.vlanUuid}
                         placeholder={cameraData.vlanUuid ? "Selecione um IP da VLAN" : "Selecione ou digite um IP"}
                         allowManual={true}
