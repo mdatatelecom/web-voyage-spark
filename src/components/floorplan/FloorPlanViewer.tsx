@@ -112,10 +112,13 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   const [tempMeasurePoint, setTempMeasurePoint] = useState<MeasurementPoint | null>(null);
   const [isPolygonClosedState, setIsPolygonClosedState] = useState(false);
   
-  const [image] = useImage(floorPlan.file_url, 'anonymous');
+  const [image] = useImage(floorPlan?.file_url || '', 'anonymous');
+  
+  // Safe positions array
+  const safePositions = positions || [];
   
   // Fetch connections between positioned equipment
-  const { data: connections } = useFloorPlanConnections(positions);
+  const { data: connections } = useFloorPlanConnections(safePositions);
   
   // Calculate connection counts per equipment
   const connectionCountMap = useMemo(() => {
@@ -287,7 +290,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   useEffect(() => {
     if (!focusedId || isAnimating) return;
 
-    const focusedPosition = positions.find(p => p.id === focusedId);
+    const focusedPosition = safePositions.find(p => p.id === focusedId);
     if (!focusedPosition) return;
 
     // Calculate the actual position of the equipment on the stage
@@ -512,7 +515,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
           )}
           
           {/* Equipment Markers */}
-          {positions.map(pos => (
+          {safePositions.map(pos => (
             <EquipmentMarker
               key={pos.id}
               position={{

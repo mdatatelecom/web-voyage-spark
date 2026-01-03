@@ -310,12 +310,53 @@ export function useAvailableIPs(subnetId?: string) {
 }
 
 // Get available IPs filtered by VLAN
+// Special values:
+// - undefined or '': return all available IPs
+// - 'none': return only IPs from subnets WITHOUT VLAN
+// - any other UUID: return IPs from subnets with that VLAN
 export function useAvailableIPsByVlan(vlanUuid?: string) {
   return useQuery({
     queryKey: ['available-ips-by-vlan', vlanUuid],
     queryFn: async () => {
+      // If "none" is selected, get IPs from subnets WITHOUT VLAN
+      if (vlanUuid === 'none') {
+        // Get subnets without VLAN
+        const { data: subnets, error: subnetsError } = await supabase
+          .from('subnets')
+          .select('id')
+          .is('vlan_uuid', null);
+
+        if (subnetsError) throw subnetsError;
+        
+        if (!subnets || subnets.length === 0) {
+          return [];
+        }
+
+        const subnetIds = subnets.map(s => s.id);
+
+        const { data, error } = await supabase
+          .from('ip_addresses')
+          .select(`
+            id,
+            ip_address,
+            name,
+            ip_type,
+            status,
+            subnet:subnets(id, name, cidr, vlan_uuid)
+          `)
+          .in('subnet_id', subnetIds)
+          .eq('status', 'available')
+          .neq('ip_type', 'network')
+          .neq('ip_type', 'broadcast')
+          .order('ip_address')
+          .limit(200);
+
+        if (error) throw error;
+        return data || [];
+      }
+
       if (!vlanUuid) {
-        // If no VLAN selected, return all available IPs
+        // If no VLAN selected (empty), return all available IPs
         const { data, error } = await supabase
           .from('ip_addresses')
           .select(`

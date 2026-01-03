@@ -17,12 +17,12 @@ export interface FloorPlanConnection {
 }
 
 export function useFloorPlanConnections(positions: EquipmentPosition[] | undefined) {
-  const equipmentIds = positions?.map(p => p.equipment_id) || [];
+  const equipmentIds = positions?.filter(p => p?.equipment_id).map(p => p.equipment_id) || [];
 
   return useQuery({
     queryKey: ['floor-plan-connections', equipmentIds],
     queryFn: async () => {
-      if (equipmentIds.length === 0) return [];
+      if (!positions || equipmentIds.length === 0) return [];
 
       // Supabase doesn't support OR with .in(), so we need 2 queries
       // Query for connections where equipment_a is on the floor plan
