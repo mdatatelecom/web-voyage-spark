@@ -121,11 +121,14 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [snapshotKey, setSnapshotKey] = useState(0);
   const [activeStreamUrl, setActiveStreamUrl] = useState(streamUrl);
+  const [activeStreamType, setActiveStreamType] = useState<StreamType | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isGo2rtcActive, setIsGo2rtcActive] = useState(false);
   
   const { settings: go2rtcSettings, registerStream } = useGo2rtcSettings();
   
-  const streamType = detectStreamType(streamUrl);
+  const originalStreamType = detectStreamType(streamUrl);
+  const streamType = activeStreamType || originalStreamType;
   
   // Extract auth info
   const authInfo = useMemo(() => extractAuthFromUrl(streamUrl), [streamUrl]);
@@ -208,95 +211,101 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     }
   }, [cameraName, toast]);
 
+  // Initialize HLS player
+  const initHlsPlayer = useCallback((url: string) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsRef.current = hls;
+      
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsLoading(false);
+        video.play().catch(() => {});
+      });
+      
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          setError('Erro ao carregar stream HLS. Verifique se a URL está correta.');
+          setIsLoading(false);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS support (Safari)
+      video.src = url;
+      video.addEventListener('loadedmetadata', () => {
+        setIsLoading(false);
+        video.play().catch(() => {});
+      });
+      video.addEventListener('error', () => {
+        setError('Erro ao carregar stream.');
+        setIsLoading(false);
+      });
+    } else {
+      setError('Seu navegador não suporta reprodução HLS.');
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open || !streamUrl) return;
     
     setIsLoading(true);
     setError(null);
     setActiveStreamUrl(streamUrl);
+    setActiveStreamType(null);
+    setIsGo2rtcActive(false);
     
-    // Check if RTSP and go2rtc is available
-    const handleRtspWithGo2rtc = async () => {
-      if (streamType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
+    const detectedType = detectStreamType(streamUrl);
+    
+    // Process stream asynchronously
+    const processStream = async () => {
+      let finalUrl = streamUrl;
+      let finalType = detectedType;
+      let usingGo2rtc = false;
+      
+      // If RTSP and go2rtc is configured, try to convert
+      if (detectedType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
         const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
         const result = await registerStream(streamName, streamUrl);
         
         if (result.success && result.hlsUrl) {
-          setActiveStreamUrl(result.hlsUrl);
-          return true;
+          finalUrl = result.hlsUrl;
+          finalType = 'hls'; // Converted to HLS!
+          usingGo2rtc = true;
         }
       }
-      return false;
+      
+      // Check if protocol is still unsupported after conversion attempt
+      const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'];
+      if (unsupportedTypes.includes(finalType)) {
+        setError(getUnsupportedProtocolMessage(finalType));
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update states
+      setActiveStreamUrl(finalUrl);
+      setActiveStreamType(finalType);
+      setIsGo2rtcActive(usingGo2rtc);
+      
+      // Initialize appropriate player
+      if (finalType === 'hls' || finalType === 'unknown') {
+        initHlsPlayer(finalUrl);
+      } else {
+        // MJPEG/Snapshot - loading handled by img onLoad
+        setIsLoading(true);
+      }
     };
     
-    // Protocols that require conversion
-    const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'];
-    
-    if (unsupportedTypes.includes(streamType)) {
-      // Try go2rtc for RTSP
-      if (streamType === 'rtsp') {
-        handleRtspWithGo2rtc().then(success => {
-          if (!success) {
-            setError(getUnsupportedProtocolMessage(streamType));
-            setIsLoading(false);
-          }
-        });
-      } else {
-        setError(getUnsupportedProtocolMessage(streamType));
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    if (streamType === 'hls' || streamType === 'unknown') {
-      const video = videoRef.current;
-      if (!video) return;
-
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-        });
-        hlsRef.current = hls;
-        
-        hls.loadSource(activeStreamUrl);
-        hls.attachMedia(video);
-        
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setIsLoading(false);
-          video.play().catch(() => {});
-        });
-        
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            if (streamType === 'unknown') {
-              // Try as snapshot fallback
-              setError(null);
-            } else {
-              setError('Erro ao carregar stream HLS. Verifique se a URL está correta.');
-            }
-            setIsLoading(false);
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (Safari)
-        video.src = activeStreamUrl;
-        video.addEventListener('loadedmetadata', () => {
-          setIsLoading(false);
-          video.play().catch(() => {});
-        });
-        video.addEventListener('error', () => {
-          setError('Erro ao carregar stream.');
-          setIsLoading(false);
-        });
-      } else {
-        setError('Seu navegador não suporta reprodução HLS.');
-        setIsLoading(false);
-      }
-    } else {
-      // For MJPEG and Snapshot, loading is handled by img onLoad
-      setIsLoading(true);
-    }
+    processStream();
 
     return () => {
       if (hlsRef.current) {
@@ -304,7 +313,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         hlsRef.current = null;
       }
     };
-  }, [open, streamUrl, streamType, activeStreamUrl, go2rtcSettings, registerStream, cameraName]);
+  }, [open, streamUrl, go2rtcSettings, registerStream, cameraName, initHlsPlayer]);
 
   // Auto-refresh for snapshots
   useEffect(() => {
@@ -381,11 +390,19 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           <DialogTitle className="flex items-center gap-2">
             <Video className="w-5 h-5" />
             {cameraName} - Ao Vivo
-            <Badge variant="outline" className="ml-2">{getStreamTypeLabel(streamType)}</Badge>
+            <Badge variant="outline" className="ml-2">
+              {getStreamTypeLabel(streamType)}
+              {isGo2rtcActive && ' (via go2rtc)'}
+            </Badge>
             {hasAuth && (
               <Badge variant="secondary" className="ml-1">
                 <Lock className="w-3 h-3 mr-1" />
                 Auth
+              </Badge>
+            )}
+            {isGo2rtcActive && (
+              <Badge variant="secondary" className="bg-green-600/80 text-white ml-1">
+                go2rtc
               </Badge>
             )}
           </DialogTitle>
