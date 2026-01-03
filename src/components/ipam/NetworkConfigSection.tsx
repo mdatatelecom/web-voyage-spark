@@ -71,6 +71,7 @@ export function NetworkConfigSection({
               onIPChange('', null);
             }}
             disabled={disabled}
+            showNoneAsFilter={true}
           />
         </div>
 

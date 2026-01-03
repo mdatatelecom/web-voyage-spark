@@ -45,6 +45,7 @@ import Subnets from "./pages/Subnets";
 import SubnetDetails from "./pages/SubnetDetails";
 import Vlans from "./pages/Vlans";
 import VlanDetails from "./pages/VlanDetails";
+import IPAMDashboard from "./pages/IPAMDashboard";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -362,6 +363,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <VlanDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/ipam/dashboard"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <IPAMDashboard />
                 </ProtectedRoute>
               } 
             />

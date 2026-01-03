@@ -12,6 +12,7 @@ interface VlanSelectorProps {
   placeholder?: string;
   disabled?: boolean;
   showCreateOption?: boolean;
+  showNoneAsFilter?: boolean; // When true, "Nenhuma VLAN" returns 'none' for filtering IPs without VLAN
 }
 
 const getCategoryIcon = (category: string) => {
@@ -31,7 +32,8 @@ export function VlanSelector({
   onChange, 
   placeholder = "Selecione uma VLAN",
   disabled = false,
-  showCreateOption = true
+  showCreateOption = true,
+  showNoneAsFilter = false
 }: VlanSelectorProps) {
   const { vlans, isLoading } = useVlans();
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -47,7 +49,9 @@ export function VlanSelector({
     }
     
     if (selectedValue === 'none') {
-      onChange('', null);
+      // When showNoneAsFilter is true, return 'none' to filter IPs without VLAN
+      // Otherwise return empty string to show all IPs
+      onChange('', showNoneAsFilter ? 'none' : null);
       return;
     }
     
