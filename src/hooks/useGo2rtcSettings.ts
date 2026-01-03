@@ -208,8 +208,9 @@ export const useGo2rtcSettings = () => {
       }
 
       if (data?.success) {
-        // Return the HLS URL (direct access - go2rtc needs CORS enabled for playback)
-        const hlsUrl = `${serverUrl}/api/stream.m3u8?src=${encodeURIComponent(streamName)}`;
+        // Use HLS proxy Edge Function to avoid CORS issues
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const hlsUrl = `${supabaseUrl}/functions/v1/go2rtc-hls-proxy?server=${encodeURIComponent(serverUrl)}&stream=${encodeURIComponent(streamName)}`;
         return { success: true, hlsUrl };
       }
       
