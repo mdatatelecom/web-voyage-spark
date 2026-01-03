@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink } from 'lucide-react';
+import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink, Lock } from 'lucide-react';
 import Hls from 'hls.js';
 
 interface CameraLiveDialogProps {
@@ -12,50 +12,105 @@ interface CameraLiveDialogProps {
   streamUrl: string;
 }
 
-type StreamType = 'hls' | 'mjpeg' | 'snapshot' | 'rtsp' | 'unknown';
+type StreamType = 
+  | 'hls' | 'mjpeg' | 'snapshot' | 'flv' | 'ts'
+  | 'rtsp' | 'rtmp' | 'srt' | 'udp' | 'rtp' | 'webrtc' | 'ndi'
+  | 'unknown';
+
+// Extract auth credentials from URL
+const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string; password?: string } => {
+  try {
+    const urlObj = new URL(url);
+    const username = urlObj.username || undefined;
+    const password = urlObj.password || undefined;
+    
+    if (username || password) {
+      // Remove auth from URL for display/requests that handle auth separately
+      urlObj.username = '';
+      urlObj.password = '';
+      return { cleanUrl: urlObj.toString(), username, password };
+    }
+    return { cleanUrl: url };
+  } catch {
+    // Manual regex for non-standard URLs
+    const match = url.match(/^(\w+):\/\/([^:]+):([^@]+)@(.+)$/);
+    if (match) {
+      return {
+        cleanUrl: `${match[1]}://${match[4]}`,
+        username: match[2],
+        password: match[3]
+      };
+    }
+    return { cleanUrl: url };
+  }
+};
+
+// Create Authorization header for Basic Auth
+const createBasicAuthHeader = (username?: string, password?: string): string | undefined => {
+  if (username && password) {
+    return `Basic ${btoa(`${username}:${password}`)}`;
+  }
+  return undefined;
+};
 
 const detectStreamType = (url: string): StreamType => {
   const lowerUrl = url.toLowerCase();
   
+  // Remove auth from URL for detection
+  const urlWithoutAuth = lowerUrl.replace(/\/\/[^:]+:[^@]+@/, '//');
+  
   // HLS
-  if (lowerUrl.includes('.m3u8') || lowerUrl.includes('/hls/')) return 'hls';
+  if (urlWithoutAuth.includes('.m3u8') || urlWithoutAuth.includes('/hls/')) return 'hls';
+  
+  // HTTP-FLV
+  if (urlWithoutAuth.includes('.flv') || urlWithoutAuth.includes('/live.flv')) return 'flv';
+  
+  // MPEG-TS
+  if (urlWithoutAuth.includes('.ts') && !urlWithoutAuth.includes('.tsx')) return 'ts';
   
   // MJPEG - padrões comuns de fabricantes
   if (
-    lowerUrl.includes('.mjpg') || 
-    lowerUrl.includes('.mjpeg') || 
-    lowerUrl.includes('/mjpg/') ||
-    lowerUrl.includes('/mjpeg/') ||
-    lowerUrl.includes('cgi-bin/mjpg') ||
-    lowerUrl.includes('/video/mjpg.cgi') || // Dahua
-    lowerUrl.includes('videostream.cgi') || // Foscam
-    lowerUrl.includes('/axis-cgi/mjpg') || // Axis
-    lowerUrl.includes('/cgi-bin/video.cgi') // Genérico
+    urlWithoutAuth.includes('.mjpg') || 
+    urlWithoutAuth.includes('.mjpeg') || 
+    urlWithoutAuth.includes('/mjpg/') ||
+    urlWithoutAuth.includes('/mjpeg/') ||
+    urlWithoutAuth.includes('cgi-bin/mjpg') ||
+    urlWithoutAuth.includes('/video/mjpg.cgi') || // Dahua
+    urlWithoutAuth.includes('videostream.cgi') || // Foscam
+    urlWithoutAuth.includes('/axis-cgi/mjpg') || // Axis
+    urlWithoutAuth.includes('/cgi-bin/video.cgi') || // Genérico
+    urlWithoutAuth.includes('httppreview') // Hikvision
   ) return 'mjpeg';
   
   // Snapshot - padrões comuns de fabricantes
   if (
-    lowerUrl.includes('.jpg') || 
-    lowerUrl.includes('.jpeg') ||
-    lowerUrl.includes('.png') ||
-    lowerUrl.includes('snapshot') ||
-    lowerUrl.includes('/snap.') ||
-    lowerUrl.includes('/picture/') || // Hikvision
-    lowerUrl.includes('/cgi-bin/snapshot') ||
-    lowerUrl.includes('/snap.cgi') || // Intelbras
-    lowerUrl.includes('/streaming/channels') && lowerUrl.includes('picture') || // Hikvision
-    lowerUrl.includes('/onvifsnapshot') // ONVIF
+    urlWithoutAuth.includes('.jpg') || 
+    urlWithoutAuth.includes('.jpeg') ||
+    urlWithoutAuth.includes('.png') ||
+    urlWithoutAuth.includes('snapshot') ||
+    urlWithoutAuth.includes('/snap.') ||
+    urlWithoutAuth.includes('/picture') || // Hikvision
+    urlWithoutAuth.includes('/cgi-bin/snapshot') ||
+    urlWithoutAuth.includes('/snap.cgi') || // Intelbras
+    urlWithoutAuth.includes('/onvifsnapshot') || // ONVIF
+    urlWithoutAuth.includes('image.cgi') // Axis
   ) return 'snapshot';
   
-  // RTSP
+  // Protocols that require proxy/conversion
   if (lowerUrl.startsWith('rtsp://')) return 'rtsp';
+  if (lowerUrl.startsWith('rtmp://') || lowerUrl.startsWith('rtmps://')) return 'rtmp';
+  if (lowerUrl.startsWith('srt://')) return 'srt';
+  if (lowerUrl.startsWith('udp://')) return 'udp';
+  if (lowerUrl.startsWith('rtp://')) return 'rtp';
+  if (lowerUrl.startsWith('webrtc://') || lowerUrl.startsWith('wss://')) return 'webrtc';
+  if (lowerUrl.startsWith('ndi://')) return 'ndi';
   
   // Tentar detectar padrões de streaming genéricos
   if (
-    lowerUrl.includes('/live/') ||
-    lowerUrl.includes('/stream/') ||
-    lowerUrl.includes('/video/') ||
-    lowerUrl.includes('/streaming/')
+    urlWithoutAuth.includes('/live/') ||
+    urlWithoutAuth.includes('/stream/') ||
+    urlWithoutAuth.includes('/video/') ||
+    urlWithoutAuth.includes('/streaming/')
   ) return 'unknown';
   
   return 'unknown';
@@ -69,7 +124,28 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const [isPaused, setIsPaused] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [snapshotKey, setSnapshotKey] = useState(0);
+  
   const streamType = detectStreamType(streamUrl);
+  
+  // Extract auth info
+  const authInfo = useMemo(() => extractAuthFromUrl(streamUrl), [streamUrl]);
+  const hasAuth = Boolean(authInfo.username || authInfo.password);
+
+  // Get protocol-specific error message
+  const getUnsupportedProtocolMessage = (type: StreamType): string => {
+    const messages: Record<string, string> = {
+      rtsp: 'RTSP requer conversão para HLS/MJPEG. Use go2rtc, mediamtx ou similar.',
+      rtmp: 'RTMP requer conversão. Use um servidor de mídia para transcodificar para HLS.',
+      srt: 'SRT requer conversão. Use ffmpeg ou OBS para transcodificar.',
+      udp: 'UDP Multicast não é suportado em navegadores. Use VLC ou transcodificador.',
+      rtp: 'RTP não é suportado diretamente. Use um servidor de mídia.',
+      webrtc: 'WebRTC requer um servidor de sinalização específico.',
+      ndi: 'NDI não é suportado em navegadores. Use software compatível.',
+      flv: 'HTTP-FLV requer biblioteca adicional (flv.js). Use HLS como alternativa.',
+      ts: 'MPEG-TS direto não é suportado. Converta para HLS.',
+    };
+    return messages[type] || 'Protocolo não suportado diretamente no navegador.';
+  };
 
   useEffect(() => {
     if (!open || !streamUrl) return;
@@ -77,8 +153,10 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     setIsLoading(true);
     setError(null);
     
-    if (streamType === 'rtsp') {
-      setError('URLs RTSP não são suportadas diretamente no navegador. Use uma URL HLS (.m3u8), MJPEG (.mjpg) ou snapshot (.jpg).');
+    // Protocols that require conversion
+    const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'];
+    if (unsupportedTypes.includes(streamType)) {
+      setError(getUnsupportedProtocolMessage(streamType));
       setIsLoading(false);
       return;
     }
@@ -185,13 +263,22 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   };
 
   const getStreamTypeLabel = (type: StreamType) => {
-    switch (type) {
-      case 'hls': return 'HLS';
-      case 'mjpeg': return 'MJPEG';
-      case 'snapshot': return 'Snapshot';
-      case 'rtsp': return 'RTSP';
-      default: return 'Auto';
-    }
+    const labels: Record<StreamType, string> = {
+      hls: 'HLS',
+      mjpeg: 'MJPEG',
+      snapshot: 'Snapshot',
+      flv: 'HTTP-FLV',
+      ts: 'MPEG-TS',
+      rtsp: 'RTSP',
+      rtmp: 'RTMP',
+      srt: 'SRT',
+      udp: 'UDP',
+      rtp: 'RTP',
+      webrtc: 'WebRTC',
+      ndi: 'NDI',
+      unknown: 'Auto',
+    };
+    return labels[type] || 'Auto';
   };
 
   return (
@@ -202,6 +289,12 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
             <Video className="w-5 h-5" />
             {cameraName} - Ao Vivo
             <Badge variant="outline" className="ml-2">{getStreamTypeLabel(streamType)}</Badge>
+            {hasAuth && (
+              <Badge variant="secondary" className="ml-1">
+                <Lock className="w-3 h-3 mr-1" />
+                Auth
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -220,22 +313,31 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
               <div className="text-center max-w-md">
                 <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
                 <p className="text-sm text-muted-foreground mb-4">{error}</p>
-                {streamType === 'rtsp' && (
+                {['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'].includes(streamType) && (
                   <div className="text-left bg-muted p-4 rounded-lg text-xs space-y-2">
-                    <p className="font-semibold">Formatos suportados:</p>
+                    <p className="font-semibold">Formatos suportados diretamente:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li><code>http://.../*.m3u8</code> - Stream HLS</li>
                       <li><code>http://.../*.mjpg</code> - MJPEG</li>
                       <li><code>http://.../snapshot.jpg</code> - Snapshot</li>
                     </ul>
-                    <p className="font-semibold mt-3">Exemplos por fabricante:</p>
+                    <p className="font-semibold mt-3">URLs com autenticação:</p>
+                    <p className="text-muted-foreground">
+                      <code>http://usuario:senha@IP/caminho</code>
+                    </p>
+                    <p className="font-semibold mt-3">Exemplos por fabricante (HTTP):</p>
                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                      <li><strong>Hikvision:</strong> <code>http://IP/Streaming/Channels/101/picture</code></li>
-                      <li><strong>Dahua:</strong> <code>http://IP/cgi-bin/snapshot.cgi</code></li>
-                      <li><strong>Intelbras:</strong> <code>http://IP/snap.cgi?chn=1</code></li>
-                      <li><strong>Axis:</strong> <code>http://IP/axis-cgi/mjpg/video.cgi</code></li>
+                      <li><strong>Hikvision:</strong> <code>http://user:pass@IP/Streaming/Channels/101/picture</code></li>
+                      <li><strong>Dahua:</strong> <code>http://user:pass@IP/cgi-bin/snapshot.cgi</code></li>
+                      <li><strong>Intelbras:</strong> <code>http://user:pass@IP/snap.cgi?chn=1</code></li>
+                      <li><strong>Axis:</strong> <code>http://user:pass@IP/axis-cgi/mjpg/video.cgi</code></li>
                     </ul>
-                    <p className="mt-2">Para converter RTSP, use <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-primary underline">go2rtc</a> ou similar.</p>
+                    <p className="mt-3">
+                      <strong>Conversores recomendados:</strong>{' '}
+                      <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-primary underline">go2rtc</a>,{' '}
+                      <a href="https://github.com/bluenviron/mediamtx" target="_blank" rel="noopener noreferrer" className="text-primary underline">mediamtx</a>,{' '}
+                      <a href="https://frigate.video" target="_blank" rel="noopener noreferrer" className="text-primary underline">Frigate</a>
+                    </p>
                   </div>
                 )}
               </div>

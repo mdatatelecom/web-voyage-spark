@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen, Play, Settings } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { CameraLiveDialog } from '@/components/equipment/CameraLiveDialog';
+import { CameraAccessConfigDialog } from '@/components/equipment/CameraAccessConfigDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,7 +85,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedPortIdForStatus, setSelectedPortIdForStatus] = useState<string | null>(null);
   const [liveDialogOpen, setLiveDialogOpen] = useState(false);
-  
+  const [accessConfigDialogOpen, setAccessConfigDialogOpen] = useState(false);
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
   const { data: equipment, isLoading } = useQuery({
@@ -519,7 +520,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setEditDialogOpen(true)}
+                          onClick={() => setAccessConfigDialogOpen(true)}
                         >
                           <Settings className="w-4 h-4 mr-2" />
                           Configurar Acesso ao Vivo
@@ -852,6 +853,30 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
             />
           );
         })()}
+
+        {/* Camera Access Config Dialog */}
+        {equipment?.type === 'ip_camera' && (
+          <CameraAccessConfigDialog
+            open={accessConfigDialogOpen}
+            onOpenChange={setAccessConfigDialogOpen}
+            cameraName={equipment.name}
+            currentUrl={extractLiveUrl(parseEquipmentNotes(equipment.notes))}
+            onSave={(url, config) => {
+              // Update equipment notes with new live_url
+              const currentNotes = parseEquipmentNotes(equipment.notes);
+              const updatedNotes = {
+                ...currentNotes,
+                live_url: url,
+                stream_config: config,
+              };
+              
+              updateEquipment({
+                id: id!,
+                notes: JSON.stringify(updatedNotes),
+              });
+            }}
+          />
+        )}
       </div>
     </AppLayout>
   );
