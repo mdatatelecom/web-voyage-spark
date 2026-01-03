@@ -223,6 +223,40 @@ export const useGo2rtcSettings = () => {
     }
   };
 
+  const exchangeWebRtcSdp = async (
+    streamName: string,
+    sdpOffer: string
+  ): Promise<{ success: boolean; sdpAnswer?: string; error?: string }> => {
+    if (!settings.enabled || !settings.serverUrl) {
+      return { success: false, error: 'go2rtc não está configurado' };
+    }
+
+    const serverUrl = normalizeServerUrl(settings.serverUrl);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('go2rtc-webrtc-proxy', {
+        body: { serverUrl, streamName, sdpOffer }
+      });
+
+      if (error) {
+        console.error('WebRTC SDP exchange error:', error);
+        return { success: false, error: error.message || 'Erro na troca SDP' };
+      }
+
+      if (data?.success && data?.sdpAnswer) {
+        return { success: true, sdpAnswer: data.sdpAnswer };
+      }
+
+      return { success: false, error: data?.error || 'Falha na troca SDP' };
+    } catch (error) {
+      console.error('WebRTC SDP exchange exception:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erro na troca SDP' 
+      };
+    }
+  };
+
   const getSnapshot = async (streamName: string): Promise<string | null> => {
     if (!settings.serverUrl) return null;
 
@@ -268,6 +302,7 @@ export const useGo2rtcSettings = () => {
     saveSettings,
     testConnection,
     registerStream,
+    exchangeWebRtcSdp,
     getSnapshot,
     deleteStream,
   };

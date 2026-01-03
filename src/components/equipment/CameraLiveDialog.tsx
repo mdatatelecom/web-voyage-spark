@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink, Lock, Camera } from 'lucide-react';
+import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink, Lock, Camera, Zap } from 'lucide-react';
 import Hls from 'hls.js';
 import { useToast } from '@/hooks/use-toast';
 import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
@@ -19,6 +19,8 @@ type StreamType =
   | 'rtsp' | 'rtmp' | 'srt' | 'udp' | 'rtp' | 'webrtc' | 'ndi'
   | 'unknown';
 
+type StreamMode = 'detecting' | 'webrtc' | 'hls' | 'mjpeg' | 'snapshot' | 'error';
+
 // Extract auth credentials from URL
 const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string; password?: string } => {
   try {
@@ -27,14 +29,12 @@ const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string;
     const password = urlObj.password || undefined;
     
     if (username || password) {
-      // Remove auth from URL for display/requests that handle auth separately
       urlObj.username = '';
       urlObj.password = '';
       return { cleanUrl: urlObj.toString(), username, password };
     }
     return { cleanUrl: url };
   } catch {
-    // Manual regex for non-standard URLs
     const match = url.match(/^(\w+):\/\/([^:]+):([^@]+)@(.+)$/);
     if (match) {
       return {
@@ -49,48 +49,38 @@ const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string;
 
 const detectStreamType = (url: string): StreamType => {
   const lowerUrl = url.toLowerCase();
-  
-  // Remove auth from URL for detection
   const urlWithoutAuth = lowerUrl.replace(/\/\/[^:]+:[^@]+@/, '//');
   
-  // HLS
   if (urlWithoutAuth.includes('.m3u8') || urlWithoutAuth.includes('/hls/')) return 'hls';
-  
-  // HTTP-FLV
   if (urlWithoutAuth.includes('.flv') || urlWithoutAuth.includes('/live.flv')) return 'flv';
-  
-  // MPEG-TS
   if (urlWithoutAuth.includes('.ts') && !urlWithoutAuth.includes('.tsx')) return 'ts';
   
-  // MJPEG - padrões comuns de fabricantes
   if (
     urlWithoutAuth.includes('.mjpg') || 
     urlWithoutAuth.includes('.mjpeg') || 
     urlWithoutAuth.includes('/mjpg/') ||
     urlWithoutAuth.includes('/mjpeg/') ||
     urlWithoutAuth.includes('cgi-bin/mjpg') ||
-    urlWithoutAuth.includes('/video/mjpg.cgi') || // Dahua
-    urlWithoutAuth.includes('videostream.cgi') || // Foscam
-    urlWithoutAuth.includes('/axis-cgi/mjpg') || // Axis
-    urlWithoutAuth.includes('/cgi-bin/video.cgi') || // Genérico
-    urlWithoutAuth.includes('httppreview') // Hikvision
+    urlWithoutAuth.includes('/video/mjpg.cgi') ||
+    urlWithoutAuth.includes('videostream.cgi') ||
+    urlWithoutAuth.includes('/axis-cgi/mjpg') ||
+    urlWithoutAuth.includes('/cgi-bin/video.cgi') ||
+    urlWithoutAuth.includes('httppreview')
   ) return 'mjpeg';
   
-  // Snapshot - padrões comuns de fabricantes
   if (
     urlWithoutAuth.includes('.jpg') || 
     urlWithoutAuth.includes('.jpeg') ||
     urlWithoutAuth.includes('.png') ||
     urlWithoutAuth.includes('snapshot') ||
     urlWithoutAuth.includes('/snap.') ||
-    urlWithoutAuth.includes('/picture') || // Hikvision
+    urlWithoutAuth.includes('/picture') ||
     urlWithoutAuth.includes('/cgi-bin/snapshot') ||
-    urlWithoutAuth.includes('/snap.cgi') || // Intelbras
-    urlWithoutAuth.includes('/onvifsnapshot') || // ONVIF
-    urlWithoutAuth.includes('image.cgi') // Axis
+    urlWithoutAuth.includes('/snap.cgi') ||
+    urlWithoutAuth.includes('/onvifsnapshot') ||
+    urlWithoutAuth.includes('image.cgi')
   ) return 'snapshot';
   
-  // Protocols that require proxy/conversion
   if (lowerUrl.startsWith('rtsp://')) return 'rtsp';
   if (lowerUrl.startsWith('rtmp://') || lowerUrl.startsWith('rtmps://')) return 'rtmp';
   if (lowerUrl.startsWith('srt://')) return 'srt';
@@ -99,7 +89,6 @@ const detectStreamType = (url: string): StreamType => {
   if (lowerUrl.startsWith('webrtc://') || lowerUrl.startsWith('wss://')) return 'webrtc';
   if (lowerUrl.startsWith('ndi://')) return 'ndi';
   
-  // Tentar detectar padrões de streaming genéricos
   if (
     urlWithoutAuth.includes('/live/') ||
     urlWithoutAuth.includes('/stream/') ||
@@ -115,6 +104,8 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const videoRef = useRef<HTMLVideoElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -122,22 +113,21 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const [snapshotKey, setSnapshotKey] = useState(0);
   const [activeStreamUrl, setActiveStreamUrl] = useState(streamUrl);
   const [activeStreamType, setActiveStreamType] = useState<StreamType | null>(null);
+  const [streamMode, setStreamMode] = useState<StreamMode>('detecting');
   const [isCapturing, setIsCapturing] = useState(false);
   const [isGo2rtcActive, setIsGo2rtcActive] = useState(false);
   
-  const { settings: go2rtcSettings, registerStream } = useGo2rtcSettings();
+  const { settings: go2rtcSettings, registerStream, exchangeWebRtcSdp } = useGo2rtcSettings();
   
   const originalStreamType = detectStreamType(streamUrl);
   const streamType = activeStreamType || originalStreamType;
   
-  // Extract auth info
   const authInfo = useMemo(() => extractAuthFromUrl(streamUrl), [streamUrl]);
   const hasAuth = Boolean(authInfo.username || authInfo.password);
 
-  // Get protocol-specific error message
   const getUnsupportedProtocolMessage = (type: StreamType): string => {
     const messages: Record<string, string> = {
-      rtsp: 'RTSP requer conversão para HLS/MJPEG. Use go2rtc, mediamtx ou similar.',
+      rtsp: 'RTSP requer conversão para HLS/WebRTC. Use go2rtc, mediamtx ou similar.',
       rtmp: 'RTMP requer conversão. Use um servidor de mídia para transcodificar para HLS.',
       srt: 'SRT requer conversão. Use ffmpeg ou OBS para transcodificar.',
       udp: 'UDP Multicast não é suportado em navegadores. Use VLC ou transcodificador.',
@@ -150,7 +140,6 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     return messages[type] || 'Protocolo não suportado diretamente no navegador.';
   };
 
-  // Capture snapshot function
   const captureSnapshot = useCallback(async () => {
     setIsCapturing(true);
     
@@ -161,14 +150,12 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
 
       let captured = false;
 
-      // Try video element first (HLS)
       if (videoRef.current && videoRef.current.videoWidth > 0) {
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
         ctx.drawImage(videoRef.current, 0, 0);
         captured = true;
       } 
-      // Try image element (MJPEG/Snapshot)
       else if (imgRef.current && imgRef.current.naturalWidth > 0) {
         canvas.width = imgRef.current.naturalWidth;
         canvas.height = imgRef.current.naturalHeight;
@@ -180,7 +167,6 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         throw new Error('Nenhum frame disponível para captura');
       }
 
-      // Convert to blob and download
       canvas.toBlob((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
@@ -211,7 +197,6 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     }
   }, [cameraName, toast]);
 
-  // Initialize HLS player
   const initHlsPlayer = useCallback((url: string) => {
     const video = videoRef.current;
     if (!video) return;
@@ -228,31 +213,123 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
+        setStreamMode('hls');
         video.play().catch(() => {});
       });
       
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
+          console.error('HLS fatal error:', data);
           setError('Erro ao carregar stream HLS. Verifique se a URL está correta.');
+          setStreamMode('error');
           setIsLoading(false);
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
       video.src = url;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
+        setStreamMode('hls');
         video.play().catch(() => {});
       });
       video.addEventListener('error', () => {
         setError('Erro ao carregar stream.');
+        setStreamMode('error');
         setIsLoading(false);
       });
     } else {
       setError('Seu navegador não suporta reprodução HLS.');
+      setStreamMode('error');
       setIsLoading(false);
     }
   }, []);
+
+  const initWebRtcPlayer = useCallback(async (streamName: string): Promise<boolean> => {
+    const video = videoRef.current;
+    if (!video) return false;
+
+    try {
+      console.log('Initializing WebRTC for stream:', streamName);
+      
+      // Close existing connection if any
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+
+      // Create peer connection with STUN server
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ]
+      });
+      pcRef.current = pc;
+
+      // Set up to receive video and audio
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+
+      // Handle incoming tracks
+      pc.ontrack = (event) => {
+        console.log('WebRTC track received:', event.track.kind);
+        if (event.streams[0]) {
+          video.srcObject = event.streams[0];
+          video.play().catch((e) => console.warn('Video play error:', e));
+          setIsLoading(false);
+          setStreamMode('webrtc');
+        }
+      };
+
+      // Monitor connection state
+      pc.onconnectionstatechange = () => {
+        console.log('WebRTC connection state:', pc.connectionState);
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          console.warn('WebRTC connection failed/disconnected');
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', pc.iceConnectionState);
+      };
+
+      // Create and send offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      if (!offer.sdp) {
+        throw new Error('Failed to create SDP offer');
+      }
+
+      console.log('Sending SDP offer to go2rtc...');
+      
+      // Exchange SDP via Edge Function proxy
+      const result = await exchangeWebRtcSdp(streamName, offer.sdp);
+      
+      if (!result.success || !result.sdpAnswer) {
+        throw new Error(result.error || 'Failed to exchange SDP');
+      }
+
+      console.log('Received SDP answer, setting remote description...');
+
+      // Apply answer
+      await pc.setRemoteDescription({
+        type: 'answer',
+        sdp: result.sdpAnswer
+      });
+
+      console.log('WebRTC setup complete');
+      return true;
+    } catch (error) {
+      console.error('WebRTC initialization failed:', error);
+      // Clean up on failure
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+      return false;
+    }
+  }, [exchangeWebRtcSdp]);
 
   useEffect(() => {
     if (!open || !streamUrl) return;
@@ -261,46 +338,66 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     setError(null);
     setActiveStreamUrl(streamUrl);
     setActiveStreamType(null);
+    setStreamMode('detecting');
     setIsGo2rtcActive(false);
     
     const detectedType = detectStreamType(streamUrl);
     
-    // Process stream asynchronously
     const processStream = async () => {
       let finalUrl = streamUrl;
       let finalType = detectedType;
       let usingGo2rtc = false;
       
-      // If RTSP and go2rtc is configured, try to convert
+      // If RTSP and go2rtc is configured, try WebRTC first, then HLS
       if (detectedType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
         const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
-        const result = await registerStream(streamName, streamUrl);
         
-        if (result.success && result.hlsUrl) {
-          finalUrl = result.hlsUrl;
-          finalType = 'hls'; // Converted to HLS!
+        // Register stream in go2rtc
+        const regResult = await registerStream(streamName, streamUrl);
+        
+        if (regResult.success) {
           usingGo2rtc = true;
+          setIsGo2rtcActive(true);
+          
+          // Try WebRTC first (lower latency ~100-300ms)
+          console.log('Attempting WebRTC connection...');
+          const webrtcSuccess = await initWebRtcPlayer(streamName);
+          
+          if (webrtcSuccess) {
+            console.log('WebRTC connection successful!');
+            setActiveStreamType('webrtc');
+            return; // Success with WebRTC!
+          }
+          
+          // Fallback to HLS if WebRTC fails (~3-5s latency)
+          console.log('WebRTC failed, falling back to HLS...');
+          finalUrl = regResult.hlsUrl!;
+          finalType = 'hls';
         }
       }
       
-      // Check if protocol is still unsupported after conversion attempt
-      const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'];
+      // Check if protocol is still unsupported
+      const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'ndi', 'flv', 'ts'];
       if (unsupportedTypes.includes(finalType)) {
         setError(getUnsupportedProtocolMessage(finalType));
+        setStreamMode('error');
         setIsLoading(false);
         return;
       }
       
-      // Update states
       setActiveStreamUrl(finalUrl);
       setActiveStreamType(finalType);
       setIsGo2rtcActive(usingGo2rtc);
       
-      // Initialize appropriate player
       if (finalType === 'hls' || finalType === 'unknown') {
         initHlsPlayer(finalUrl);
+      } else if (finalType === 'mjpeg') {
+        setStreamMode('mjpeg');
+        setIsLoading(true);
+      } else if (finalType === 'snapshot') {
+        setStreamMode('snapshot');
+        setIsLoading(true);
       } else {
-        // MJPEG/Snapshot - loading handled by img onLoad
         setIsLoading(true);
       }
     };
@@ -312,8 +409,15 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [open, streamUrl, go2rtcSettings, registerStream, cameraName, initHlsPlayer]);
+  }, [open, streamUrl, go2rtcSettings, registerStream, cameraName, initHlsPlayer, initWebRtcPlayer]);
 
   // Auto-refresh for snapshots
   useEffect(() => {
@@ -321,7 +425,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     
     const interval = setInterval(() => {
       setSnapshotKey(prev => prev + 1);
-    }, 2000); // Refresh every 2 seconds
+    }, 2000);
     
     return () => clearInterval(interval);
   }, [open, streamType, isPaused]);
@@ -329,6 +433,11 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const handleRefresh = () => {
     if (streamType === 'snapshot' || streamType === 'mjpeg') {
       setSnapshotKey(prev => prev + 1);
+    } else if (streamMode === 'webrtc' && pcRef.current) {
+      // For WebRTC, re-initialize the connection
+      const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
+      setIsLoading(true);
+      initWebRtcPlayer(streamName);
     } else if (hlsRef.current && videoRef.current) {
       hlsRef.current.loadSource(activeStreamUrl);
       videoRef.current.play().catch(() => {});
@@ -336,7 +445,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   };
 
   const handlePlayPause = () => {
-    if (streamType === 'hls' && videoRef.current) {
+    if ((streamType === 'hls' || streamMode === 'webrtc') && videoRef.current) {
       if (isPaused) {
         videoRef.current.play();
       } else {
@@ -356,6 +465,17 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       document.exitFullscreen?.();
     }
     setIsFullscreen(!isFullscreen);
+  };
+
+  const getStreamModeLabel = (): string => {
+    switch (streamMode) {
+      case 'webrtc': return 'WebRTC';
+      case 'hls': return 'HLS';
+      case 'mjpeg': return 'MJPEG';
+      case 'snapshot': return 'Snapshot';
+      case 'detecting': return 'Conectando...';
+      default: return 'Auto';
+    }
   };
 
   const getStreamTypeLabel = (type: StreamType) => {
@@ -378,30 +498,43 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   };
 
   const canCapture = !error && !isLoading && (
-    (streamType === 'hls' || streamType === 'unknown') ||
-    streamType === 'mjpeg' ||
-    streamType === 'snapshot'
+    streamMode === 'webrtc' ||
+    streamMode === 'hls' ||
+    streamMode === 'mjpeg' ||
+    streamMode === 'snapshot'
   );
+
+  const showVideo = streamMode === 'webrtc' || streamMode === 'hls' || 
+    (streamMode === 'detecting' && (streamType === 'hls' || streamType === 'unknown' || streamType === 'rtsp'));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="p-4 pb-2">
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             <Video className="w-5 h-5" />
             {cameraName} - Ao Vivo
-            <Badge variant="outline" className="ml-2">
-              {getStreamTypeLabel(streamType)}
-              {isGo2rtcActive && ' (via go2rtc)'}
-            </Badge>
+            
+            {streamMode === 'webrtc' ? (
+              <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                <Zap className="w-3 h-3 mr-1" />
+                WebRTC
+              </Badge>
+            ) : (
+              <Badge variant="outline">
+                {getStreamModeLabel()}
+              </Badge>
+            )}
+            
             {hasAuth && (
-              <Badge variant="secondary" className="ml-1">
+              <Badge variant="secondary">
                 <Lock className="w-3 h-3 mr-1" />
                 Auth
               </Badge>
             )}
+            
             {isGo2rtcActive && (
-              <Badge variant="secondary" className="bg-green-600/80 text-white ml-1">
+              <Badge variant="secondary" className="bg-blue-600/80 text-white">
                 go2rtc
               </Badge>
             )}
@@ -410,16 +543,18 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
 
         <div id="camera-live-container" className="relative bg-black aspect-video">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
               <div className="flex flex-col items-center gap-2">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                <p className="text-sm text-muted-foreground">Conectando...</p>
+                <p className="text-sm text-muted-foreground">
+                  {streamMode === 'detecting' ? 'Conectando...' : 'Carregando...'}
+                </p>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/90 p-6">
+            <div className="absolute inset-0 flex items-center justify-center bg-background/90 p-6 z-10">
               <div className="text-center max-w-md">
                 <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
                 <p className="text-sm text-muted-foreground mb-4">{error}</p>
@@ -431,22 +566,14 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
                       <li><code>http://.../*.mjpg</code> - MJPEG</li>
                       <li><code>http://.../snapshot.jpg</code> - Snapshot</li>
                     </ul>
-                    <p className="font-semibold mt-3">URLs com autenticação:</p>
+                    <p className="font-semibold mt-3">Para RTSP com go2rtc:</p>
                     <p className="text-muted-foreground">
-                      <code>http://usuario:senha@IP/caminho</code>
+                      Configure o servidor go2rtc em Configurações &rarr; go2rtc para conversão automática via WebRTC (baixa latência) ou HLS.
                     </p>
-                    <p className="font-semibold mt-3">Exemplos por fabricante (HTTP):</p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                      <li><strong>Hikvision:</strong> <code>http://user:pass@IP/Streaming/Channels/101/picture</code></li>
-                      <li><strong>Dahua:</strong> <code>http://user:pass@IP/cgi-bin/snapshot.cgi</code></li>
-                      <li><strong>Intelbras:</strong> <code>http://user:pass@IP/snap.cgi?chn=1</code></li>
-                      <li><strong>Axis:</strong> <code>http://user:pass@IP/axis-cgi/mjpg/video.cgi</code></li>
-                    </ul>
                     <p className="mt-3">
-                      <strong>Conversores recomendados:</strong>{' '}
+                      <strong>Conversores:</strong>{' '}
                       <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-primary underline">go2rtc</a>,{' '}
-                      <a href="https://github.com/bluenviron/mediamtx" target="_blank" rel="noopener noreferrer" className="text-primary underline">mediamtx</a>,{' '}
-                      <a href="https://frigate.video" target="_blank" rel="noopener noreferrer" className="text-primary underline">Frigate</a>
+                      <a href="https://github.com/bluenviron/mediamtx" target="_blank" rel="noopener noreferrer" className="text-primary underline">mediamtx</a>
                     </p>
                   </div>
                 )}
@@ -454,8 +581,8 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
             </div>
           )}
 
-          {/* HLS Video */}
-          {(streamType === 'hls' || streamType === 'unknown') && !error && (
+          {/* Video element for HLS and WebRTC */}
+          {showVideo && !error && (
             <video
               ref={videoRef}
               className="w-full h-full object-contain"
@@ -465,18 +592,19 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
             />
           )}
 
-          {/* MJPEG / Snapshot Image */}
-          {(streamType === 'mjpeg' || streamType === 'snapshot') && !error && (
+          {/* Image element for MJPEG / Snapshot */}
+          {(streamMode === 'mjpeg' || streamMode === 'snapshot') && !error && (
             <img
               ref={imgRef}
               key={snapshotKey}
-              src={streamType === 'snapshot' ? `${activeStreamUrl}${activeStreamUrl.includes('?') ? '&' : '?'}t=${Date.now()}` : activeStreamUrl}
+              src={streamMode === 'snapshot' ? `${activeStreamUrl}${activeStreamUrl.includes('?') ? '&' : '?'}t=${Date.now()}` : activeStreamUrl}
               alt={`Live view de ${cameraName}`}
               className="w-full h-full object-contain"
               crossOrigin="anonymous"
               onLoad={() => setIsLoading(false)}
               onError={() => {
                 setError('Erro ao carregar imagem. Verifique se a URL está correta.');
+                setStreamMode('error');
                 setIsLoading(false);
               }}
             />

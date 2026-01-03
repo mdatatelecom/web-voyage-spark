@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.go2rtc-hls-proxy]
 verify_jwt = false
+
+[functions.go2rtc-webrtc-proxy]
+verify_jwt = true
