@@ -52,7 +52,7 @@
     "input-otp": "^1.4.2",
     "jsbarcode": "^3.12.1",
     "jspdf": "^3.0.4",
-    "konva": "^9.3.18",
+    "konva": "^8.4.3",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "pdfjs-dist": "^3.11.174",
