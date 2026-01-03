@@ -59,7 +59,7 @@ import { ChartPreview } from '@/components/system/ChartPreview';
 import { ContrastValidator } from '@/components/system/ContrastValidator';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -84,6 +84,7 @@ import { Plus, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
 export default function System() {
   const { toast } = useToast();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
+  const [searchParams] = useSearchParams();
   const {
     systemHealth,
     alertStats,
@@ -97,6 +98,7 @@ export default function System() {
     cleanOldData,
   } = useSystemStats();
 
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'status');
   const [testSeverity, setTestSeverity] = useState<'info' | 'warning' | 'critical'>('info');
   const [testEmail, setTestEmail] = useState('');
   
@@ -376,8 +378,26 @@ export default function System() {
   };
 
   const handleSaveGo2rtcSettings = async () => {
+    // Validate connection before saving if enabled
+    if (localGo2rtcSettings.enabled && localGo2rtcSettings.serverUrl) {
+      setGo2rtcTestStatus('testing');
+      setGo2rtcTestMessage('Validando conexão antes de salvar...');
+      
+      const result = await testGo2rtcConnection(localGo2rtcSettings.serverUrl);
+      
+      if (!result.success) {
+        setGo2rtcTestStatus('error');
+        setGo2rtcTestMessage(`${result.message}. Salvando mesmo assim...`);
+      } else {
+        setGo2rtcTestStatus('success');
+        setGo2rtcTestMessage('Conexão validada!');
+      }
+    }
+    
     await saveGo2rtcSettings(localGo2rtcSettings);
-    setGo2rtcTestStatus('idle');
+    
+    // Keep status for a moment then reset
+    setTimeout(() => setGo2rtcTestStatus('idle'), 3000);
   };
 
   const testRelayConnection = async () => {
@@ -504,7 +524,7 @@ export default function System() {
           </p>
         </div>
 
-        <Tabs defaultValue="status" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="status">Status do Sistema</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
@@ -525,6 +545,12 @@ export default function System() {
             <TabsTrigger value="streaming">
               <Video className="w-4 h-4 mr-2" />
               Streaming
+              {go2rtcServerStatus !== 'unknown' && (
+                <div className={`ml-2 w-2 h-2 rounded-full ${
+                  go2rtcServerStatus === 'online' ? 'bg-green-500' :
+                  go2rtcServerStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'
+                }`} />
+              )}
             </TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>
@@ -1993,10 +2019,26 @@ export default function System() {
           {/* Tab: Streaming (go2rtc) */}
           <TabsContent value="streaming" className="space-y-6">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Video className="w-5 h-5" />
-                Configurações do Servidor go2rtc
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Video className="w-5 h-5" />
+                  Configurações do Servidor go2rtc
+                </h3>
+                {/* Real-time status indicator */}
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${
+                    go2rtcServerStatus === 'online' ? 'bg-green-500 animate-pulse' :
+                    go2rtcServerStatus === 'offline' ? 'bg-red-500' :
+                    'bg-gray-400'
+                  }`} />
+                  <span className="text-sm text-muted-foreground">
+                    {go2rtcServerStatus === 'online' ? 'Online' :
+                     go2rtcServerStatus === 'offline' ? 'Offline' :
+                     'Desconhecido'}
+                  </span>
+                  {go2rtcTesting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+              </div>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   O go2rtc permite converter streams RTSP em HLS para visualização direta no navegador.

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
 import {
@@ -33,6 +36,8 @@ import {
   Wifi,
   Loader2,
   XCircle,
+  Settings,
+  ExternalLink,
 } from 'lucide-react';
 
 interface CameraAccessConfigDialogProps {
@@ -203,7 +208,15 @@ export function CameraAccessConfigDialog({
   onSave,
 }: CameraAccessConfigDialogProps) {
   const { toast } = useToast();
-  const { settings: go2rtcSettings, registerStream, getSnapshot, deleteStream } = useGo2rtcSettings();
+  const navigate = useNavigate();
+  const { 
+    settings: go2rtcSettings, 
+    saveSettings: saveGo2rtcSettings,
+    testConnection: testGo2rtcConnection,
+    registerStream, 
+    getSnapshot, 
+    deleteStream 
+  } = useGo2rtcSettings();
   
   const [config, setConfig] = useState<StreamConfig>({
     protocol: 'rtsp',
@@ -216,6 +229,11 @@ export function CameraAccessConfigDialog({
   const [copied, setCopied] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testError, setTestError] = useState<string | null>(null);
+  
+  // Quick go2rtc config states
+  const [showGo2rtcConfig, setShowGo2rtcConfig] = useState(false);
+  const [quickConfigUrl, setQuickConfigUrl] = useState('');
+  const [quickConfigTesting, setQuickConfigTesting] = useState(false);
 
   useEffect(() => {
     if (open && currentUrl) {
@@ -230,7 +248,38 @@ export function CameraAccessConfigDialog({
     }
     setTestStatus('idle');
     setTestError(null);
+    setShowGo2rtcConfig(false);
+    setQuickConfigUrl('');
   }, [open, currentUrl]);
+
+  const handleQuickGo2rtcSave = async () => {
+    if (!quickConfigUrl.trim()) return;
+    
+    setQuickConfigTesting(true);
+    const result = await testGo2rtcConnection(quickConfigUrl.trim());
+    
+    if (result.success) {
+      await saveGo2rtcSettings({ serverUrl: quickConfigUrl.trim(), enabled: true });
+      setShowGo2rtcConfig(false);
+      setQuickConfigUrl('');
+      toast({
+        title: 'go2rtc configurado!',
+        description: 'Servidor habilitado e pronto para uso.',
+      });
+    } else {
+      toast({
+        title: 'Falha na conexão',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
+    setQuickConfigTesting(false);
+  };
+
+  const goToStreamingSettings = () => {
+    onOpenChange(false);
+    navigate('/system?tab=streaming');
+  };
 
   const handleProtocolChange = (protocol: string) => {
     const protocolInfo = PROTOCOLS.find(p => p.value === protocol);
@@ -274,7 +323,9 @@ export function CameraAccessConfigDialog({
     try {
       if (isRtsp) {
         if (!go2rtcSettings.enabled || !go2rtcSettings.serverUrl) {
-          throw new Error('Configure o servidor go2rtc em Sistema → Streaming para testar URLs RTSP');
+          setTestStatus('error');
+          setTestError('go2rtc_not_configured');
+          return;
         }
         
         const streamName = `test-${Date.now()}`;
@@ -431,6 +482,89 @@ export function CameraAccessConfigDialog({
               />
             </div>
 
+            {/* go2rtc not configured warning for RTSP */}
+            {config.protocol === 'rtsp' && (!go2rtcSettings.enabled || !go2rtcSettings.serverUrl) && !showGo2rtcConfig && (
+              <Alert className="border-amber-500/50 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-amber-700">
+                      Para testar URLs RTSP, configure o servidor go2rtc
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => setShowGo2rtcConfig(true)}
+                      >
+                        <Settings className="h-4 w-4 mr-1" />
+                        Configurar Aqui
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={goToStreamingSettings}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Ir para Sistema → Streaming
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Quick go2rtc configuration form */}
+            {showGo2rtcConfig && (
+              <Card className="border-dashed border-2">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-semibold">Configuração Rápida do go2rtc</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowGo2rtcConfig(false)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-go2rtc-url">URL do Servidor go2rtc</Label>
+                    <Input
+                      id="quick-go2rtc-url"
+                      value={quickConfigUrl}
+                      onChange={(e) => setQuickConfigUrl(e.target.value)}
+                      placeholder="http://192.168.1.100:1984"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Porta padrão: 1984. Exemplo: http://IP:1984
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm"
+                      onClick={handleQuickGo2rtcSave} 
+                      disabled={!quickConfigUrl.trim() || quickConfigTesting}
+                    >
+                      {quickConfigTesting ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                      )}
+                      Testar e Salvar
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="ghost" 
+                      onClick={() => setShowGo2rtcConfig(false)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="space-y-2">
               <Label>URL Completa</Label>
               <div className="flex gap-2">
@@ -443,7 +577,36 @@ export function CameraAccessConfigDialog({
               </div>
             </div>
 
-            {testStatus !== 'idle' && (
+            {/* Special error handling for go2rtc not configured */}
+            {testStatus === 'error' && testError === 'go2rtc_not_configured' ? (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-medium">Servidor go2rtc não configurado</span>
+                </div>
+                <p className="text-sm text-amber-600">
+                  Para testar URLs RTSP, configure o servidor go2rtc primeiro.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    size="sm" 
+                    variant="secondary"
+                    onClick={() => setShowGo2rtcConfig(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-1" />
+                    Configurar Aqui
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={goToStreamingSettings}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Ir para Sistema → Streaming
+                  </Button>
+                </div>
+              </div>
+            ) : testStatus !== 'idle' && (
               <div className={`p-3 rounded-lg flex items-center gap-2 ${
                 testStatus === 'testing' ? 'bg-muted' :
                 testStatus === 'success' ? 'bg-green-500/10 text-green-700' :
