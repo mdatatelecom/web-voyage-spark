@@ -174,7 +174,7 @@ export function IPSelector({
                 onValueChange={setSearch}
               />
               <CommandList>
-                <CommandEmpty>
+              <CommandEmpty>
                 <div className="p-4 text-center text-sm">
                   <p className="text-muted-foreground mb-2">
                     {vlanUuid 
@@ -182,10 +182,10 @@ export function IPSelector({
                       : 'Nenhum IP disponível encontrado'
                     }
                   </p>
-                  {vlanUuid && (
+                  {vlanUuid && baseIPs.length === 0 && (
                     <p className="text-xs text-amber-600 mb-2 flex items-center justify-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      Considere criar uma sub-rede para esta VLAN
+                      Crie uma sub-rede para esta VLAN e gere os IPs no IPAM
                     </p>
                   )}
                   {allowManual && (

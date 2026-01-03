@@ -12,7 +12,9 @@ import { useVlans, VLAN_CATEGORIES, CreateVlanData } from '@/hooks/useVlans';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useSubnets, CreateSubnetData } from '@/hooks/useSubnets';
 import { validateCIDR, parseCIDR } from '@/lib/cidr-utils';
+import { generateAndUpsertIPsForSubnet } from '@/lib/ipam-utils';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -25,7 +27,8 @@ import {
   Phone,
   Users,
   Link,
-  Cpu
+  Cpu,
+  Loader2
 } from 'lucide-react';
 
 interface VlanWizardProps {
@@ -61,6 +64,9 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
   const [createSubnet, setCreateSubnet] = useState(false);
   const [cidr, setCidr] = useState('');
   const [subnetName, setSubnetName] = useState('');
+  const [generateIPs, setGenerateIPs] = useState(true);
+  const [reserveGateway, setReserveGateway] = useState(true);
+  const [gatewayName, setGatewayName] = useState('Gateway');
   
   // Validation states
   const [vlanIdError, setVlanIdError] = useState<string | null>(null);
@@ -84,6 +90,9 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
       setCreateSubnet(false);
       setCidr('');
       setSubnetName('');
+      setGenerateIPs(true);
+      setReserveGateway(true);
+      setGatewayName('Gateway');
       setVlanIdError(null);
       setVlanIdWarning(null);
       setCidrError(null);
@@ -199,7 +208,21 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
             vlan_uuid: newVlan?.id || undefined,
             building_id: buildingId || undefined,
           };
-          await createSubnetMutation(subnetData);
+          const createdSubnet = await createSubnetMutation(subnetData);
+          
+          // Generate IPs if requested and subnet was created
+          if (generateIPs && parsed.version === 'ipv4' && createdSubnet?.id) {
+            const result = await generateAndUpsertIPsForSubnet({
+              subnetId: createdSubnet.id,
+              cidr: parsed.cidr,
+              reserveGateway,
+              gatewayName: gatewayName || 'Gateway'
+            });
+            
+            if (result.success) {
+              toast.success(`${result.count} IPs gerados automaticamente!`);
+            }
+          }
         }
       }
       
@@ -360,6 +383,52 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
                 }
                 return null;
               })()}
+            </div>
+          )}
+
+          {/* IP Generation options */}
+          {cidr && !cidrError && parseCIDR(cidr)?.version === 'ipv4' && (
+            <div className="space-y-3 pt-3 border-t">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="generate-ips" className="text-sm font-medium">Gerar IPs automaticamente</Label>
+                  <p className="text-xs text-muted-foreground">Criar registros de IP para toda a faixa</p>
+                </div>
+                <Switch
+                  id="generate-ips"
+                  checked={generateIPs}
+                  onCheckedChange={setGenerateIPs}
+                />
+              </div>
+              
+              {generateIPs && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="reserve-gw" className="text-sm font-medium">Reservar Gateway</Label>
+                      <p className="text-xs text-muted-foreground">Marcar o segundo IP como gateway</p>
+                    </div>
+                    <Switch
+                      id="reserve-gw"
+                      checked={reserveGateway}
+                      onCheckedChange={setReserveGateway}
+                    />
+                  </div>
+                  
+                  {reserveGateway && (
+                    <div className="space-y-1">
+                      <Label htmlFor="gw-name" className="text-xs">Nome do Gateway</Label>
+                      <Input
+                        id="gw-name"
+                        value={gatewayName}
+                        onChange={(e) => setGatewayName(e.target.value)}
+                        placeholder="Gateway"
+                        className="h-8"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
