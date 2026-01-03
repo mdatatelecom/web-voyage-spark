@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink, Lock } from 'lucide-react';
+import { AlertCircle, Maximize2, Minimize2, RefreshCw, Play, Pause, Video, ExternalLink, Lock, Camera } from 'lucide-react';
 import Hls from 'hls.js';
+import { useToast } from '@/hooks/use-toast';
+import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
 
 interface CameraLiveDialogProps {
   open: boolean;
@@ -43,14 +45,6 @@ const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string;
     }
     return { cleanUrl: url };
   }
-};
-
-// Create Authorization header for Basic Auth
-const createBasicAuthHeader = (username?: string, password?: string): string | undefined => {
-  if (username && password) {
-    return `Basic ${btoa(`${username}:${password}`)}`;
-  }
-  return undefined;
 };
 
 const detectStreamType = (url: string): StreamType => {
@@ -117,13 +111,19 @@ const detectStreamType = (url: string): StreamType => {
 };
 
 export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: CameraLiveDialogProps) {
+  const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [snapshotKey, setSnapshotKey] = useState(0);
+  const [activeStreamUrl, setActiveStreamUrl] = useState(streamUrl);
+  const [isCapturing, setIsCapturing] = useState(false);
+  
+  const { settings: go2rtcSettings, registerStream } = useGo2rtcSettings();
   
   const streamType = detectStreamType(streamUrl);
   
@@ -147,17 +147,104 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     return messages[type] || 'Protocolo não suportado diretamente no navegador.';
   };
 
+  // Capture snapshot function
+  const captureSnapshot = useCallback(async () => {
+    setIsCapturing(true);
+    
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not supported');
+
+      let captured = false;
+
+      // Try video element first (HLS)
+      if (videoRef.current && videoRef.current.videoWidth > 0) {
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        ctx.drawImage(videoRef.current, 0, 0);
+        captured = true;
+      } 
+      // Try image element (MJPEG/Snapshot)
+      else if (imgRef.current && imgRef.current.naturalWidth > 0) {
+        canvas.width = imgRef.current.naturalWidth;
+        canvas.height = imgRef.current.naturalHeight;
+        ctx.drawImage(imgRef.current, 0, 0);
+        captured = true;
+      }
+
+      if (!captured) {
+        throw new Error('Nenhum frame disponível para captura');
+      }
+
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          a.download = `${cameraName.replace(/\s+/g, '_')}-${timestamp}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          toast({
+            title: 'Snapshot capturado',
+            description: `Imagem salva: ${a.download}`,
+          });
+        }
+        setIsCapturing(false);
+      }, 'image/jpeg', 0.95);
+    } catch (err) {
+      console.error('Capture error:', err);
+      toast({
+        title: 'Erro na captura',
+        description: err instanceof Error ? err.message : 'Não foi possível capturar o snapshot',
+        variant: 'destructive',
+      });
+      setIsCapturing(false);
+    }
+  }, [cameraName, toast]);
+
   useEffect(() => {
     if (!open || !streamUrl) return;
     
     setIsLoading(true);
     setError(null);
+    setActiveStreamUrl(streamUrl);
+    
+    // Check if RTSP and go2rtc is available
+    const handleRtspWithGo2rtc = async () => {
+      if (streamType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
+        const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
+        const result = await registerStream(streamName, streamUrl);
+        
+        if (result.success && result.hlsUrl) {
+          setActiveStreamUrl(result.hlsUrl);
+          return true;
+        }
+      }
+      return false;
+    };
     
     // Protocols that require conversion
     const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'webrtc', 'ndi', 'flv', 'ts'];
+    
     if (unsupportedTypes.includes(streamType)) {
-      setError(getUnsupportedProtocolMessage(streamType));
-      setIsLoading(false);
+      // Try go2rtc for RTSP
+      if (streamType === 'rtsp') {
+        handleRtspWithGo2rtc().then(success => {
+          if (!success) {
+            setError(getUnsupportedProtocolMessage(streamType));
+            setIsLoading(false);
+          }
+        });
+      } else {
+        setError(getUnsupportedProtocolMessage(streamType));
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -172,7 +259,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         });
         hlsRef.current = hls;
         
-        hls.loadSource(streamUrl);
+        hls.loadSource(activeStreamUrl);
         hls.attachMedia(video);
         
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -193,7 +280,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
-        video.src = streamUrl;
+        video.src = activeStreamUrl;
         video.addEventListener('loadedmetadata', () => {
           setIsLoading(false);
           video.play().catch(() => {});
@@ -217,7 +304,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         hlsRef.current = null;
       }
     };
-  }, [open, streamUrl, streamType]);
+  }, [open, streamUrl, streamType, activeStreamUrl, go2rtcSettings, registerStream, cameraName]);
 
   // Auto-refresh for snapshots
   useEffect(() => {
@@ -234,7 +321,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     if (streamType === 'snapshot' || streamType === 'mjpeg') {
       setSnapshotKey(prev => prev + 1);
     } else if (hlsRef.current && videoRef.current) {
-      hlsRef.current.loadSource(streamUrl);
+      hlsRef.current.loadSource(activeStreamUrl);
       videoRef.current.play().catch(() => {});
     }
   };
@@ -280,6 +367,12 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     };
     return labels[type] || 'Auto';
   };
+
+  const canCapture = !error && !isLoading && (
+    (streamType === 'hls' || streamType === 'unknown') ||
+    streamType === 'mjpeg' ||
+    streamType === 'snapshot'
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -358,10 +451,12 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           {/* MJPEG / Snapshot Image */}
           {(streamType === 'mjpeg' || streamType === 'snapshot') && !error && (
             <img
+              ref={imgRef}
               key={snapshotKey}
-              src={streamType === 'snapshot' ? `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}t=${Date.now()}` : streamUrl}
+              src={streamType === 'snapshot' ? `${activeStreamUrl}${activeStreamUrl.includes('?') ? '&' : '?'}t=${Date.now()}` : activeStreamUrl}
               alt={`Live view de ${cameraName}`}
               className="w-full h-full object-contain"
+              crossOrigin="anonymous"
               onLoad={() => setIsLoading(false)}
               onError={() => {
                 setError('Erro ao carregar imagem. Verifique se a URL está correta.');
@@ -379,6 +474,15 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
             </Button>
             <Button variant="outline" size="sm" onClick={handleRefresh}>
               <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={captureSnapshot}
+              disabled={!canCapture || isCapturing}
+              title="Capturar Snapshot"
+            >
+              <Camera className="w-4 h-4" />
             </Button>
           </div>
           
