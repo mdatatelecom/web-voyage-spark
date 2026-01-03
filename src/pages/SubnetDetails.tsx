@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -27,12 +29,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSubnet } from '@/hooks/useSubnets';
 import { useIPAddresses, type IPAddress, type IPAddressFilters } from '@/hooks/useIPAddresses';
-import { formatIPCount } from '@/lib/cidr-utils';
+import { formatIPCount, parseCIDR } from '@/lib/cidr-utils';
+import { generateAndUpsertIPsForSubnet } from '@/lib/ipam-utils';
+import { toast } from 'sonner';
 import { 
   Network, 
   ArrowLeft, 
@@ -45,12 +50,15 @@ import {
   Filter,
   Globe,
   Router,
-  Radio
+  Radio,
+  Plus,
+  Loader2
 } from 'lucide-react';
 
 export default function SubnetDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const { data: subnet, isLoading: subnetLoading } = useSubnet(id);
   
@@ -72,6 +80,12 @@ export default function SubnetDetails() {
   const [editName, setEditName] = useState('');
   const [editStatus, setEditStatus] = useState<'available' | 'reserved' | 'used'>('available');
   const [editNotes, setEditNotes] = useState('');
+  
+  // Generate IPs dialog state
+  const [generateDialog, setGenerateDialog] = useState(false);
+  const [reserveGateway, setReserveGateway] = useState(true);
+  const [gatewayName, setGatewayName] = useState('Gateway');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const isLoading = subnetLoading || ipsLoading;
 
@@ -106,6 +120,39 @@ export default function SubnetDetails() {
   const handleRelease = async (ip: IPAddress) => {
     await releaseFromEquipment(ip.id);
   };
+
+  const handleGenerateIPs = async () => {
+    if (!subnet || !id) return;
+    
+    setIsGenerating(true);
+    try {
+      const result = await generateAndUpsertIPsForSubnet({
+        subnetId: id,
+        cidr: subnet.cidr,
+        reserveGateway,
+        gatewayName: gatewayName || 'Gateway'
+      });
+      
+      if (result.success) {
+        toast.success(`${result.count} IPs gerados com sucesso!`);
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['ip-addresses'] });
+        queryClient.invalidateQueries({ queryKey: ['available-ips'] });
+        queryClient.invalidateQueries({ queryKey: ['available-ips-by-vlan'] });
+        queryClient.invalidateQueries({ queryKey: ['subnets'] });
+        setGenerateDialog(false);
+      } else {
+        toast.error(result.error || 'Erro ao gerar IPs');
+      }
+    } catch (error) {
+      console.error('Error generating IPs:', error);
+      toast.error('Erro ao gerar IPs');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const parsedCIDR = subnet ? parseCIDR(subnet.cidr) : null;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -329,9 +376,19 @@ export default function SubnetDetails() {
                 ) : ipAddresses.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
-                      {filters.search || filters.status !== 'all' 
-                        ? 'Nenhum IP encontrado com os filtros aplicados' 
-                        : 'Nenhum IP cadastrado nesta sub-rede'}
+                      {filters.search || filters.status !== 'all' ? (
+                        'Nenhum IP encontrado com os filtros aplicados'
+                      ) : subnet?.ip_version === 'ipv4' ? (
+                        <div className="space-y-3">
+                          <p className="text-muted-foreground">Nenhum IP cadastrado nesta sub-rede</p>
+                          <Button onClick={() => setGenerateDialog(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Gerar IPs agora
+                          </Button>
+                        </div>
+                      ) : (
+                        'Nenhum IP cadastrado nesta sub-rede'
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -442,6 +499,87 @@ export default function SubnetDetails() {
             </Button>
             <Button onClick={handleSaveIP} disabled={isUpdating}>
               {isUpdating ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate IPs Dialog */}
+      <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gerar IPs para esta Sub-rede</DialogTitle>
+            <DialogDescription>
+              Isso criará registros de IP para todos os endereços disponíveis nesta sub-rede.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">CIDR:</span>
+                <span className="font-mono">{subnet?.cidr}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">IPs a gerar:</span>
+                <span className="font-bold">{parsedCIDR ? parsedCIDR.totalAddresses.toLocaleString() : '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">IPs utilizáveis:</span>
+                <span>{parsedCIDR ? parsedCIDR.usableAddresses.toLocaleString() : '-'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label htmlFor="reserve-gateway" className="font-medium">Reservar Gateway</Label>
+                <p className="text-sm text-muted-foreground">
+                  Marcar o segundo IP como gateway reservado
+                </p>
+              </div>
+              <Switch
+                id="reserve-gateway"
+                checked={reserveGateway}
+                onCheckedChange={setReserveGateway}
+              />
+            </div>
+
+            {reserveGateway && (
+              <div className="space-y-2">
+                <Label htmlFor="gateway-name">Nome do Gateway</Label>
+                <Input
+                  id="gateway-name"
+                  value={gatewayName}
+                  onChange={(e) => setGatewayName(e.target.value)}
+                  placeholder="Ex: Gateway Principal"
+                />
+              </div>
+            )}
+
+            {parsedCIDR && parsedCIDR.totalAddresses > 4096 && (
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
+                <strong>Atenção:</strong> Esta rede é grande ({parsedCIDR.totalAddresses.toLocaleString()} IPs). 
+                Apenas os endereços especiais (network, gateway, broadcast) serão criados.
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateDialog(false)} disabled={isGenerating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateIPs} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Gerar IPs
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
