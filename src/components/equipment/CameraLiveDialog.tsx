@@ -16,11 +16,48 @@ type StreamType = 'hls' | 'mjpeg' | 'snapshot' | 'rtsp' | 'unknown';
 
 const detectStreamType = (url: string): StreamType => {
   const lowerUrl = url.toLowerCase();
-  if (lowerUrl.includes('.m3u8')) return 'hls';
-  if (lowerUrl.includes('.mjpg') || lowerUrl.includes('.mjpeg') || lowerUrl.includes('mjpg') || lowerUrl.includes('cgi-bin/mjpg')) return 'mjpeg';
-  if (lowerUrl.includes('.jpg') || lowerUrl.includes('.jpeg') || lowerUrl.includes('snapshot') || lowerUrl.includes('cgi-bin/snapshot')) return 'snapshot';
+  
+  // HLS
+  if (lowerUrl.includes('.m3u8') || lowerUrl.includes('/hls/')) return 'hls';
+  
+  // MJPEG - padrões comuns de fabricantes
+  if (
+    lowerUrl.includes('.mjpg') || 
+    lowerUrl.includes('.mjpeg') || 
+    lowerUrl.includes('/mjpg/') ||
+    lowerUrl.includes('/mjpeg/') ||
+    lowerUrl.includes('cgi-bin/mjpg') ||
+    lowerUrl.includes('/video/mjpg.cgi') || // Dahua
+    lowerUrl.includes('videostream.cgi') || // Foscam
+    lowerUrl.includes('/axis-cgi/mjpg') || // Axis
+    lowerUrl.includes('/cgi-bin/video.cgi') // Genérico
+  ) return 'mjpeg';
+  
+  // Snapshot - padrões comuns de fabricantes
+  if (
+    lowerUrl.includes('.jpg') || 
+    lowerUrl.includes('.jpeg') ||
+    lowerUrl.includes('.png') ||
+    lowerUrl.includes('snapshot') ||
+    lowerUrl.includes('/snap.') ||
+    lowerUrl.includes('/picture/') || // Hikvision
+    lowerUrl.includes('/cgi-bin/snapshot') ||
+    lowerUrl.includes('/snap.cgi') || // Intelbras
+    lowerUrl.includes('/streaming/channels') && lowerUrl.includes('picture') || // Hikvision
+    lowerUrl.includes('/onvifsnapshot') // ONVIF
+  ) return 'snapshot';
+  
+  // RTSP
   if (lowerUrl.startsWith('rtsp://')) return 'rtsp';
-  // Default to trying as HLS first, then fallback
+  
+  // Tentar detectar padrões de streaming genéricos
+  if (
+    lowerUrl.includes('/live/') ||
+    lowerUrl.includes('/stream/') ||
+    lowerUrl.includes('/video/') ||
+    lowerUrl.includes('/streaming/')
+  ) return 'unknown';
+  
   return 'unknown';
 };
 
@@ -190,6 +227,13 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
                       <li><code>http://.../*.m3u8</code> - Stream HLS</li>
                       <li><code>http://.../*.mjpg</code> - MJPEG</li>
                       <li><code>http://.../snapshot.jpg</code> - Snapshot</li>
+                    </ul>
+                    <p className="font-semibold mt-3">Exemplos por fabricante:</p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li><strong>Hikvision:</strong> <code>http://IP/Streaming/Channels/101/picture</code></li>
+                      <li><strong>Dahua:</strong> <code>http://IP/cgi-bin/snapshot.cgi</code></li>
+                      <li><strong>Intelbras:</strong> <code>http://IP/snap.cgi?chn=1</code></li>
+                      <li><strong>Axis:</strong> <code>http://IP/axis-cgi/mjpg/video.cgi</code></li>
                     </ul>
                     <p className="mt-2">Para converter RTSP, use <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-primary underline">go2rtc</a> ou similar.</p>
                   </div>
