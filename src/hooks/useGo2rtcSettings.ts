@@ -14,6 +14,24 @@ const DEFAULT_SETTINGS: Go2rtcSettings = {
   enabled: false,
 };
 
+// Normaliza a URL do servidor para garantir que tenha protocolo http/https
+const normalizeServerUrl = (url: string): string => {
+  if (!url) return url;
+  
+  // Remove espaços
+  let normalized = url.trim();
+  
+  // Se não começar com http:// ou https://, adiciona http://
+  if (!normalized.match(/^https?:\/\//i)) {
+    normalized = `http://${normalized}`;
+  }
+  
+  // Remove barra final se existir
+  normalized = normalized.replace(/\/+$/, '');
+  
+  return normalized;
+};
+
 export const useGo2rtcSettings = () => {
   const { toast } = useToast();
   const [settings, setSettings] = useState<Go2rtcSettings>(DEFAULT_SETTINGS);
@@ -38,6 +56,8 @@ export const useGo2rtcSettings = () => {
         const value = data.setting_value as unknown;
         if (typeof value === 'object' && value !== null && 'serverUrl' in value && 'enabled' in value) {
           const loadedSettings = value as Go2rtcSettings;
+          // Normalizar URL ao carregar
+          loadedSettings.serverUrl = normalizeServerUrl(loadedSettings.serverUrl);
           setSettings(loadedSettings);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedSettings));
         }
@@ -45,14 +65,18 @@ export const useGo2rtcSettings = () => {
         // Fallback to localStorage
         const cached = localStorage.getItem(STORAGE_KEY);
         if (cached) {
-          setSettings(JSON.parse(cached));
+          const parsed = JSON.parse(cached);
+          parsed.serverUrl = normalizeServerUrl(parsed.serverUrl);
+          setSettings(parsed);
         }
       }
     } catch (error) {
       console.error('Error loading go2rtc settings:', error);
       const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
-        setSettings(JSON.parse(cached));
+        const parsed = JSON.parse(cached);
+        parsed.serverUrl = normalizeServerUrl(parsed.serverUrl);
+        setSettings(parsed);
       }
     } finally {
       setIsLoading(false);
@@ -60,6 +84,12 @@ export const useGo2rtcSettings = () => {
   };
 
   const saveSettings = async (newSettings: Go2rtcSettings) => {
+    // Normalizar URL antes de salvar
+    const normalizedSettings = {
+      ...newSettings,
+      serverUrl: normalizeServerUrl(newSettings.serverUrl),
+    };
+    
     try {
       // First check if record exists
       const { data: existing } = await supabase
@@ -68,7 +98,7 @@ export const useGo2rtcSettings = () => {
         .eq('setting_key', 'go2rtc_server')
         .maybeSingle();
 
-      const settingValue = JSON.parse(JSON.stringify(newSettings));
+      const settingValue = JSON.parse(JSON.stringify(normalizedSettings));
 
       if (existing) {
         const { error } = await supabase
@@ -89,8 +119,8 @@ export const useGo2rtcSettings = () => {
         if (error) throw error;
       }
 
-      setSettings(newSettings);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+      setSettings(normalizedSettings);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedSettings));
 
       toast({
         title: 'Configurações salvas',
@@ -110,7 +140,7 @@ export const useGo2rtcSettings = () => {
   };
 
   const testConnection = async (url?: string): Promise<{ success: boolean; message: string }> => {
-    const testUrl = url || settings.serverUrl;
+    const testUrl = normalizeServerUrl(url || settings.serverUrl);
     
     if (!testUrl) {
       return { success: false, message: 'URL do servidor não configurada' };
@@ -156,10 +186,12 @@ export const useGo2rtcSettings = () => {
       return { success: false, message: 'go2rtc não está configurado ou habilitado' };
     }
 
+    const serverUrl = normalizeServerUrl(settings.serverUrl);
+
     try {
       // Register the RTSP stream
       const registerResponse = await fetch(
-        `${settings.serverUrl}/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
+        `${serverUrl}/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
         { method: 'PUT', signal: AbortSignal.timeout(10000) }
       );
 
@@ -168,7 +200,7 @@ export const useGo2rtcSettings = () => {
       }
 
       // Return the HLS URL
-      const hlsUrl = `${settings.serverUrl}/api/stream.m3u8?src=${encodeURIComponent(streamName)}`;
+      const hlsUrl = `${serverUrl}/api/stream.m3u8?src=${encodeURIComponent(streamName)}`;
       return { success: true, hlsUrl };
     } catch (error) {
       return { 
@@ -181,9 +213,11 @@ export const useGo2rtcSettings = () => {
   const getSnapshot = async (streamName: string): Promise<string | null> => {
     if (!settings.serverUrl) return null;
 
+    const serverUrl = normalizeServerUrl(settings.serverUrl);
+
     try {
       const response = await fetch(
-        `${settings.serverUrl}/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
+        `${serverUrl}/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
         { signal: AbortSignal.timeout(10000) }
       );
 
@@ -200,9 +234,11 @@ export const useGo2rtcSettings = () => {
   const deleteStream = async (streamName: string): Promise<boolean> => {
     if (!settings.serverUrl) return false;
 
+    const serverUrl = normalizeServerUrl(settings.serverUrl);
+
     try {
       await fetch(
-        `${settings.serverUrl}/api/streams?src=${encodeURIComponent(streamName)}`,
+        `${serverUrl}/api/streams?src=${encodeURIComponent(streamName)}`,
         { method: 'DELETE' }
       );
       return true;

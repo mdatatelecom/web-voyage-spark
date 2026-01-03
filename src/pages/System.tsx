@@ -2069,7 +2069,7 @@ export default function System() {
                       disabled={!localGo2rtcSettings.enabled}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Exemplo: http://IP:1984 (porta padrão do go2rtc)
+                      Exemplo: http://192.168.1.100:1984 (o protocolo http:// será adicionado automaticamente se omitido)
                     </p>
                   </div>
 
