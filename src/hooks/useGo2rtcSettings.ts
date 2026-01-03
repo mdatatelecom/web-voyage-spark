@@ -149,29 +149,34 @@ export const useGo2rtcSettings = () => {
     setIsTesting(true);
     
     try {
-      // Test by fetching the streams endpoint
-      const response = await fetch(`${testUrl}/api/streams`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
+      // Use Edge Function proxy to avoid CORS
+      const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
+        body: { 
+          serverUrl: testUrl, 
+          endpoint: '/api/streams',
+          method: 'GET'
+        }
       });
 
-      if (response.ok) {
+      setIsTesting(false);
+
+      if (error) {
+        setServerStatus('offline');
+        return { success: false, message: error.message || 'Erro ao conectar via proxy' };
+      }
+
+      if (data?.success) {
         setServerStatus('online');
-        setIsTesting(false);
         return { success: true, message: 'Servidor go2rtc online e acessível' };
       } else {
         setServerStatus('offline');
-        setIsTesting(false);
-        return { success: false, message: `Servidor respondeu com status ${response.status}` };
+        return { success: false, message: data?.error || 'Servidor não respondeu' };
       }
     } catch (error) {
       setServerStatus('offline');
       setIsTesting(false);
       
       if (error instanceof Error) {
-        if (error.name === 'TimeoutError') {
-          return { success: false, message: 'Timeout: servidor não respondeu em 5 segundos' };
-        }
         return { success: false, message: error.message };
       }
       return { success: false, message: 'Erro desconhecido ao conectar' };
@@ -189,19 +194,26 @@ export const useGo2rtcSettings = () => {
     const serverUrl = normalizeServerUrl(settings.serverUrl);
 
     try {
-      // Register the RTSP stream
-      const registerResponse = await fetch(
-        `${serverUrl}/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
-        { method: 'PUT', signal: AbortSignal.timeout(10000) }
-      );
+      // Use Edge Function proxy to register the RTSP stream
+      const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
+        body: { 
+          serverUrl, 
+          endpoint: `/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
+          method: 'PUT'
+        }
+      });
 
-      if (!registerResponse.ok) {
-        return { success: false, message: 'Falha ao registrar stream no go2rtc' };
+      if (error) {
+        return { success: false, message: error.message || 'Erro ao registrar stream via proxy' };
       }
 
-      // Return the HLS URL
-      const hlsUrl = `${serverUrl}/api/stream.m3u8?src=${encodeURIComponent(streamName)}`;
-      return { success: true, hlsUrl };
+      if (data?.success) {
+        // Return the HLS URL (direct access - go2rtc needs CORS enabled for playback)
+        const hlsUrl = `${serverUrl}/api/stream.m3u8?src=${encodeURIComponent(streamName)}`;
+        return { success: true, hlsUrl };
+      }
+      
+      return { success: false, message: data?.error || 'Falha ao registrar stream no go2rtc' };
     } catch (error) {
       return { 
         success: false, 
