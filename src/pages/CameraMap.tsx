@@ -11,12 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List } from 'lucide-react';
+import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List, Play } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useCameras, type CameraData } from '@/hooks/useCameras';
 import { getConnectionTypeLabel } from '@/constants/cameraSpecs';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
+import { CameraLiveDialog } from '@/components/equipment/CameraLiveDialog';
 import { useEquipment } from '@/hooks/useEquipment';
 
 const STATUS_CONFIG = {
@@ -41,6 +42,8 @@ export default function CameraMap() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [cameraToEdit, setCameraToEdit] = useState<CameraData | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [liveDialogOpen, setLiveDialogOpen] = useState(false);
+  const [cameraForLive, setCameraForLive] = useState<CameraData | null>(null);
   
   const { buildings } = useBuildings();
   const { floors } = useFloors(selectedBuildingId);
@@ -514,7 +517,7 @@ export default function CameraMap() {
         
         {/* Camera Detail Modal */}
         <Dialog open={!!selectedCamera} onOpenChange={() => setSelectedCamera(null)}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
             {selectedCamera && (() => {
               const statusConfig = getStatusConfig(selectedCamera.equipment_status);
               const StatusIcon = statusConfig.icon;
@@ -532,7 +535,7 @@ export default function CameraMap() {
                   <div className="space-y-4">
                     {/* Photo */}
                     {selectedCamera.location_photo_url && (
-                      <div className="rounded-lg overflow-hidden bg-muted aspect-video">
+                      <div className="rounded-lg overflow-hidden bg-muted h-32">
                         <img 
                           src={selectedCamera.location_photo_url} 
                           alt={`Localização de ${selectedCamera.name}`}
@@ -552,72 +555,55 @@ export default function CameraMap() {
                     </div>
                     
                     {/* Info grid */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
-                        <p className="text-muted-foreground">Fabricante</p>
-                        <p className="font-medium">{selectedCamera.manufacturer || '-'}</p>
+                        <p className="text-xs text-muted-foreground">Fabricante</p>
+                        <p className="font-medium text-sm">{selectedCamera.manufacturer || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Modelo</p>
-                        <p className="font-medium">{selectedCamera.model || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Tipo de Conexão</p>
-                        <p className="font-medium">{getConnectionTypeLabel(selectedCamera.connection_type || 'ip')}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Resolução</p>
-                        <p className="font-medium">{notes.resolution?.toUpperCase() || '-'}</p>
+                        <p className="text-xs text-muted-foreground">Modelo</p>
+                        <p className="font-medium text-sm">{selectedCamera.model || '-'}</p>
                       </div>
                       {selectedCamera.ip_address && (
                         <div className="col-span-2">
-                          <p className="text-muted-foreground">IP</p>
-                          <p className="font-medium font-mono">{selectedCamera.ip_address}</p>
+                          <p className="text-xs text-muted-foreground">IP</p>
+                          <p className="font-medium font-mono text-sm">{selectedCamera.ip_address}</p>
                         </div>
                       )}
                     </div>
                     
                     {/* Location */}
-                    <div className="flex items-start gap-2 p-3 rounded-lg bg-muted">
-                      <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground" />
-                      <div className="text-sm">
-                        <p className="font-medium">{selectedCamera.rack.room.name}</p>
-                        <p className="text-muted-foreground">
+                    <div className="flex items-start gap-2 p-2 rounded-lg bg-muted">
+                      <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+                      <div className="text-xs min-w-0">
+                        <p className="font-medium truncate">{selectedCamera.rack.room.name}</p>
+                        <p className="text-muted-foreground truncate">
                           {selectedCamera.rack.room.floor.name} • {selectedCamera.rack.room.floor.building.name}
                         </p>
-                        {notes.locationDescription && (
-                          <p className="text-muted-foreground mt-1">{notes.locationDescription}</p>
-                        )}
                       </div>
                     </div>
-                    
-                    {/* Camera specs */}
-                    {(notes.hasIR || notes.hasAudio || notes.hasSD) && (
-                      <div className="flex flex-wrap gap-2">
-                        {notes.hasIR && (
-                          <Badge variant="outline">IR {notes.irRange}m</Badge>
-                        )}
-                        {notes.hasAudio && (
-                          <Badge variant="outline">Áudio</Badge>
-                        )}
-                        {notes.hasSD && (
-                          <Badge variant="outline">SD Card</Badge>
-                        )}
-                        {notes.codec && (
-                          <Badge variant="outline">{notes.codec.toUpperCase()}</Badge>
-                        )}
-                      </div>
-                    )}
                   </div>
                   
-                  <DialogFooter className="gap-2">
+                  <DialogFooter className="gap-2 flex-wrap">
                     <Button variant="outline" onClick={() => handleEditCamera(selectedCamera)}>
                       <Edit className="w-4 h-4 mr-2" />
                       Editar
                     </Button>
+                    {notes.live_url && (
+                      <Button 
+                        variant="secondary"
+                        onClick={() => {
+                          setCameraForLive(selectedCamera);
+                          setLiveDialogOpen(true);
+                        }}
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Ao Vivo
+                      </Button>
+                    )}
                     <Button onClick={() => navigate(`/equipment/${selectedCamera.id}`)}>
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      Ver Detalhes
+                      Detalhes
                     </Button>
                   </DialogFooter>
                 </>
@@ -634,6 +620,16 @@ export default function CameraMap() {
             equipment={cameraToEdit}
             onSave={handleSaveCamera}
             isLoading={isUpdating}
+          />
+        )}
+
+        {/* Live Camera Dialog */}
+        {cameraForLive && (
+          <CameraLiveDialog
+            open={liveDialogOpen}
+            onOpenChange={setLiveDialogOpen}
+            cameraName={cameraForLive.name}
+            streamUrl={parseNotes(cameraForLive.notes)?.live_url || ''}
           />
         )}
       </div>

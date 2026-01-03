@@ -20,8 +20,9 @@ import { OrphanImagesCleanup } from '@/components/equipment/OrphanImagesCleanup'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen, Play, Settings } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { CameraLiveDialog } from '@/components/equipment/CameraLiveDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,11 @@ const extractLocationDescription = (notes: Record<string, any>): string | undefi
          undefined;
 };
 
+// Extract live URL from notes
+const extractLiveUrl = (notes: Record<string, any>): string | undefined => {
+  return notes.live_url || notes.liveUrl || undefined;
+};
+
 export default function EquipmentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -77,6 +83,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
   const [orphanCleanupOpen, setOrphanCleanupOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedPortIdForStatus, setSelectedPortIdForStatus] = useState<string | null>(null);
+  const [liveDialogOpen, setLiveDialogOpen] = useState(false);
   
   const { updateEquipment, deleteEquipment, isUpdating, isDeleting } = useEquipment();
 
@@ -464,8 +471,7 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
               const notes = parseEquipmentNotes(equipment.notes);
               const locationPhotoUrl = extractLocationPhotoUrl(notes);
               const locationDescription = extractLocationDescription(notes);
-              
-              if (!locationPhotoUrl && !locationDescription) return null;
+              const liveUrl = extractLiveUrl(notes);
               
               return (
                 <Card className="p-6">
@@ -500,14 +506,35 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                         </div>
                       )}
                       
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/cameras/map?search=${encodeURIComponent(equipment.name)}`)}
-                      >
-                        <Camera className="w-4 h-4 mr-2" />
-                        Abrir no Mapa de Câmeras
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/cameras/map?search=${encodeURIComponent(equipment.name)}`)}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Abrir no Mapa de Câmeras
+                        </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setEditDialogOpen(true)}
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configurar Acesso ao Vivo
+                        </Button>
+                        
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => setLiveDialogOpen(true)}
+                          disabled={!liveUrl}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          Visualizar Câmera ao Vivo
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -809,6 +836,22 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
           onStatusChange={handleStatusChange}
           equipmentType={equipment?.type}
         />
+
+        {/* Camera Live Dialog */}
+        {equipment?.type === 'ip_camera' && (() => {
+          const notes = parseEquipmentNotes(equipment.notes);
+          const liveUrl = extractLiveUrl(notes);
+          if (!liveUrl) return null;
+          
+          return (
+            <CameraLiveDialog
+              open={liveDialogOpen}
+              onOpenChange={setLiveDialogOpen}
+              cameraName={equipment.name}
+              streamUrl={liveUrl}
+            />
+          );
+        })()}
       </div>
     </AppLayout>
   );

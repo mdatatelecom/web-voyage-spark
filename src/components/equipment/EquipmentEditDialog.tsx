@@ -32,6 +32,7 @@ interface Equipment {
 interface EquipmentNotesData {
   location_image_url?: string;
   location_description?: string;
+  live_url?: string;
   text?: string;
   // NVR-specific fields
   totalChannels?: number;
@@ -83,6 +84,7 @@ export function EquipmentEditDialog({
   // Camera location states
   const [locationImageUrl, setLocationImageUrl] = useState('');
   const [locationDescription, setLocationDescription] = useState('');
+  const [liveUrl, setLiveUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // Get field configuration based on equipment type
@@ -97,9 +99,11 @@ export function EquipmentEditDialog({
       if (equipment.type === 'ip_camera') {
         setLocationImageUrl(parsedNotes.location_image_url || '');
         setLocationDescription(parsedNotes.location_description || '');
+        setLiveUrl(parsedNotes.live_url || '');
       } else {
         setLocationImageUrl('');
         setLocationDescription('');
+        setLiveUrl('');
       }
 
       setFormData({
@@ -196,6 +200,7 @@ export function EquipmentEditDialog({
         locationPhotoUrl: locationImageUrl || undefined,
         location_description: locationDescription || undefined,
         locationDescription: locationDescription || undefined,
+        live_url: liveUrl || undefined,
         text: formData.notes || undefined,
       };
       
@@ -395,6 +400,20 @@ export function EquipmentEditDialog({
                   onChange={(e) => setLocationDescription(e.target.value)}
                   placeholder="Ex: Corredor principal, entrada da sala 101"
                 />
+              </div>
+
+              {/* Live Stream URL */}
+              <div className="space-y-2 mt-4">
+                <Label htmlFor="live_url">URL de Streaming ao Vivo</Label>
+                <Input
+                  id="live_url"
+                  value={liveUrl}
+                  onChange={(e) => setLiveUrl(e.target.value)}
+                  placeholder="http://camera/stream.m3u8 ou .mjpg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Formatos suportados: HLS (.m3u8), MJPEG (.mjpg), Snapshot (.jpg)
+                </p>
               </div>
             </div>
           )}
