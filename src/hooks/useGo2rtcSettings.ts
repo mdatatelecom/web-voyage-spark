@@ -192,13 +192,18 @@ export const useGo2rtcSettings = () => {
     }
 
     const serverUrl = normalizeServerUrl(settings.serverUrl);
+    
+    // Force TCP mode for better compatibility with cloud/firewall restricted streams
+    const tcpUrl = rtspUrl.includes('#') 
+      ? rtspUrl 
+      : `${rtspUrl}#tcp`;
 
     try {
-      // Use Edge Function proxy to register the RTSP stream
+      // Use Edge Function proxy to register the RTSP stream with TCP mode
       const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
         body: { 
           serverUrl, 
-          endpoint: `/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
+          endpoint: `/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(tcpUrl)}`,
           method: 'PUT'
         }
       });
