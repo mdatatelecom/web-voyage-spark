@@ -23,11 +23,11 @@ interface EquipmentMarkerProps {
   onHoverEnd?: () => void;
 }
 
-// Base sizes increased by 15% from original
+// Base sizes reduced by 50%
 const SIZE_MAP: Record<string, number> = {
-  small: 14,
-  medium: 21,
-  large: 28,
+  small: 7,
+  medium: 10.5,
+  large: 14,
 };
 
 // Min/max scale for icon compensation
