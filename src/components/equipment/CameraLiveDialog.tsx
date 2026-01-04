@@ -103,40 +103,84 @@ const detectStreamType = (url: string): StreamType => {
   return 'unknown';
 };
 
-// Detect Wowza Cloud URLs and generate direct HLS URL
-const getWowzaHlsUrl = (url: string): string | null => {
-  const lowerUrl = url.toLowerCase();
-  const isWowzaCloud = lowerUrl.includes('wowza.com') || 
-                        lowerUrl.includes('entrypoint.cloud') ||
-                        lowerUrl.includes('.wowza.');
-  
-  if (isWowzaCloud && lowerUrl.startsWith('rtsp://')) {
-    try {
-      // Parse URL properly
-      const urlObj = new URL(url.replace('rtsp://', 'https://'));
-      // Remove port for HTTPS (443 is default)
-      urlObj.port = '';
-      // Ensure path ends with /playlist.m3u8
-      const path = urlObj.pathname.replace(/\/?$/, '');
-      urlObj.pathname = path + '/playlist.m3u8';
-      return urlObj.toString();
-    } catch {
-      // Fallback to regex replacement
-      return url
-        .replace(/^rtsp:\/\//i, 'https://')
-        .replace(/:\d+/, '') // Remove any port
-        .replace(/\/?$/, '/playlist.m3u8');
-    }
-  }
-  return null;
-};
-
 // Check if URL is from Wowza Cloud
 const isWowzaCloudUrl = (url: string): boolean => {
   const lowerUrl = url.toLowerCase();
   return lowerUrl.includes('wowza.com') || 
          lowerUrl.includes('entrypoint.cloud') ||
          lowerUrl.includes('.wowza.');
+};
+
+// Generate multiple HLS URL variants for Wowza Cloud
+const getWowzaHlsVariants = (url: string): string[] => {
+  const lowerUrl = url.toLowerCase();
+  if (!isWowzaCloudUrl(url) || !lowerUrl.startsWith('rtsp://')) {
+    return [];
+  }
+
+  const variants: string[] = [];
+  
+  try {
+    const urlObj = new URL(url.replace('rtsp://', 'https://'));
+    const basePath = urlObj.pathname.replace(/\/?$/, '');
+    
+    // Variant 1: HTTPS without port (standard)
+    const v1 = new URL(urlObj.toString());
+    v1.port = '';
+    v1.pathname = basePath + '/playlist.m3u8';
+    variants.push(v1.toString());
+    
+    // Variant 2: HTTPS with /hls/live/ path (common Wowza pattern)
+    const v2 = new URL(urlObj.toString());
+    v2.port = '';
+    v2.pathname = basePath + '/hls/live/playlist.m3u8';
+    variants.push(v2.toString());
+    
+    // Variant 3: Using playback subdomain (Wowza Cloud specific)
+    // entrypoint.cloud.wowza.com -> playback.cloud.wowza.com
+    const v3 = new URL(urlObj.toString());
+    v3.port = '';
+    v3.hostname = v3.hostname.replace('entrypoint.', 'playback.');
+    v3.pathname = basePath + '/hls/live/playlist.m3u8';
+    variants.push(v3.toString());
+    
+  } catch {
+    // Fallback to simple regex replacement
+    const simpleUrl = url
+      .replace(/^rtsp:\/\//i, 'https://')
+      .replace(/:\d+/, '')
+      .replace(/\/?$/, '/playlist.m3u8');
+    variants.push(simpleUrl);
+  }
+  
+  return variants;
+};
+
+// Try multiple HLS URLs and return the first one that works
+const tryHlsUrl = async (url: string): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(url, { 
+      method: 'HEAD',
+      mode: 'no-cors', // Will not give status but won't throw on CORS
+      signal: controller.signal 
+    });
+    
+    clearTimeout(timeoutId);
+    // no-cors mode doesn't give us status, so we just check if it didn't throw
+    return true;
+  } catch (error) {
+    console.log('HLS URL check failed:', url, error);
+    return false;
+  }
+};
+
+// Get best working Wowza HLS URL (tries variants)
+const getWowzaHlsUrl = (url: string): string | null => {
+  const variants = getWowzaHlsVariants(url);
+  return variants.length > 0 ? variants[0] : null;
 };
 
 export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: CameraLiveDialogProps) {
@@ -416,18 +460,25 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       let finalType = detectedType;
       let usingGo2rtc = false;
       
-      // Check for Wowza Cloud - try direct HLS first
-      if (detectedType === 'rtsp') {
-        const wowzaHlsUrl = getWowzaHlsUrl(streamUrl);
-        if (wowzaHlsUrl) {
-          console.log('Detected Wowza Cloud, trying direct HLS:', wowzaHlsUrl);
-          finalUrl = wowzaHlsUrl;
-          finalType = 'hls';
-          setActiveStreamUrl(finalUrl);
-          setActiveStreamType(finalType);
-          initHlsPlayer(finalUrl);
-          return;
+      // Check for Wowza Cloud - try direct HLS first (multiple variants)
+      if (detectedType === 'rtsp' && isWowzaCloudUrl(streamUrl)) {
+        const hlsVariants = getWowzaHlsVariants(streamUrl);
+        console.log('Detected Wowza Cloud, trying HLS variants:', hlsVariants);
+        
+        for (const hlsUrl of hlsVariants) {
+          console.log('Trying Wowza HLS variant:', hlsUrl);
+          const works = await tryHlsUrl(hlsUrl);
+          if (works) {
+            console.log('Wowza HLS variant accessible:', hlsUrl);
+            finalUrl = hlsUrl;
+            finalType = 'hls';
+            setActiveStreamUrl(finalUrl);
+            setActiveStreamType(finalType);
+            initHlsPlayer(finalUrl);
+            return;
+          }
         }
+        console.log('All Wowza HLS variants failed, falling back to go2rtc...');
       }
       
       // If RTSP and go2rtc is configured, try WebRTC first, then HLS
@@ -499,11 +550,15 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         const errorParts = [getUnsupportedProtocolMessage(finalType)];
         
         if (isWowzaCloudUrl(streamUrl)) {
-          errorParts.push('Verifique se o stream Wowza está ativo e público.');
+          errorParts.push('Stream Wowza Cloud pode exigir URL HLS específica do painel Wowza.');
         }
         
         if (lastError) {
           errorParts.push(`Detalhe: ${lastError}`);
+        }
+        
+        if (!go2rtcSettings.enabled || !go2rtcSettings.serverUrl) {
+          errorParts.push('Configure go2rtc em Sistema > Streaming ou forneça URL HLS direta.');
         }
         
         setError(errorParts.join(' '));
