@@ -284,13 +284,88 @@ export const useGo2rtcSettings = () => {
     const serverUrl = normalizeServerUrl(settings.serverUrl);
 
     try {
-      await fetch(
-        `${serverUrl}/api/streams?src=${encodeURIComponent(streamName)}`,
-        { method: 'DELETE' }
-      );
-      return true;
+      // Use Edge Function proxy to delete stream
+      const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
+        body: { 
+          serverUrl, 
+          endpoint: `/api/streams?src=${encodeURIComponent(streamName)}`,
+          method: 'DELETE'
+        }
+      });
+
+      if (error) {
+        console.error('Delete stream error:', error);
+        return false;
+      }
+      
+      return data?.success || false;
     } catch {
       return false;
+    }
+  };
+
+  const testStreamConnection = async (streamName: string): Promise<{
+    success: boolean;
+    hasVideo: boolean;
+    hasAudio: boolean;
+    error?: string;
+  }> => {
+    if (!settings.serverUrl) {
+      return { success: false, hasVideo: false, hasAudio: false, error: 'Servidor não configurado' };
+    }
+
+    const serverUrl = normalizeServerUrl(settings.serverUrl);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
+        body: { 
+          serverUrl, 
+          endpoint: '/api/streams',
+          method: 'GET'
+        }
+      });
+
+      if (error || !data?.success) {
+        return { success: false, hasVideo: false, hasAudio: false, error: error?.message || 'Erro ao consultar streams' };
+      }
+
+      // Parse streams data
+      const streamsData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+      const streamInfo = streamsData?.[streamName];
+
+      if (!streamInfo) {
+        return { success: false, hasVideo: false, hasAudio: false, error: 'Stream não encontrado' };
+      }
+
+      // Check if stream has active producers
+      const producers = streamInfo.producers || [];
+      const hasActiveProducer = producers.length > 0;
+      
+      // Check for video/audio tracks
+      let hasVideo = false;
+      let hasAudio = false;
+      
+      for (const producer of producers) {
+        const medias = producer.medias || [];
+        for (const media of medias) {
+          if (media.kind === 'video') hasVideo = true;
+          if (media.kind === 'audio') hasAudio = true;
+        }
+      }
+
+      return { 
+        success: hasActiveProducer, 
+        hasVideo, 
+        hasAudio,
+        error: hasActiveProducer ? undefined : 'Nenhum producer ativo'
+      };
+    } catch (err) {
+      return { 
+        success: false, 
+        hasVideo: false, 
+        hasAudio: false, 
+        error: err instanceof Error ? err.message : 'Erro desconhecido' 
+      };
     }
   };
 
@@ -305,5 +380,6 @@ export const useGo2rtcSettings = () => {
     exchangeWebRtcSdp,
     getSnapshot,
     deleteStream,
+    testStreamConnection,
   };
 };
