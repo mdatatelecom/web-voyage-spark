@@ -39,7 +39,8 @@ import {
   Settings2,
   Server,
   Clipboard,
-  ClipboardPaste
+  ClipboardPaste,
+  Tag
 } from 'lucide-react';
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { RackTooltip } from '@/components/floorplan/RackTooltip';
@@ -188,8 +189,27 @@ export default function FloorPlan() {
     y: number;
   } | null>(null);
   
-  // Icon scale state
-  const [iconScale, setIconScale] = useState(1);
+  // Icon scale state - persist to localStorage
+  const [iconScale, setIconScale] = useState(() => {
+    const saved = localStorage.getItem('floorplan-icon-scale');
+    return saved ? parseFloat(saved) : 1;
+  });
+  
+  // Show labels state - persist to localStorage
+  const [showLabels, setShowLabels] = useState(() => {
+    const saved = localStorage.getItem('floorplan-show-labels');
+    return saved !== null ? saved === 'true' : true;
+  });
+  
+  // Persist iconScale changes
+  useEffect(() => {
+    localStorage.setItem('floorplan-icon-scale', iconScale.toString());
+  }, [iconScale]);
+  
+  // Persist showLabels changes
+  useEffect(() => {
+    localStorage.setItem('floorplan-show-labels', showLabels.toString());
+  }, [showLabels]);
   
   // Clipboard state for copy/paste
   const [clipboard, setClipboard] = useState<{
@@ -1021,6 +1041,7 @@ export default function FloorPlan() {
                   onHoverEnd={handleHoverEnd}
                   onEquipmentContextMenu={viewMode === 'edit' ? handleEquipmentContextMenu : undefined}
                   iconScale={iconScale}
+                  showLabels={showLabels}
                   rackPositions={rackPositions || []}
                   selectedRackId={selectedRackId}
                   onRackSelect={setSelectedRackId}
@@ -1355,6 +1376,25 @@ export default function FloorPlan() {
                     <span className="text-xs text-muted-foreground w-10 text-right">
                       {Math.round(iconScale * 100)}%
                     </span>
+                  </div>
+                  
+                  {/* Labels Toggle */}
+                  <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant={showLabels ? 'default' : 'ghost'} 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => setShowLabels(!showLabels)}
+                        >
+                          <Tag className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {showLabels ? 'Ocultar labels' : 'Mostrar labels'}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   
                   <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">

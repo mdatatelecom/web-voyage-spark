@@ -16,6 +16,7 @@ interface EquipmentMarkerProps {
   snapToGrid?: boolean;
   activeConnectionCount?: number;
   iconScale?: number;
+  showLabels?: boolean;
   onSelect: () => void;
   onDragStart: () => void;
   onDragEnd: (x: number, y: number) => void;
@@ -52,6 +53,7 @@ function EquipmentMarkerComponent({
   snapToGrid = false,
   activeConnectionCount = 0,
   iconScale = 1,
+  showLabels = true,
   onSelect,
   onDragStart,
   onDragEnd,
@@ -347,6 +349,32 @@ function EquipmentMarkerComponent({
         </Group>
       )}
       
+      {/* Labels below marker - conditional */}
+      {showLabels && (
+        <>
+          <Text
+            y={size + 4 * compensatedScale}
+            text={position.custom_label || equipment?.name || 'Equipamento'}
+            fontSize={10 * compensatedScale}
+            fill="#374151"
+            fontStyle="bold"
+            align="center"
+            offsetX={(position.custom_label || equipment?.name || 'Equipamento').length * 2.5 * compensatedScale}
+            listening={false}
+          />
+          {equipment?.ip_address && (
+            <Text
+              y={size + 16 * compensatedScale}
+              text={equipment.ip_address}
+              fontSize={8 * compensatedScale}
+              fill="#6b7280"
+              align="center"
+              offsetX={equipment.ip_address.length * 2 * compensatedScale}
+              listening={false}
+            />
+          )}
+        </>
+      )}
     </Group>
   );
 }

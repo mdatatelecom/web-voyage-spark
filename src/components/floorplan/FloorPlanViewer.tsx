@@ -40,7 +40,7 @@ interface FloorPlanViewerProps {
   onHoverEnd?: () => void;
   onEquipmentContextMenu?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
   iconScale?: number;
-  // Rack positioning
+  showLabels?: boolean;
   rackPositions?: RackPosition[];
   selectedRackId?: string | null;
   onRackSelect?: (id: string | null) => void;
@@ -91,6 +91,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   onHoverEnd,
   onEquipmentContextMenu,
   iconScale = 1,
+  showLabels = true,
   rackPositions = [],
   selectedRackId,
   onRackSelect,
@@ -539,6 +540,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               snapToGrid={snapToGrid}
               activeConnectionCount={connectionCountMap.get(pos.equipment_id) || 0}
               iconScale={iconScale}
+              showLabels={showLabels}
               onSelect={() => onSelect(pos.id)}
               onDragStart={() => setDraggingId(pos.id)}
               onDragEnd={(x, y) => {
@@ -572,6 +574,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               occupancy={pos.occupancy_percent}
               iconSize={pos.icon_size || 'medium'}
               iconScale={iconScale}
+              showLabels={showLabels}
               onClick={() => onRackSelect?.(pos.id)}
               onDragEnd={(x, y) => {
                 const relX = ((x - imageDims.x) / imageDims.width) * 100;

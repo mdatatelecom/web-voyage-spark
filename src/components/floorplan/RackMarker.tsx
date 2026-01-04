@@ -35,6 +35,7 @@ interface RackMarkerProps {
   iconSize?: 'small' | 'medium' | 'large';
   iconColor?: string; // Optional custom color
   iconScale?: number; // Global scale multiplier
+  showLabels?: boolean; // Show/hide labels
 }
 
 export const RackMarker: React.FC<RackMarkerProps> = ({
@@ -53,6 +54,7 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   iconSize = 'medium',
   iconColor,
   iconScale = 1,
+  showLabels = true,
 }) => {
   const groupRef = useRef<Konva.Group>(null);
   
@@ -309,6 +311,31 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
               />
             </Group>
           )}
+        </>
+      )}
+      
+      {/* Labels below marker - conditional */}
+      {showLabels && (
+        <>
+          <Text
+            y={iconRadius + 4 / currentZoom}
+            text={position.rack?.name || 'Rack'}
+            fontSize={10 * compensatedScale}
+            fill="#374151"
+            fontStyle="bold"
+            align="center"
+            offsetX={(position.rack?.name || 'Rack').length * 2.5 * compensatedScale}
+            listening={false}
+          />
+          <Text
+            y={iconRadius + 16 / currentZoom}
+            text={`${position.rack?.size_u || 0}U - ${realOccupancy}%`}
+            fontSize={8 * compensatedScale}
+            fill="#6b7280"
+            align="center"
+            offsetX={6 * compensatedScale}
+            listening={false}
+          />
         </>
       )}
     </Group>
