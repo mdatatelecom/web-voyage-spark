@@ -4,11 +4,11 @@ import { RackPosition } from '@/hooks/useRackPositions';
 import Konva from 'konva';
 import { getEquipmentColor } from '@/constants/equipmentColors';
 
-// Same size constants as EquipmentMarker for consistency
+// Same size constants as EquipmentMarker for consistency (reduced by 50%)
 const SIZE_MAP: Record<string, number> = {
-  small: 14,
-  medium: 21,
-  large: 28,
+  small: 7,
+  medium: 10.5,
+  large: 14,
 };
 
 const MIN_ICON_SCALE = 0.4;
