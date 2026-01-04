@@ -111,15 +111,32 @@ const getWowzaHlsUrl = (url: string): string | null => {
                         lowerUrl.includes('.wowza.');
   
   if (isWowzaCloud && lowerUrl.startsWith('rtsp://')) {
-    // Convert RTSP to HTTPS HLS
-    // rtsp://xxx.entrypoint.cloud.wowza.com:1935/app-xxx/stream
-    // -> https://xxx.entrypoint.cloud.wowza.com:443/app-xxx/stream/playlist.m3u8
-    return url
-      .replace(/^rtsp:\/\//i, 'https://')
-      .replace(/:1935\b/, ':443')
-      .replace(/\/?$/, '/playlist.m3u8');
+    try {
+      // Parse URL properly
+      const urlObj = new URL(url.replace('rtsp://', 'https://'));
+      // Remove port for HTTPS (443 is default)
+      urlObj.port = '';
+      // Ensure path ends with /playlist.m3u8
+      const path = urlObj.pathname.replace(/\/?$/, '');
+      urlObj.pathname = path + '/playlist.m3u8';
+      return urlObj.toString();
+    } catch {
+      // Fallback to regex replacement
+      return url
+        .replace(/^rtsp:\/\//i, 'https://')
+        .replace(/:\d+/, '') // Remove any port
+        .replace(/\/?$/, '/playlist.m3u8');
+    }
   }
   return null;
+};
+
+// Check if URL is from Wowza Cloud
+const isWowzaCloudUrl = (url: string): boolean => {
+  const lowerUrl = url.toLowerCase();
+  return lowerUrl.includes('wowza.com') || 
+         lowerUrl.includes('entrypoint.cloud') ||
+         lowerUrl.includes('.wowza.');
 };
 
 export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: CameraLiveDialogProps) {
@@ -415,7 +432,12 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       
       // If RTSP and go2rtc is configured, try WebRTC first, then HLS
       if (detectedType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
-        const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
+        // Clean stream name - remove special chars and trailing hyphens
+        const streamName = cameraName
+          .replace(/\s+/g, '_')
+          .replace(/[^a-zA-Z0-9_-]/g, '')
+          .replace(/-+$/, '')
+          .toLowerCase() || 'stream';
         
         console.log('Registering stream in go2rtc:', streamName);
         
@@ -452,15 +474,39 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         } else {
           console.warn('Failed to register stream in go2rtc:', regResult.message);
           setLastError(regResult.message || 'Falha ao registrar stream');
+          
+          // If go2rtc failed and it's Wowza, try direct HLS as fallback
+          if (isWowzaCloudUrl(streamUrl)) {
+            const wowzaHlsUrl = getWowzaHlsUrl(streamUrl);
+            if (wowzaHlsUrl) {
+              console.log('go2rtc failed, trying Wowza direct HLS fallback:', wowzaHlsUrl);
+              finalUrl = wowzaHlsUrl;
+              finalType = 'hls';
+              setActiveStreamUrl(finalUrl);
+              setActiveStreamType(finalType);
+              setIsGo2rtcActive(false);
+              initHlsPlayer(finalUrl);
+              return;
+            }
+          }
         }
       }
       
       // Check if protocol is still unsupported
       const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'ndi', 'flv', 'ts'];
       if (unsupportedTypes.includes(finalType)) {
-        const errorMsg = getUnsupportedProtocolMessage(finalType);
-        const details = lastError ? ` (${lastError})` : '';
-        setError(errorMsg + details);
+        // Build informative error message
+        const errorParts = [getUnsupportedProtocolMessage(finalType)];
+        
+        if (isWowzaCloudUrl(streamUrl)) {
+          errorParts.push('Verifique se o stream Wowza está ativo e público.');
+        }
+        
+        if (lastError) {
+          errorParts.push(`Detalhe: ${lastError}`);
+        }
+        
+        setError(errorParts.join(' '));
         setStreamMode('error');
         setIsLoading(false);
         return;
