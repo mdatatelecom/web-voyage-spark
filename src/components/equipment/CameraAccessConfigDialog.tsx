@@ -55,6 +55,7 @@ export interface StreamConfig {
   host: string;
   port?: string;
   path: string;
+  hlsUrl?: string; // URL HLS alternativa (fallback)
 }
 
 interface ProtocolOption {
@@ -80,8 +81,8 @@ const PROTOCOLS: ProtocolOption[] = [
   { value: 'rtsp', label: 'RTSP', defaultPort: '554', supported: false, description: 'Requer go2rtc para conversão' },
   { value: 'rtmp', label: 'RTMP', defaultPort: '1935', supported: false, description: 'Requer servidor de mídia' },
   { value: 'rtmps', label: 'RTMPS', defaultPort: '443', supported: false, description: 'RTMP seguro' },
-  { value: 'http', label: 'HTTP', defaultPort: '80', supported: true, description: 'HLS, MJPEG, Snapshot' },
-  { value: 'https', label: 'HTTPS', defaultPort: '443', supported: true, description: 'HTTP seguro' },
+  { value: 'http', label: 'HTTP', defaultPort: '80', supported: true, description: 'HLS (M3U8), MJPEG, Snapshot' },
+  { value: 'https', label: 'HTTPS', defaultPort: '443', supported: true, description: 'HLS (M3U8) seguro, MJPEG' },
   { value: 'srt', label: 'SRT', defaultPort: '9000', supported: false, description: 'Secure Reliable Transport' },
   { value: 'udp', label: 'UDP', defaultPort: '5000', supported: false, description: 'Multicast/Unicast' },
   { value: 'rtp', label: 'RTP', defaultPort: '5004', supported: false, description: 'Real-time Transport' },
@@ -148,6 +149,20 @@ const MANUFACTURER_TEMPLATES: ManufacturerTemplate[] = [
       { name: 'ONVIF Profile S', protocol: 'rtsp', port: '554', path: '/onvif1', description: 'Padrão ONVIF' },
       { name: 'Stream Principal', protocol: 'rtsp', port: '554', path: '/live.sdp', description: 'Alternativo' },
       { name: 'H.264', protocol: 'rtsp', port: '554', path: '/h264', description: 'Stream H.264' },
+    ],
+  },
+  {
+    name: 'Wowza Cloud',
+    streams: [
+      { name: 'HLS Stream', protocol: 'https', port: '', path: '/app-xxx/stream/playlist.m3u8', description: 'Copie URL do painel Wowza' },
+      { name: 'HLS com Live', protocol: 'https', port: '', path: '/app-xxx/stream/hls/live/playlist.m3u8', description: 'Formato alternativo' },
+    ],
+  },
+  {
+    name: 'Servidor HLS Genérico',
+    streams: [
+      { name: 'HLS Principal', protocol: 'https', port: '', path: '/live/stream/playlist.m3u8', description: 'M3U8 padrão' },
+      { name: 'HLS index', protocol: 'https', port: '', path: '/live/stream/index.m3u8', description: 'Alternativa comum' },
     ],
   },
 ];
@@ -223,8 +238,10 @@ export function CameraAccessConfigDialog({
     host: '',
     port: '554',
     path: '',
+    hlsUrl: '',
   });
   
+  const [directUrl, setDirectUrl] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -237,14 +254,18 @@ export function CameraAccessConfigDialog({
 
   useEffect(() => {
     if (open && currentUrl) {
-      setConfig(parseStreamUrl(currentUrl));
+      const parsed = parseStreamUrl(currentUrl);
+      setConfig(parsed);
+      setDirectUrl(currentUrl);
     } else if (open) {
       setConfig({
         protocol: 'rtsp',
         host: '',
         port: '554',
         path: '',
+        hlsUrl: '',
       });
+      setDirectUrl('');
     }
     setTestStatus('idle');
     setTestError(null);
@@ -384,8 +405,9 @@ export function CameraAccessConfigDialog({
         </DialogHeader>
 
         <Tabs defaultValue="manual" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="manual">Manual</TabsTrigger>
+            <TabsTrigger value="direct">URL Direta</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
           </TabsList>
 
@@ -620,6 +642,47 @@ export function CameraAccessConfigDialog({
                   {testStatus === 'success' && 'Conexão bem-sucedida!'}
                   {testStatus === 'error' && (testError || 'Falha na conexão')}
                 </span>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="direct" className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Cole a URL completa do stream</Label>
+              <Input
+                value={directUrl}
+                onChange={(e) => {
+                  setDirectUrl(e.target.value);
+                  if (e.target.value) {
+                    setConfig(parseStreamUrl(e.target.value));
+                  }
+                }}
+                placeholder="https://server.com/live/playlist.m3u8 ou rtsp://..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Suporta: HLS (.m3u8), RTSP, MJPEG, Snapshot e outros formatos
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-2">
+              <Card className="border-dashed">
+                <CardContent className="p-3">
+                  <h5 className="text-sm font-medium mb-2">Exemplos de URLs:</h5>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p><code className="bg-muted px-1 rounded">https://server.com/live/playlist.m3u8</code> - HLS</p>
+                    <p><code className="bg-muted px-1 rounded">rtsp://192.168.1.100:554/stream</code> - RTSP</p>
+                    <p><code className="bg-muted px-1 rounded">http://camera.local/mjpg/video.mjpg</code> - MJPEG</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {directUrl && (
+              <div className="space-y-2">
+                <Label>Tipo detectado</Label>
+                <Badge variant="secondary">
+                  {config.protocol.toUpperCase()}
+                </Badge>
               </div>
             )}
           </TabsContent>

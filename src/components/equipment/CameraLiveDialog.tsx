@@ -460,6 +460,15 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       let finalType = detectedType;
       let usingGo2rtc = false;
       
+      // Direct HLS/M3U8 support - play immediately without conversion
+      if (detectedType === 'hls') {
+        console.log('Direct HLS/M3U8 URL detected, using HLS player directly');
+        setActiveStreamUrl(finalUrl);
+        setActiveStreamType('hls');
+        initHlsPlayer(finalUrl);
+        return;
+      }
+      
       // Check for Wowza Cloud - try direct HLS first (multiple variants)
       if (detectedType === 'rtsp' && isWowzaCloudUrl(streamUrl)) {
         const hlsVariants = getWowzaHlsVariants(streamUrl);
