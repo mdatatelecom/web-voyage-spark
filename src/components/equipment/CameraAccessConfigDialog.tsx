@@ -56,6 +56,7 @@ export interface StreamConfig {
   port?: string;
   path: string;
   hlsUrl?: string; // URL HLS alternativa (fallback)
+  snapshotUrl?: string; // URL de snapshot para thumbnails
 }
 
 interface ProtocolOption {
@@ -502,6 +503,18 @@ export function CameraAccessConfigDialog({
                 onChange={e => setConfig(prev => ({ ...prev, path: e.target.value }))}
                 placeholder="/Streaming/Channels/101"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>URL de Snapshot (opcional)</Label>
+              <Input
+                value={config.snapshotUrl || ''}
+                onChange={e => setConfig(prev => ({ ...prev, snapshotUrl: e.target.value || undefined }))}
+                placeholder="http://camera/snapshot.jpg"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL para capturar thumbnail da câmera. Será exibida na listagem.
+              </p>
             </div>
 
             {/* go2rtc not configured warning for RTSP */}

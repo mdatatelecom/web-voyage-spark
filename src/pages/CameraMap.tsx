@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List, Play } from 'lucide-react';
+import { CameraThumbnail } from '@/components/equipment/CameraThumbnail';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useCameras, type CameraData } from '@/hooks/useCameras';
@@ -394,17 +395,17 @@ export default function CameraMap() {
                         return (
                           <TableRow key={camera.id}>
                             <TableCell>
-                              {camera.location_photo_url ? (
-                                <img 
-                                  src={camera.location_photo_url} 
-                                  alt={camera.name}
-                                  className="w-12 h-12 object-cover rounded"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                                  <Camera className="w-5 h-5 text-muted-foreground" />
-                                </div>
-                              )}
+                              <CameraThumbnail
+                                cameraId={camera.id}
+                                cameraName={camera.name}
+                                snapshotUrl={parseNotes(camera.notes)?.snapshot_url}
+                                liveUrl={parseNotes(camera.notes)?.live_url}
+                                fallbackImage={camera.location_photo_url}
+                                status={camera.equipment_status || 'planned'}
+                                className="w-12 h-12"
+                                refreshInterval={60}
+                                showStatus={false}
+                              />
                             </TableCell>
                             <TableCell className="font-medium">{camera.name}</TableCell>
                             <TableCell>
@@ -469,21 +470,17 @@ export default function CameraMap() {
                             {/* Status indicator */}
                             <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${statusConfig.color} animate-pulse`} />
                             
-                            {/* Camera icon or photo */}
-                            {camera.location_photo_url ? (
-                              <div className="w-16 h-16 rounded-lg overflow-hidden mb-2 bg-muted">
-                                <img 
-                                  src={camera.location_photo_url} 
-                                  alt={camera.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-16 h-16 rounded-lg bg-muted flex flex-col items-center justify-center mb-2">
-                                <Camera className="w-6 h-6 text-muted-foreground" />
-                                <span className="text-[8px] text-muted-foreground mt-1">Sem foto</span>
-                              </div>
-                            )}
+                            {/* Camera thumbnail with live preview */}
+                            <CameraThumbnail
+                              cameraId={camera.id}
+                              cameraName={camera.name}
+                              snapshotUrl={notes.snapshot_url}
+                              liveUrl={notes.live_url}
+                              fallbackImage={camera.location_photo_url}
+                              status={camera.equipment_status || 'planned'}
+                              className="w-16 h-16 mb-2"
+                              refreshInterval={30}
+                            />
                             
                             {/* Name */}
                             <p className="font-medium text-xs text-center line-clamp-2">{camera.name}</p>

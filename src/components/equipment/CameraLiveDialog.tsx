@@ -465,7 +465,71 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         console.log('Direct HLS/M3U8 URL detected, using HLS player directly');
         setActiveStreamUrl(finalUrl);
         setActiveStreamType('hls');
-        initHlsPlayer(finalUrl);
+        
+        // Try direct HLS first, fallback to proxy if CORS fails
+        const tryDirectHls = async (): Promise<boolean> => {
+          return new Promise((resolve) => {
+            const video = videoRef.current;
+            if (!video) {
+              resolve(false);
+              return;
+            }
+
+            if (Hls.isSupported()) {
+              const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: true,
+              });
+              
+              let resolved = false;
+              const timeout = setTimeout(() => {
+                if (!resolved) {
+                  resolved = true;
+                  hls.destroy();
+                  resolve(false);
+                }
+              }, 8000);
+
+              hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                if (!resolved) {
+                  resolved = true;
+                  clearTimeout(timeout);
+                  hlsRef.current = hls;
+                  setIsLoading(false);
+                  setStreamMode('hls');
+                  video.play().catch(() => {});
+                  resolve(true);
+                }
+              });
+
+              hls.on(Hls.Events.ERROR, (_, data) => {
+                if (data.fatal && !resolved) {
+                  resolved = true;
+                  clearTimeout(timeout);
+                  hls.destroy();
+                  resolve(false);
+                }
+              });
+
+              hls.loadSource(finalUrl);
+              hls.attachMedia(video);
+            } else {
+              resolve(false);
+            }
+          });
+        };
+
+        const directSuccess = await tryDirectHls();
+        
+        if (!directSuccess) {
+          // Try with HLS proxy to bypass CORS
+          console.log('Direct HLS failed (likely CORS), trying proxy...');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const proxyUrl = `${supabaseUrl}/functions/v1/hls-proxy?url=${encodeURIComponent(finalUrl)}`;
+          
+          setActiveStreamUrl(proxyUrl);
+          initHlsPlayer(proxyUrl);
+        }
         return;
       }
       
