@@ -38,6 +38,8 @@ interface FloorPlanViewerProps {
   onCalibrationClick?: (x: number, y: number) => void;
   onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
   onHoverEnd?: () => void;
+  onEquipmentContextMenu?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
+  iconScale?: number;
   // Rack positioning
   rackPositions?: RackPosition[];
   selectedRackId?: string | null;
@@ -87,6 +89,8 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   onCalibrationClick,
   onHover,
   onHoverEnd,
+  onEquipmentContextMenu,
+  iconScale = 1,
   rackPositions = [],
   selectedRackId,
   onRackSelect,
@@ -534,6 +538,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               gridSize={gridSize}
               snapToGrid={snapToGrid}
               activeConnectionCount={connectionCountMap.get(pos.equipment_id) || 0}
+              iconScale={iconScale}
               onSelect={() => onSelect(pos.id)}
               onDragStart={() => setDraggingId(pos.id)}
               onDragEnd={(x, y) => {
@@ -548,6 +553,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               onRotationChange={onRotationChange ? (rotation) => onRotationChange(pos.id, rotation) : undefined}
               onHover={onHover}
               onHoverEnd={onHoverEnd}
+              onContextMenu={onEquipmentContextMenu}
             />
           ))}
           
@@ -565,6 +571,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
               isEditing={editable}
               occupancy={pos.occupancy_percent}
               iconSize={pos.icon_size || 'medium'}
+              iconScale={iconScale}
               onClick={() => onRackSelect?.(pos.id)}
               onDragEnd={(x, y) => {
                 const relX = ((x - imageDims.x) / imageDims.width) * 100;
