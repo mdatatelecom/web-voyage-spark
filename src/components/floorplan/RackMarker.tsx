@@ -34,6 +34,7 @@ interface RackMarkerProps {
   occupancy?: number; // 0-100 percentage
   iconSize?: 'small' | 'medium' | 'large';
   iconColor?: string; // Optional custom color
+  iconScale?: number; // Global scale multiplier
 }
 
 export const RackMarker: React.FC<RackMarkerProps> = ({
@@ -51,17 +52,15 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   occupancy,
   iconSize = 'medium',
   iconColor,
+  iconScale = 1,
 }) => {
   const groupRef = useRef<Konva.Group>(null);
-  
-  const rackName = position.rack?.name || 'Rack';
-  const sizeU = position.rack?.size_u || 42;
   
   // Use calculated occupancy from position if available
   const realOccupancy = occupancy ?? position.occupancy_percent ?? 0;
   
-  // Icon size calculation (same as EquipmentMarker)
-  const baseIconSize = SIZE_MAP[iconSize];
+  // Icon size calculation (same as EquipmentMarker) with global scale
+  const baseIconSize = SIZE_MAP[iconSize] * iconScale;
   const compensatedScale = Math.max(MIN_ICON_SCALE, Math.min(MAX_ICON_SCALE, 1 / currentZoom));
   const iconRadius = baseIconSize * compensatedScale;
   
@@ -69,9 +68,6 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
   const rackColor = iconColor || RACK_DEFAULT_COLOR;
   const primaryColor = isSelected ? RACK_SELECTED_COLOR : rackColor;
   const secondaryColor = isSelected ? '#93c5fd' : '#60a5fa';
-  
-  // Scale factors
-  const fontSize = Math.max(8, 11 / currentZoom);
 
   // Handle hover for tooltip
   const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -241,28 +237,6 @@ export const RackMarker: React.FC<RackMarkerProps> = ({
         );
       })}
 
-      {/* Compact name label below icon */}
-      <Text
-        x={-iconRadius * 2}
-        y={iconRadius + 4 / currentZoom}
-        width={iconRadius * 4}
-        text={rackName}
-        fontSize={fontSize}
-        fill={isSelected ? primaryColor : '#334155'}
-        align="center"
-        fontStyle="bold"
-      />
-      
-      {/* Occupancy badge below name */}
-      <Text
-        x={-iconRadius * 2}
-        y={iconRadius + fontSize + 6 / currentZoom}
-        width={iconRadius * 4}
-        text={`${sizeU}U • ${realOccupancy}%`}
-        fontSize={fontSize * 0.85}
-        fill={getOccupancyColor(realOccupancy)}
-        align="center"
-      />
       
       {/* Action buttons when selected and editing */}
       {isSelected && isEditing && (

@@ -15,12 +15,14 @@ interface EquipmentMarkerProps {
   gridSize?: number;
   snapToGrid?: boolean;
   activeConnectionCount?: number;
+  iconScale?: number;
   onSelect: () => void;
   onDragStart: () => void;
   onDragEnd: (x: number, y: number) => void;
   onRotationChange?: (rotation: number) => void;
   onHover?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
   onHoverEnd?: () => void;
+  onContextMenu?: (position: EquipmentPosition, screenX: number, screenY: number) => void;
 }
 
 // Base sizes reduced by 50%
@@ -49,12 +51,14 @@ function EquipmentMarkerComponent({
   gridSize = 20,
   snapToGrid = false,
   activeConnectionCount = 0,
+  iconScale = 1,
   onSelect,
   onDragStart,
   onDragEnd,
   onRotationChange,
   onHover,
   onHoverEnd,
+  onContextMenu,
 }: EquipmentMarkerProps) {
   const equipment = position.equipment;
   // Use custom_icon if set, otherwise fall back to equipment type
@@ -62,7 +66,8 @@ function EquipmentMarkerComponent({
   const status = equipment?.equipment_status || 'active';
   const typeColor = EQUIPMENT_TYPE_COLORS[equipmentType] || '#6b7280';
   
-  const baseSize = SIZE_MAP[position.icon_size] || SIZE_MAP.medium;
+  // Apply iconScale to base size
+  const baseSize = (SIZE_MAP[position.icon_size] || SIZE_MAP.medium) * iconScale;
   
   // Calculate compensated scale to maintain icon visibility at different zoom levels
   const compensatedScale = useMemo(() => {
@@ -82,9 +87,6 @@ function EquipmentMarkerComponent({
     if (!snapToGrid) return value;
     return Math.round(value / gridSize) * gridSize;
   };
-
-  const displayLabel = position.custom_label || equipment?.name || 'Equipamento';
-  const displayIp = equipment?.ip_address || '';
 
   // Pulsating animation for focus ring
   const [pulseOpacity, setPulseOpacity] = useState(0.8);
@@ -209,6 +211,17 @@ function EquipmentMarkerComponent({
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={(e) => {
+        e.evt.preventDefault();
+        if (onContextMenu) {
+          const stage = e.target.getStage();
+          const container = stage?.container()?.getBoundingClientRect();
+          const pointer = stage?.getPointerPosition();
+          if (container && pointer) {
+            onContextMenu(position, container.left + pointer.x, container.top + pointer.y);
+          }
+        }
+      }}
     >
       {/* Main equipment group with rotation */}
       <Group rotation={position.rotation || 0}>
@@ -334,34 +347,6 @@ function EquipmentMarkerComponent({
         </Group>
       )}
       
-      {/* Label below marker (not rotated) */}
-      <Text
-        y={size * 0.9}
-        text={displayLabel}
-        fontSize={10 * compensatedScale}
-        fill="#ffffff"
-        align="center"
-        offsetX={displayLabel.length * 2.5 * compensatedScale}
-        shadowColor="#000000"
-        shadowBlur={3}
-        shadowOpacity={0.8}
-      />
-      
-      {/* IP address */}
-      {displayIp && (
-        <Text
-          y={size * 0.9 + 12 * compensatedScale}
-          text={displayIp}
-          fontSize={8 * compensatedScale}
-          fill="#94a3b8"
-          fontFamily="monospace"
-          align="center"
-          offsetX={displayIp.length * 2 * compensatedScale}
-          shadowColor="#000000"
-          shadowBlur={3}
-          shadowOpacity={0.8}
-        />
-      )}
     </Group>
   );
 }

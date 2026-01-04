@@ -44,7 +44,9 @@ import {
 import { EquipmentTooltip } from '@/components/floorplan/EquipmentTooltip';
 import { RackTooltip } from '@/components/floorplan/RackTooltip';
 import { RackContextMenu } from '@/components/floorplan/RackContextMenu';
+import { EquipmentContextMenu } from '@/components/floorplan/EquipmentContextMenu';
 import { RackIconSelector } from '@/components/floorplan/RackIconSelector';
+import { Slider } from '@/components/ui/slider';
 import { useFloorPlans } from '@/hooks/useFloorPlans';
 import { useEquipmentPositions, EquipmentPosition } from '@/hooks/useEquipmentPositions';
 import { useRackPositions, RackPosition } from '@/hooks/useRackPositions';
@@ -179,6 +181,16 @@ export default function FloorPlan() {
     y: number;
   } | null>(null);
   
+  // Equipment context menu state
+  const [equipmentContextMenu, setEquipmentContextMenu] = useState<{
+    position: EquipmentPosition;
+    x: number;
+    y: number;
+  } | null>(null);
+  
+  // Icon scale state
+  const [iconScale, setIconScale] = useState(1);
+  
   // Clipboard state for copy/paste
   const [clipboard, setClipboard] = useState<{
     type: 'equipment' | 'rack';
@@ -188,6 +200,7 @@ export default function FloorPlan() {
   // Icon selector state
   const [iconSelectorOpen, setIconSelectorOpen] = useState(false);
   const [iconTargetRackId, setIconTargetRackId] = useState<string | null>(null);
+  const [iconTargetEquipmentId, setIconTargetEquipmentId] = useState<string | null>(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -704,7 +717,40 @@ export default function FloorPlan() {
 
   const handleCloseContextMenu = useCallback(() => {
     setRackContextMenu(null);
+    setEquipmentContextMenu(null);
   }, []);
+
+  // Equipment context menu handlers
+  const handleEquipmentContextMenu = useCallback((position: EquipmentPosition, screenX: number, screenY: number) => {
+    setEquipmentContextMenu({ position, x: screenX, y: screenY });
+    setSelectedPositionId(position.id);
+  }, []);
+
+  // Handle equipment duplicate
+  const handleDuplicateEquipment = useCallback((position: EquipmentPosition) => {
+    if (!currentPlan?.id) return;
+    
+    createPosition({
+      floorPlanId: currentPlan.id,
+      equipmentId: position.equipment_id,
+      x: position.position_x + 0.02,
+      y: position.position_y + 0.02,
+      customLabel: position.custom_label ? `${position.custom_label} (cópia)` : undefined,
+      customIcon: position.custom_icon || undefined,
+    });
+    setEquipmentContextMenu(null);
+    toast.success('Equipamento duplicado!');
+  }, [currentPlan?.id, createPosition]);
+
+  // Handle equipment rotation from context menu
+  const handleEquipmentRotateFromMenu = useCallback((positionId: string, degrees: number) => {
+    const pos = positions?.find(p => p.id === positionId);
+    if (pos) {
+      const current = pos.rotation || 0;
+      const newRotation = (current + degrees + 360) % 360;
+      updatePosition({ id: positionId, rotation: newRotation });
+    }
+  }, [positions, updatePosition]);
 
   // Handle rack duplicate
   const handleDuplicateRack = useCallback((position: RackPosition) => {
@@ -973,6 +1019,8 @@ export default function FloorPlan() {
                   onCalibrationClick={handleCalibrationClick}
                   onHover={handleHover}
                   onHoverEnd={handleHoverEnd}
+                  onEquipmentContextMenu={viewMode === 'edit' ? handleEquipmentContextMenu : undefined}
+                  iconScale={iconScale}
                   rackPositions={rackPositions || []}
                   selectedRackId={selectedRackId}
                   onRackSelect={setSelectedRackId}
@@ -1064,7 +1112,51 @@ export default function FloorPlan() {
                   </>
                 )}
 
-                {/* Mode indicator */}
+                {/* Equipment Context Menu */}
+                {equipmentContextMenu && (
+                  <>
+                    {/* Overlay to close context menu when clicking outside */}
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={handleCloseContextMenu}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleCloseContextMenu();
+                      }}
+                    />
+                    <EquipmentContextMenu
+                      x={equipmentContextMenu.x}
+                      y={equipmentContextMenu.y}
+                      equipmentName={equipmentContextMenu.position.custom_label || equipmentContextMenu.position.equipment?.name}
+                      currentSize={(equipmentContextMenu.position.icon_size as 'small' | 'medium' | 'large') || 'medium'}
+                      onEdit={() => {
+                        navigate(`/equipment/${equipmentContextMenu.position.equipment_id}`);
+                        handleCloseContextMenu();
+                      }}
+                      onDuplicate={() => handleDuplicateEquipment(equipmentContextMenu.position)}
+                      onDelete={() => {
+                        deletePosition(equipmentContextMenu.position.id);
+                        handleCloseContextMenu();
+                        toast.success('Equipamento removido da planta!');
+                      }}
+                      onChangeIcon={() => {
+                        setIconTargetEquipmentId(equipmentContextMenu.position.id);
+                        setIconSelectorOpen(true);
+                        handleCloseContextMenu();
+                      }}
+                      onRotate={(degrees) => {
+                        handleEquipmentRotateFromMenu(equipmentContextMenu.position.id, degrees);
+                        handleCloseContextMenu();
+                      }}
+                      onChangeSize={(size) => {
+                        updatePosition({ id: equipmentContextMenu.position.id, iconSize: size });
+                        toast.success('Tamanho do ícone atualizado!');
+                        handleCloseContextMenu();
+                      }}
+                      onClose={handleCloseContextMenu}
+                    />
+                  </>
+                )}
                 {viewMode !== 'view' && (
                   <div className="absolute top-4 left-4">
                     <Badge variant={viewMode === 'add' ? 'default' : 'secondary'} className="gap-1">
@@ -1244,7 +1336,27 @@ export default function FloorPlan() {
                     </Tooltip>
                   </div>
                   
-                  {/* Measurement Tool */}
+                  {/* Icon Size Slider */}
+                  <div className="flex gap-2 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground px-2 cursor-help">Ícones</span>
+                      </TooltipTrigger>
+                      <TooltipContent>Tamanho dos ícones na planta</TooltipContent>
+                    </Tooltip>
+                    <Slider
+                      value={[iconScale]}
+                      onValueChange={([v]) => setIconScale(v)}
+                      min={0.3}
+                      max={2.5}
+                      step={0.1}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-muted-foreground w-10 text-right">
+                      {Math.round(iconScale * 100)}%
+                    </span>
+                  </div>
+                  
                   <div className="flex gap-1 bg-background/90 backdrop-blur p-1 rounded-lg items-center">
                     <Tooltip>
                       <TooltipTrigger asChild>
