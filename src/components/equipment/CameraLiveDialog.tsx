@@ -21,6 +21,10 @@ type StreamType =
 
 type StreamMode = 'detecting' | 'webrtc' | 'hls' | 'mjpeg' | 'snapshot' | 'error';
 
+// Constants for retry logic
+const MAX_WEBRTC_ATTEMPTS = 2;
+const WEBRTC_TIMEOUT_MS = 8000;
+
 // Extract auth credentials from URL
 const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string; password?: string } => {
   try {
@@ -99,12 +103,32 @@ const detectStreamType = (url: string): StreamType => {
   return 'unknown';
 };
 
+// Detect Wowza Cloud URLs and generate direct HLS URL
+const getWowzaHlsUrl = (url: string): string | null => {
+  const lowerUrl = url.toLowerCase();
+  const isWowzaCloud = lowerUrl.includes('wowza.com') || 
+                        lowerUrl.includes('entrypoint.cloud') ||
+                        lowerUrl.includes('.wowza.');
+  
+  if (isWowzaCloud && lowerUrl.startsWith('rtsp://')) {
+    // Convert RTSP to HTTPS HLS
+    // rtsp://xxx.entrypoint.cloud.wowza.com:1935/app-xxx/stream
+    // -> https://xxx.entrypoint.cloud.wowza.com:443/app-xxx/stream/playlist.m3u8
+    return url
+      .replace(/^rtsp:\/\//i, 'https://')
+      .replace(/:1935\b/, ':443')
+      .replace(/\/?$/, '/playlist.m3u8');
+  }
+  return null;
+};
+
 export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: CameraLiveDialogProps) {
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const initRef = useRef(false);
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +140,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const [streamMode, setStreamMode] = useState<StreamMode>('detecting');
   const [isCapturing, setIsCapturing] = useState(false);
   const [isGo2rtcActive, setIsGo2rtcActive] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   
   const { settings: go2rtcSettings, registerStream, exchangeWebRtcSdp } = useGo2rtcSettings();
   
@@ -270,27 +295,27 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       pc.addTransceiver('video', { direction: 'recvonly' });
       pc.addTransceiver('audio', { direction: 'recvonly' });
 
-      // Handle incoming tracks
-      pc.ontrack = (event) => {
-        console.log('WebRTC track received:', event.track.kind);
-        if (event.streams[0]) {
-          video.srcObject = event.streams[0];
-          video.play().catch((e) => console.warn('Video play error:', e));
-          setIsLoading(false);
-          setStreamMode('webrtc');
-        }
-      };
+      // Promise that resolves when we get a track
+      const trackPromise = new Promise<boolean>((resolve) => {
+        pc.ontrack = (event) => {
+          console.log('WebRTC track received:', event.track.kind);
+          if (event.streams[0]) {
+            video.srcObject = event.streams[0];
+            video.play().catch((e) => console.warn('Video play error:', e));
+            setIsLoading(false);
+            setStreamMode('webrtc');
+            resolve(true);
+          }
+        };
+      });
 
       // Monitor connection state
       pc.onconnectionstatechange = () => {
         console.log('WebRTC connection state:', pc.connectionState);
         if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
           console.warn('WebRTC connection failed/disconnected');
+          setLastError('Conexão WebRTC falhou');
         }
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        console.log('ICE connection state:', pc.iceConnectionState);
       };
 
       // Create and send offer
@@ -303,10 +328,15 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
 
       console.log('Sending SDP offer to go2rtc...');
       
-      // Exchange SDP via Edge Function proxy
-      const result = await exchangeWebRtcSdp(streamName, offer.sdp);
+      // Exchange SDP via Edge Function proxy with timeout
+      const sdpPromise = exchangeWebRtcSdp(streamName, offer.sdp);
+      const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) => 
+        setTimeout(() => resolve({ success: false, error: 'Timeout na troca SDP' }), WEBRTC_TIMEOUT_MS)
+      );
       
-      if (!result.success || !result.sdpAnswer) {
+      const result = await Promise.race([sdpPromise, timeoutPromise]);
+      
+      if (!result.success || !('sdpAnswer' in result) || !result.sdpAnswer) {
         throw new Error(result.error || 'Failed to exchange SDP');
       }
 
@@ -318,10 +348,23 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         sdp: result.sdpAnswer
       });
 
-      console.log('WebRTC setup complete');
+      console.log('WebRTC setup complete, waiting for track...');
+      
+      // Wait for track with timeout
+      const trackTimeout = new Promise<boolean>((resolve) => 
+        setTimeout(() => resolve(false), WEBRTC_TIMEOUT_MS)
+      );
+      
+      const gotTrack = await Promise.race([trackPromise, trackTimeout]);
+      
+      if (!gotTrack) {
+        throw new Error('Timeout aguardando stream de vídeo');
+      }
+      
       return true;
     } catch (error) {
       console.error('WebRTC initialization failed:', error);
+      setLastError(error instanceof Error ? error.message : 'Erro WebRTC desconhecido');
       // Clean up on failure
       if (pcRef.current) {
         pcRef.current.close();
@@ -334,8 +377,16 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   useEffect(() => {
     if (!open || !streamUrl) return;
     
+    // Prevent multiple parallel initializations
+    if (initRef.current) {
+      console.log('Stream initialization already in progress, skipping');
+      return;
+    }
+    initRef.current = true;
+    
     setIsLoading(true);
     setError(null);
+    setLastError(null);
     setActiveStreamUrl(streamUrl);
     setActiveStreamType(null);
     setStreamMode('detecting');
@@ -348,9 +399,25 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       let finalType = detectedType;
       let usingGo2rtc = false;
       
+      // Check for Wowza Cloud - try direct HLS first
+      if (detectedType === 'rtsp') {
+        const wowzaHlsUrl = getWowzaHlsUrl(streamUrl);
+        if (wowzaHlsUrl) {
+          console.log('Detected Wowza Cloud, trying direct HLS:', wowzaHlsUrl);
+          finalUrl = wowzaHlsUrl;
+          finalType = 'hls';
+          setActiveStreamUrl(finalUrl);
+          setActiveStreamType(finalType);
+          initHlsPlayer(finalUrl);
+          return;
+        }
+      }
+      
       // If RTSP and go2rtc is configured, try WebRTC first, then HLS
       if (detectedType === 'rtsp' && go2rtcSettings.enabled && go2rtcSettings.serverUrl) {
         const streamName = cameraName.replace(/\s+/g, '_').toLowerCase();
+        
+        console.log('Registering stream in go2rtc:', streamName);
         
         // Register stream in go2rtc
         const regResult = await registerStream(streamName, streamUrl);
@@ -359,9 +426,18 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           usingGo2rtc = true;
           setIsGo2rtcActive(true);
           
-          // Try WebRTC first (lower latency ~100-300ms)
-          console.log('Attempting WebRTC connection...');
-          const webrtcSuccess = await initWebRtcPlayer(streamName);
+          // Try WebRTC first (lower latency ~100-300ms) with retry
+          let webrtcSuccess = false;
+          for (let attempt = 1; attempt <= MAX_WEBRTC_ATTEMPTS; attempt++) {
+            console.log(`WebRTC attempt ${attempt}/${MAX_WEBRTC_ATTEMPTS}...`);
+            webrtcSuccess = await initWebRtcPlayer(streamName);
+            if (webrtcSuccess) break;
+            
+            // Small delay before retry
+            if (attempt < MAX_WEBRTC_ATTEMPTS) {
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
           
           if (webrtcSuccess) {
             console.log('WebRTC connection successful!');
@@ -370,16 +446,21 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           }
           
           // Fallback to HLS if WebRTC fails (~3-5s latency)
-          console.log('WebRTC failed, falling back to HLS...');
+          console.log('WebRTC failed after retries, falling back to HLS...');
           finalUrl = regResult.hlsUrl!;
           finalType = 'hls';
+        } else {
+          console.warn('Failed to register stream in go2rtc:', regResult.message);
+          setLastError(regResult.message || 'Falha ao registrar stream');
         }
       }
       
       // Check if protocol is still unsupported
       const unsupportedTypes: StreamType[] = ['rtsp', 'rtmp', 'srt', 'udp', 'rtp', 'ndi', 'flv', 'ts'];
       if (unsupportedTypes.includes(finalType)) {
-        setError(getUnsupportedProtocolMessage(finalType));
+        const errorMsg = getUnsupportedProtocolMessage(finalType);
+        const details = lastError ? ` (${lastError})` : '';
+        setError(errorMsg + details);
         setStreamMode('error');
         setIsLoading(false);
         return;
@@ -405,6 +486,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     processStream();
 
     return () => {
+      initRef.current = false;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -417,7 +499,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         videoRef.current.srcObject = null;
       }
     };
-  }, [open, streamUrl, go2rtcSettings, registerStream, cameraName, initHlsPlayer, initWebRtcPlayer]);
+  }, [open, streamUrl, go2rtcSettings.enabled, go2rtcSettings.serverUrl, registerStream, cameraName, initHlsPlayer, initWebRtcPlayer, lastError]);
 
   // Auto-refresh for snapshots
   useEffect(() => {
