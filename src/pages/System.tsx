@@ -71,6 +71,8 @@ import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
 import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
 import { WhatsAppTemplateEditor } from '@/components/whatsapp/WhatsAppTemplateEditor';
 import { WhatsAppGroupSelector } from '@/components/whatsapp/WhatsAppGroupSelector';
+import { LandingContentEditor } from '@/components/landing/LandingContentEditor';
+import { DialogTrigger } from '@/components/ui/dialog';
 import {
   Dialog,
   DialogContent,
@@ -2293,20 +2295,30 @@ export default function System() {
 
                 <Separator />
 
-                {/* Futuras opções (placeholder) */}
-                <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+                {/* Textos e Conteúdo */}
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-muted rounded-lg">
-                      <FileText className="w-6 h-6 text-muted-foreground" />
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <FileText className="w-6 h-6 text-primary" />
                     </div>
                     <div>
                       <h4 className="font-semibold">Textos e Conteúdo</h4>
                       <p className="text-sm text-muted-foreground">
-                        Edite títulos, descrições e features da landing (em breve)
+                        Edite títulos, descrições e features da landing page
                       </p>
                     </div>
                   </div>
-                  <Badge variant="outline">Em breve</Badge>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <LandingContentEditor />
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardContent>
             </Card>
