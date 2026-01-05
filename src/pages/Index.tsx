@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -12,12 +12,14 @@ import { NetworkParticles } from '@/components/animations/NetworkParticles';
 import { LandingFooter } from '@/components/layout/LandingFooter';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { useParallax } from '@/hooks/useParallax';
+import Autoplay from "embla-carousel-autoplay";
 import { 
   Carousel, 
   CarouselContent, 
   CarouselItem, 
   CarouselNext, 
-  CarouselPrevious 
+  CarouselPrevious,
+  CarouselDots
 } from "@/components/ui/carousel";
 
 const features = [
@@ -98,6 +100,14 @@ const Index = () => {
   const { branding, isLoading: settingsLoading } = useSystemSettings();
   const navigate = useNavigate();
   const parallaxOffset = useParallax(0.3);
+  
+  const autoplayPlugin = useRef(
+    Autoplay({ 
+      delay: 4000, 
+      stopOnInteraction: false,
+      stopOnMouseEnter: true
+    })
+  );
 
   useEffect(() => {
     if (user && !loading && !roleLoading) {
@@ -200,7 +210,14 @@ const Index = () => {
                 Interface moderna e intuitiva para gestão completa da sua infraestrutura
               </p>
               
-              <Carousel className="w-full max-w-5xl mx-auto">
+              <Carousel 
+                className="w-full max-w-5xl mx-auto"
+                plugins={[autoplayPlugin.current]}
+                opts={{
+                  loop: true,
+                  align: "center"
+                }}
+              >
                 <CarouselContent>
                   {screenshots.map((screenshot, index) => (
                     <CarouselItem key={index}>
@@ -222,6 +239,7 @@ const Index = () => {
                 </CarouselContent>
                 <CarouselPrevious className="left-2" />
                 <CarouselNext className="right-2" />
+                <CarouselDots />
               </Carousel>
             </div>
           </section>
