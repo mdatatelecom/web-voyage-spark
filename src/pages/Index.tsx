@@ -252,24 +252,41 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Screenshots Preview Section - Full Width */}
-      <ScrollReveal animation="fade-up" duration={700} distance={50}>
-        <section className="py-16 border-t border-border/30 w-full relative z-10">
-          <div className="text-center px-4 sm:px-8 mb-10">
-            <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Interface moderna e intuitiva para gestão completa da sua infraestrutura
-            </p>
-          </div>
-          
-          <Carousel 
-            className="w-full px-4 sm:px-8 lg:px-16"
-            plugins={[autoplayPlugin.current]}
-            opts={{
-              loop: true,
-              align: "center"
-            }}
-          >
+      {/* Screenshots Preview Section - Full Width with Gradient Background */}
+      <div className="relative w-full overflow-hidden">
+        {/* Gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
+        
+        {/* Decorative blurred elements with inverse parallax */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div 
+            className="absolute -top-20 left-1/4 w-80 h-80 bg-primary/10 rounded-full blur-3xl"
+            style={{ transform: `translateY(${-parallaxOffset * 0.4}px)` }}
+          />
+          <div 
+            className="absolute -bottom-20 right-1/4 w-96 h-96 bg-secondary/10 rounded-full blur-3xl"
+            style={{ transform: `translateY(${parallaxOffset * 0.3}px)` }}
+          />
+        </div>
+        
+        <ScrollReveal animation="fade-up" duration={700} distance={50}>
+          <section className="py-16 border-t border-border/30 w-full relative z-10">
+            <div className="text-center px-4 sm:px-8 mb-10">
+              <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Interface moderna e intuitiva para gestão completa da sua infraestrutura
+              </p>
+            </div>
+            
+            <Carousel 
+              className="w-full px-4 sm:px-8 lg:px-16"
+              style={{ transform: `translateY(${parallaxOffset * 0.2}px)` }}
+              plugins={[autoplayPlugin.current]}
+              opts={{
+                loop: true,
+                align: "center"
+              }}
+            >
             <CarouselContent className="-ml-4">
               {screenshots.map((screenshot, index) => (
                 <CarouselItem key={index} className="pl-4 md:basis-4/5 lg:basis-3/4">
@@ -301,8 +318,9 @@ const Index = () => {
             <CarouselNext className="right-2 sm:right-6 lg:right-12" />
             <CarouselDots />
           </Carousel>
-        </section>
-      </ScrollReveal>
+          </section>
+        </ScrollReveal>
+      </div>
 
       {/* Highlights Section - Back to container */}
       <div className="container mx-auto px-4 relative z-10">
