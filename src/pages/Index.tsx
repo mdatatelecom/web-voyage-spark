@@ -12,37 +12,44 @@ import { NetworkParticles } from '@/components/animations/NetworkParticles';
 import { LandingFooter } from '@/components/layout/LandingFooter';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { useParallax } from '@/hooks/useParallax';
+import { 
+  Carousel, 
+  CarouselContent, 
+  CarouselItem, 
+  CarouselNext, 
+  CarouselPrevious 
+} from "@/components/ui/carousel";
 
 const features = [
   {
     icon: Cable,
     title: "Rastreamento Inteligente",
-    description: "QR codes em cada cabo para identificação instantânea do Ponto A ao Ponto B"
+    description: "Geração automática de QR codes com etiquetas personalizadas. Escaneie e identifique instantaneamente origem, destino, tipo de cabo e histórico de cada conexão"
   },
   {
     icon: Server,
     title: "Inventário Completo",
-    description: "Gerencie racks, equipamentos e portas com rastreamento em tempo real"
+    description: "Cadastro hierárquico de prédios, salas, racks e equipamentos. Controle de portas, slots e ocupação com alertas de capacidade"
   },
   {
     icon: Map,
     title: "Plantas Interativas",
-    description: "Visualize e posicione equipamentos em plantas baixas com drag-and-drop"
+    description: "Upload de plantas baixas com posicionamento drag-and-drop. Ferramenta de medição, escala configurável e comparação de versões"
   },
   {
     icon: Network,
     title: "Topologia de Rede",
-    description: "Mapa interativo de conexões com detecção de pontos únicos de falha"
+    description: "Visualização em grafo das conexões de rede. Identifique pontos únicos de falha, trace rotas e analise dependências"
   },
   {
     icon: Camera,
     title: "Monitoramento Visual",
-    description: "Integração com câmeras IP e NVRs para vigilância da infraestrutura"
+    description: "Integração com câmeras IP, NVRs e go2rtc. Streaming HLS/WebRTC, mapa de câmeras e relatórios de canais"
   },
   {
     icon: Headset,
     title: "Gestão de Tickets",
-    description: "Sistema completo de chamados com métricas SLA e integração WhatsApp"
+    description: "Abertura de chamados com prioridade e SLA configurável. Notificações automáticas via WhatsApp e métricas de desempenho"
   }
 ];
 
@@ -51,7 +58,38 @@ const highlights = [
   "IPAM Integrado",
   "Relatórios PDF",
   "Visualização 3D",
-  "QR Codes"
+  "QR Codes",
+  "OAM",
+  "CFTV",
+  "WhatsApp"
+];
+
+const screenshots = [
+  {
+    src: "/placeholder.svg",
+    title: "Dashboard Principal",
+    description: "Visão geral com gráficos de ocupação, conexões e alertas"
+  },
+  {
+    src: "/placeholder.svg",
+    title: "Visualização 3D de Racks",
+    description: "Explore seus racks em 3D com detalhes de cada equipamento"
+  },
+  {
+    src: "/placeholder.svg",
+    title: "Mapa de Topologia",
+    description: "Visualize conexões de rede em formato de grafo interativo"
+  },
+  {
+    src: "/placeholder.svg",
+    title: "Plantas Interativas",
+    description: "Posicione equipamentos em plantas baixas com drag-and-drop"
+  },
+  {
+    src: "/placeholder.svg",
+    title: "Gestão de Câmeras",
+    description: "Mapa de câmeras com streaming ao vivo integrado"
+  }
 ];
 
 const Index = () => {
@@ -111,16 +149,13 @@ const Index = () => {
           </div>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto min-h-[60px]">
             <TypewriterText 
-              text="Gêmeo digital da sua infraestrutura de rede física. Rastreie cada cabo, porta e conexão com tecnologia segura de QR code."
+              text="Mapa Digital da Infraestrutura de Rede Física e CFTV. Rastreamento completo de cabos, portas, conexões e pontos de CFTV com identificação segura via QR Code."
               speed={25}
               delay={800}
             />
           </p>
-          <div className="mt-8 flex gap-4 justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 fill-mode-both">
+          <div className="mt-8 flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 fill-mode-both">
             <Button size="lg" onClick={() => navigate('/auth')}>
-              Começar
-            </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/auth')}>
               Entrar
             </Button>
           </div>
@@ -155,6 +190,42 @@ const Index = () => {
             );
           })}
         </div>
+
+        {/* Screenshots Preview Section */}
+        <ScrollReveal animation="fade-up" duration={700} distance={50}>
+          <section className="py-16 mt-12 border-t border-border/30">
+            <div className="max-w-6xl mx-auto text-center">
+              <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
+              <p className="text-muted-foreground mb-10 max-w-2xl mx-auto">
+                Interface moderna e intuitiva para gestão completa da sua infraestrutura
+              </p>
+              
+              <Carousel className="w-full max-w-5xl mx-auto">
+                <CarouselContent>
+                  {screenshots.map((screenshot, index) => (
+                    <CarouselItem key={index}>
+                      <div className="p-2">
+                        <div className="relative rounded-xl overflow-hidden border border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm">
+                          <img 
+                            src={screenshot.src}
+                            alt={screenshot.title}
+                            className="w-full h-auto aspect-video object-cover"
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                            <h3 className="text-white font-semibold text-lg">{screenshot.title}</h3>
+                            <p className="text-white/80 text-sm">{screenshot.description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="left-2" />
+                <CarouselNext className="right-2" />
+              </Carousel>
+            </div>
+          </section>
+        </ScrollReveal>
 
         {/* Highlights Section with Scroll Reveal */}
         <ScrollReveal animation="fade-up" duration={700} distance={50}>
