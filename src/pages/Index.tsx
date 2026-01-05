@@ -47,7 +47,6 @@ const features = [
 ];
 
 const highlights = [
-  "Multi-site",
   "Tempo Real", 
   "IPAM Integrado",
   "Relatórios PDF",
@@ -166,10 +165,10 @@ const Index = () => {
                   <Shield className="h-5 w-5 text-primary" />
                   <span className="text-sm font-medium text-primary uppercase tracking-wider">Plataforma Completa</span>
                 </div>
-                <h2 className="text-3xl font-bold mb-4">Gêmeo Digital da Sua Infraestrutura</h2>
+                <h2 className="text-3xl font-bold mb-4">Mapa Operacional da Infraestrutura</h2>
                 <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Solução completa para gestão de datacenter, cabeamento estruturado e 
-                  monitoramento de rede em uma única plataforma.
+                  Solução completa para gestão de datacenter, cabeamento estruturado, OAM, 
+                  controle de IPs e monitoramento de rede e CFTV em uma única plataforma.
                 </p>
               </ScrollReveal>
               <div className="flex flex-wrap justify-center gap-3">
