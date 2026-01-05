@@ -250,62 +250,64 @@ const Index = () => {
             );
           })}
         </div>
+      </div>
 
-        {/* Screenshots Preview Section */}
-        <ScrollReveal animation="fade-up" duration={700} distance={50}>
-          <section className="py-16 mt-12 border-t border-border/30">
-            <div className="max-w-6xl mx-auto text-center">
-              <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
-              <p className="text-muted-foreground mb-10 max-w-2xl mx-auto">
-                Interface moderna e intuitiva para gestão completa da sua infraestrutura
-              </p>
-              
-              <Carousel 
-                className="w-full max-w-5xl mx-auto"
-                plugins={[autoplayPlugin.current]}
-                opts={{
-                  loop: true,
-                  align: "center"
-                }}
-              >
-                <CarouselContent>
-                  {screenshots.map((screenshot, index) => (
-                    <CarouselItem key={index}>
-                      <div className="p-2">
-                        <div 
-                          className="relative rounded-xl overflow-hidden border border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm group cursor-pointer"
-                          onClick={() => setSelectedIndex(index)}
-                        >
-                          <img 
-                            src={screenshot.src}
-                            alt={screenshot.title}
-                            loading="lazy"
-                            className="w-full h-auto aspect-video object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                          />
-                          {/* Zoom indicator on hover */}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <Maximize2 className="h-12 w-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          </div>
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                            <h3 className="text-white font-semibold text-lg">{screenshot.title}</h3>
-                            <p className="text-white/80 text-sm">{screenshot.description}</p>
-                          </div>
-                        </div>
+      {/* Screenshots Preview Section - Full Width */}
+      <ScrollReveal animation="fade-up" duration={700} distance={50}>
+        <section className="py-16 border-t border-border/30 w-full relative z-10">
+          <div className="text-center px-4 sm:px-8 mb-10">
+            <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Interface moderna e intuitiva para gestão completa da sua infraestrutura
+            </p>
+          </div>
+          
+          <Carousel 
+            className="w-full px-4 sm:px-8 lg:px-16"
+            plugins={[autoplayPlugin.current]}
+            opts={{
+              loop: true,
+              align: "center"
+            }}
+          >
+            <CarouselContent className="-ml-4">
+              {screenshots.map((screenshot, index) => (
+                <CarouselItem key={index} className="pl-4 md:basis-4/5 lg:basis-3/4">
+                  <div className="p-2">
+                    <div 
+                      className="relative rounded-xl overflow-hidden border border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm group cursor-pointer"
+                      onClick={() => setSelectedIndex(index)}
+                    >
+                      <img 
+                        src={screenshot.src}
+                        alt={screenshot.title}
+                        loading="lazy"
+                        className="w-full h-auto aspect-video object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                      />
+                      {/* Zoom indicator on hover */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <Maximize2 className="h-12 w-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                       </div>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious className="left-2" />
-                <CarouselNext className="right-2" />
-                <CarouselDots />
-              </Carousel>
-            </div>
-          </section>
-        </ScrollReveal>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                        <h3 className="text-white font-semibold text-lg">{screenshot.title}</h3>
+                        <p className="text-white/80 text-sm">{screenshot.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="left-2 sm:left-6 lg:left-12" />
+            <CarouselNext className="right-2 sm:right-6 lg:right-12" />
+            <CarouselDots />
+          </Carousel>
+        </section>
+      </ScrollReveal>
 
-        {/* Highlights Section with Scroll Reveal */}
+      {/* Highlights Section - Back to container */}
+      <div className="container mx-auto px-4 relative z-10">
         <ScrollReveal animation="fade-up" duration={700} distance={50}>
-          <section className="py-16 mt-12 border-t border-border/30">
+          <section className="py-16 border-t border-border/30">
             <div className="max-w-4xl mx-auto text-center">
               <ScrollReveal animation="zoom-in" delay={100} duration={500}>
                 <div className="inline-flex items-center gap-2 mb-4">
