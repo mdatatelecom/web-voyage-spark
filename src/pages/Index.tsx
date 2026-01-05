@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { TypewriterText } from '@/components/animations/TypewriterText';
 import { NetworkParticles } from '@/components/animations/NetworkParticles';
 import { LandingFooter } from '@/components/layout/LandingFooter';
+import { ScrollReveal } from '@/components/animations/ScrollReveal';
+import { useParallax } from '@/hooks/useParallax';
 
 const features = [
   {
@@ -77,9 +79,17 @@ const Index = () => {
     );
   }
 
+  const parallaxOffset = useParallax(0.3);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden flex flex-col">
-      <NetworkParticles />
+      {/* Parallax Background */}
+      <div 
+        className="parallax-layer"
+        style={{ transform: `translateY(${parallaxOffset * 0.5}px)` }}
+      >
+        <NetworkParticles />
+      </div>
       
       {/* Hero Section */}
       <div className="container mx-auto px-4 py-16 relative z-10 flex-1">
@@ -118,60 +128,75 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Features Grid */}
+        {/* Features Grid with Scroll Reveal */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto mt-16">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
-              <div 
+              <ScrollReveal
                 key={feature.title}
-                className={cn(
-                  "text-center p-6 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm",
-                  "animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
-                  "hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 hover:bg-card/80 transition-all cursor-default",
-                  "group"
-                )}
-                style={{ animationDelay: `${300 + index * 100}ms` }}
+                animation="fade-up"
+                delay={index * 100}
+                duration={600}
+                distance={40}
               >
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary mb-4 group-hover:bg-primary/20 transition-colors">
-                  <Icon className="h-7 w-7" />
+                <div 
+                  className={cn(
+                    "text-center p-6 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm h-full",
+                    "hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 hover:bg-card/80 transition-all cursor-default",
+                    "group"
+                  )}
+                >
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary mb-4 group-hover:bg-primary/20 transition-colors">
+                    <Icon className="h-7 w-7" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-              </div>
+              </ScrollReveal>
             );
           })}
         </div>
 
-        {/* Highlights Section */}
-        <section className="py-16 mt-12 border-t border-border/30 animate-in fade-in duration-700 delay-700 fill-mode-both">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 mb-4">
-              <Shield className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium text-primary uppercase tracking-wider">Plataforma Completa</span>
+        {/* Highlights Section with Scroll Reveal */}
+        <ScrollReveal animation="fade-up" duration={700} distance={50}>
+          <section className="py-16 mt-12 border-t border-border/30">
+            <div className="max-w-4xl mx-auto text-center">
+              <ScrollReveal animation="zoom-in" delay={100} duration={500}>
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <Shield className="h-5 w-5 text-primary" />
+                  <span className="text-sm font-medium text-primary uppercase tracking-wider">Plataforma Completa</span>
+                </div>
+                <h2 className="text-3xl font-bold mb-4">Gêmeo Digital da Sua Infraestrutura</h2>
+                <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
+                  Solução completa para gestão de datacenter, cabeamento estruturado e 
+                  monitoramento de rede em uma única plataforma.
+                </p>
+              </ScrollReveal>
+              <div className="flex flex-wrap justify-center gap-3">
+                {highlights.map((item, index) => (
+                  <ScrollReveal
+                    key={item}
+                    animation="fade-up"
+                    delay={200 + index * 80}
+                    duration={500}
+                    distance={20}
+                  >
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "px-4 py-2 text-sm",
+                        "hover:bg-primary/10 transition-colors cursor-default"
+                      )}
+                    >
+                      {item}
+                    </Badge>
+                  </ScrollReveal>
+                ))}
+              </div>
             </div>
-            <h2 className="text-3xl font-bold mb-4">Gêmeo Digital da Sua Infraestrutura</h2>
-            <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Solução completa para gestão de datacenter, cabeamento estruturado e 
-              monitoramento de rede em uma única plataforma.
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {highlights.map((item, index) => (
-                <Badge 
-                  key={item} 
-                  variant="outline" 
-                  className={cn(
-                    "px-4 py-2 text-sm animate-in fade-in duration-500 fill-mode-both",
-                    "hover:bg-primary/10 transition-colors cursor-default"
-                  )}
-                  style={{ animationDelay: `${900 + index * 50}ms` }}
-                >
-                  {item}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+        </ScrollReveal>
       </div>
 
       {/* Footer */}
