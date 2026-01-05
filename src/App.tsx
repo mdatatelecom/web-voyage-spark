@@ -46,6 +46,7 @@ import SubnetDetails from "./pages/SubnetDetails";
 import Vlans from "./pages/Vlans";
 import VlanDetails from "./pages/VlanDetails";
 import IPAMDashboard from "./pages/IPAMDashboard";
+import LandingScreenshots from "./pages/LandingScreenshots";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -385,6 +386,14 @@ const App = () => (
                   }>
                     <FloorPlan />
                   </Suspense>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/screenshots"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <LandingScreenshots />
                 </ProtectedRoute>
               } 
             />

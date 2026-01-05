@@ -1,5 +1,7 @@
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,7 +15,8 @@ import {
   Network,
   Cable,
   Monitor,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuditStats } from '@/hooks/useAuditStats';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
@@ -21,6 +24,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
 
 export default function AuditReports() {
+  const navigate = useNavigate();
   const { data: stats, isLoading, error } = useAuditStats();
 
   if (isLoading) {
@@ -67,9 +71,15 @@ export default function AuditReports() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Relatórios de Auditoria</h1>
-          <p className="text-muted-foreground">Análise de conformidade e problemas da infraestrutura</p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Relatórios de Auditoria</h1>
+            <p className="text-muted-foreground">Análise de conformidade e problemas da infraestrutura</p>
+          </div>
         </div>
         <div className="flex gap-2">
           {criticalIssues > 0 && (

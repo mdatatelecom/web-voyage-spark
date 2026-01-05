@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useLandingScreenshots } from '@/hooks/useLandingScreenshots';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Network, Cable, Server, Shield, Map, Camera, Headset } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Network, Cable, Server, Shield, Map, Camera, Headset, X, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TypewriterText } from '@/components/animations/TypewriterText';
 import { NetworkParticles } from '@/components/animations/NetworkParticles';
@@ -66,7 +68,8 @@ const highlights = [
   "WhatsApp"
 ];
 
-const screenshots = [
+// Fallback screenshots for when database is empty
+const defaultScreenshots = [
   {
     src: "/placeholder.svg",
     title: "Dashboard Principal",
@@ -98,8 +101,17 @@ const Index = () => {
   const { user, loading } = useAuth();
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
   const { branding, isLoading: settingsLoading } = useSystemSettings();
+  const { activeScreenshots } = useLandingScreenshots();
   const navigate = useNavigate();
   const parallaxOffset = useParallax(0.3);
+  
+  // Lightbox state
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  
+  // Use active screenshots from database or fallback to defaults
+  const screenshots = activeScreenshots.length > 0 
+    ? activeScreenshots.map(s => ({ src: s.image_url, title: s.title, description: s.description || '' }))
+    : defaultScreenshots;
   
   const autoplayPlugin = useRef(
     Autoplay({ 
@@ -108,6 +120,32 @@ const Index = () => {
       stopOnMouseEnter: true
     })
   );
+
+  // Keyboard navigation for lightbox
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (selectedIndex === null) return;
+    
+    switch (e.key) {
+      case 'Escape':
+        setSelectedIndex(null);
+        break;
+      case 'ArrowLeft':
+        setSelectedIndex(prev => 
+          prev !== null ? (prev - 1 + screenshots.length) % screenshots.length : null
+        );
+        break;
+      case 'ArrowRight':
+        setSelectedIndex(prev => 
+          prev !== null ? (prev + 1) % screenshots.length : null
+        );
+        break;
+    }
+  }, [selectedIndex, screenshots.length]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   useEffect(() => {
     if (user && !loading && !roleLoading) {
@@ -118,6 +156,18 @@ const Index = () => {
       }
     }
   }, [user, loading, roleLoading, isViewer, isNetworkViewer, navigate]);
+
+  const navigatePrev = () => {
+    setSelectedIndex(prev => 
+      prev !== null ? (prev - 1 + screenshots.length) % screenshots.length : null
+    );
+  };
+
+  const navigateNext = () => {
+    setSelectedIndex(prev => 
+      prev !== null ? (prev + 1) % screenshots.length : null
+    );
+  };
 
   if (loading || roleLoading || settingsLoading) {
     return (
@@ -222,12 +272,20 @@ const Index = () => {
                   {screenshots.map((screenshot, index) => (
                     <CarouselItem key={index}>
                       <div className="p-2">
-                        <div className="relative rounded-xl overflow-hidden border border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm">
+                        <div 
+                          className="relative rounded-xl overflow-hidden border border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm group cursor-pointer"
+                          onClick={() => setSelectedIndex(index)}
+                        >
                           <img 
                             src={screenshot.src}
                             alt={screenshot.title}
-                            className="w-full h-auto aspect-video object-cover"
+                            loading="lazy"
+                            className="w-full h-auto aspect-video object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                           />
+                          {/* Zoom indicator on hover */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <Maximize2 className="h-12 w-12 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </div>
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
                             <h3 className="text-white font-semibold text-lg">{screenshot.title}</h3>
                             <p className="text-white/80 text-sm">{screenshot.description}</p>
@@ -288,6 +346,56 @@ const Index = () => {
 
       {/* Footer */}
       <LandingFooter className="relative z-10 mt-auto" />
+
+      {/* Lightbox Modal */}
+      <Dialog open={selectedIndex !== null} onOpenChange={() => setSelectedIndex(null)}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 border-none bg-black/95">
+          {/* Close button */}
+          <button
+            onClick={() => setSelectedIndex(null)}
+            className="absolute top-4 right-4 z-50 text-white/70 hover:text-white transition-colors p-2"
+          >
+            <X className="h-8 w-8" />
+          </button>
+
+          {/* Position indicator */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm z-50">
+            {selectedIndex !== null && `${selectedIndex + 1} / ${screenshots.length}`}
+          </div>
+
+          {/* Navigation buttons */}
+          <button
+            onClick={navigatePrev}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-50 text-white/70 hover:text-white transition-colors p-2 bg-black/30 rounded-full"
+          >
+            <ChevronLeft className="h-8 w-8" />
+          </button>
+          <button
+            onClick={navigateNext}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-50 text-white/70 hover:text-white transition-colors p-2 bg-black/30 rounded-full"
+          >
+            <ChevronRight className="h-8 w-8" />
+          </button>
+
+          {selectedIndex !== null && screenshots[selectedIndex] && (
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+              <img
+                src={screenshots[selectedIndex].src}
+                alt={screenshots[selectedIndex].title}
+                className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              />
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center bg-black/50 px-6 py-3 rounded-lg">
+                <h3 className="text-white font-semibold text-xl mb-1">
+                  {screenshots[selectedIndex].title}
+                </h3>
+                <p className="text-white/70 text-sm">
+                  {screenshots[selectedIndex].description}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
