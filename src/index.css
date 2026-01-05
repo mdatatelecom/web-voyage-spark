@@ -157,3 +157,21 @@ All colors MUST be HSL.
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
 }
+
+/* Scroll Reveal Animations */
+.scroll-reveal {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* Parallax Layer */
+.parallax-layer {
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
