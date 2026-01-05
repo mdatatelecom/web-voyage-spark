@@ -30,6 +30,7 @@ import {
   Clock,
   Database,
   FileText,
+  Layout,
   Loader2,
   Pause,
   Play,
@@ -59,7 +60,7 @@ import { ChartPreview } from '@/components/system/ChartPreview';
 import { ContrastValidator } from '@/components/system/ContrastValidator';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -83,6 +84,7 @@ import { Plus, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
 
 export default function System() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [searchParams] = useSearchParams();
   const {
@@ -551,6 +553,10 @@ export default function System() {
                   go2rtcServerStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'
                 }`} />
               )}
+            </TabsTrigger>
+            <TabsTrigger value="landing">
+              <Layout className="w-4 h-4 mr-2" />
+              Landing Page
             </TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>
@@ -2250,6 +2256,59 @@ export default function System() {
                   ⚠️ Esta ação não pode ser desfeita. Os dados serão permanentemente removidos.
                 </p>
               </div>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Landing Page */}
+          <TabsContent value="landing" className="space-y-6">
+            <Card className="p-6">
+              <CardHeader className="px-0 pt-0">
+                <CardTitle className="flex items-center gap-2">
+                  <Layout className="w-5 h-5" />
+                  Configurações da Landing Page
+                </CardTitle>
+                <CardDescription>
+                  Gerencie o conteúdo exibido na página inicial pública do sistema
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 pb-0 space-y-4">
+                {/* Link para Screenshots */}
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <ImageIcon className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Screenshots do Sistema</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Gerencie as imagens exibidas no carousel da landing page
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={() => navigate('/admin/screenshots')}>
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Gerenciar
+                  </Button>
+                </div>
+
+                <Separator />
+
+                {/* Futuras opções (placeholder) */}
+                <div className="flex items-center justify-between p-4 border rounded-lg opacity-50">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-muted rounded-lg">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Textos e Conteúdo</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Edite títulos, descrições e features da landing (em breve)
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline">Em breve</Badge>
+                </div>
+              </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
