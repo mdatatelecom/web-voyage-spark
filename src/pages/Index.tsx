@@ -4,10 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Button } from '@/components/ui/button';
-import { Network, Cable, Server, Shield } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Network, Cable, Server, Shield, Map, Camera, Headset } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TypewriterText } from '@/components/animations/TypewriterText';
 import { NetworkParticles } from '@/components/animations/NetworkParticles';
+import { LandingFooter } from '@/components/layout/LandingFooter';
 
 const features = [
   {
@@ -18,14 +20,39 @@ const features = [
   {
     icon: Server,
     title: "Inventário Completo",
-    description: "Gerencie racks, equipamentos e portas com rastreamento de disponibilidade em tempo real"
+    description: "Gerencie racks, equipamentos e portas com rastreamento em tempo real"
   },
   {
-    icon: Shield,
-    title: "Acesso Seguro",
-    description: "Permissões baseadas em funções e logs de auditoria para segurança completa"
+    icon: Map,
+    title: "Plantas Interativas",
+    description: "Visualize e posicione equipamentos em plantas baixas com drag-and-drop"
+  },
+  {
+    icon: Network,
+    title: "Topologia de Rede",
+    description: "Mapa interativo de conexões com detecção de pontos únicos de falha"
+  },
+  {
+    icon: Camera,
+    title: "Monitoramento Visual",
+    description: "Integração com câmeras IP e NVRs para vigilância da infraestrutura"
+  },
+  {
+    icon: Headset,
+    title: "Gestão de Tickets",
+    description: "Sistema completo de chamados com métricas SLA e integração WhatsApp"
   }
 ];
+
+const highlights = [
+  "Multi-site",
+  "Tempo Real", 
+  "IPAM Integrado",
+  "Relatórios PDF",
+  "Visualização 3D",
+  "QR Codes"
+];
+
 const Index = () => {
   const { user, loading } = useAuth();
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
@@ -51,9 +78,11 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden flex flex-col">
       <NetworkParticles />
-      <div className="container mx-auto px-4 py-16 relative z-10">
+      
+      {/* Hero Section */}
+      <div className="container mx-auto px-4 py-16 relative z-10 flex-1">
         <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col items-center justify-center mb-6">
             {branding.logoUrl ? (
@@ -89,29 +118,64 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto mt-20">
+        {/* Features Grid */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto mt-16">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
               <div 
                 key={feature.title}
                 className={cn(
-                  "text-center p-6 rounded-lg border border-border bg-card",
+                  "text-center p-6 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm",
                   "animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
-                  "hover:shadow-lg hover:scale-105 hover:border-primary/50 transition-all cursor-default",
-                  index === 0 && "delay-300",
-                  index === 1 && "delay-500",
-                  index === 2 && "delay-700"
+                  "hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 hover:bg-card/80 transition-all cursor-default",
+                  "group"
                 )}
+                style={{ animationDelay: `${300 + index * 100}ms` }}
               >
-                <Icon className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary mb-4 group-hover:bg-primary/20 transition-colors">
+                  <Icon className="h-7 w-7" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
             );
           })}
         </div>
+
+        {/* Highlights Section */}
+        <section className="py-16 mt-12 border-t border-border/30 animate-in fade-in duration-700 delay-700 fill-mode-both">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 mb-4">
+              <Shield className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium text-primary uppercase tracking-wider">Plataforma Completa</span>
+            </div>
+            <h2 className="text-3xl font-bold mb-4">Gêmeo Digital da Sua Infraestrutura</h2>
+            <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Solução completa para gestão de datacenter, cabeamento estruturado e 
+              monitoramento de rede em uma única plataforma.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {highlights.map((item, index) => (
+                <Badge 
+                  key={item} 
+                  variant="outline" 
+                  className={cn(
+                    "px-4 py-2 text-sm animate-in fade-in duration-500 fill-mode-both",
+                    "hover:bg-primary/10 transition-colors cursor-default"
+                  )}
+                  style={{ animationDelay: `${900 + index * 50}ms` }}
+                >
+                  {item}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
+
+      {/* Footer */}
+      <LandingFooter className="relative z-10 mt-auto" />
     </div>
   );
 };
