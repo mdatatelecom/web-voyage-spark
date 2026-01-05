@@ -60,6 +60,7 @@ const Index = () => {
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
   const { branding, isLoading: settingsLoading } = useSystemSettings();
   const navigate = useNavigate();
+  const parallaxOffset = useParallax(0.3);
 
   useEffect(() => {
     if (user && !loading && !roleLoading) {
@@ -78,8 +79,6 @@ const Index = () => {
       </div>
     );
   }
-
-  const parallaxOffset = useParallax(0.3);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative overflow-hidden flex flex-col">
