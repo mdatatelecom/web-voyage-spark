@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useLandingScreenshots } from '@/hooks/useLandingScreenshots';
+import { useLandingContent } from '@/hooks/useLandingContent';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Network, Cable, Server, Shield, Map, Camera, Headset, X, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import { 
+  Network, Cable, Server, Shield, Map, Camera, Headset, X, ChevronLeft, ChevronRight, Maximize2,
+  Wifi, Zap, Database, Monitor, Settings, Bell, Clock, FileCheck, Users, Eye, Layers, AlertCircle
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TypewriterText } from '@/components/animations/TypewriterText';
 import { NetworkParticles } from '@/components/animations/NetworkParticles';
@@ -15,6 +19,12 @@ import { LandingFooter } from '@/components/layout/LandingFooter';
 import { ScrollReveal } from '@/components/animations/ScrollReveal';
 import { useParallax } from '@/hooks/useParallax';
 import Autoplay from "embla-carousel-autoplay";
+
+// Mapeamento de ícones
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Cable, Server, Map, Network, Camera, Headset, Wifi, Shield, Zap, 
+  Database, Monitor, Settings, Bell, Clock, FileCheck, Users, Eye, Layers, AlertCircle
+};
 import { 
   Carousel, 
   CarouselContent, 
@@ -102,6 +112,15 @@ const Index = () => {
   const { isViewer, isNetworkViewer, isLoading: roleLoading } = useUserRole();
   const { branding, isLoading: settingsLoading } = useSystemSettings();
   const { activeScreenshots } = useLandingScreenshots();
+  const { 
+    heroDescription, 
+    screenshotsTitle, 
+    highlightsSubtitle, 
+    highlightsTitle,
+    features: dbFeatures, 
+    highlights: dbHighlights,
+    isLoading: contentLoading 
+  } = useLandingContent();
   const navigate = useNavigate();
   const parallaxOffset = useParallax(0.3);
   
@@ -112,6 +131,26 @@ const Index = () => {
   const screenshots = activeScreenshots.length > 0 
     ? activeScreenshots.map(s => ({ src: s.image_url, title: s.title, description: s.description || '' }))
     : defaultScreenshots;
+
+  // Features dinâmicas com fallback
+  const displayFeatures = useMemo(() => {
+    if (dbFeatures.length > 0) {
+      return dbFeatures.map(f => ({
+        icon: iconMap[f.icon || 'Cable'] || Cable,
+        title: f.title || '',
+        description: f.description || ''
+      }));
+    }
+    return features;
+  }, [dbFeatures]);
+
+  // Highlights dinâmicos com fallback
+  const displayHighlights = useMemo(() => {
+    if (dbHighlights.length > 0) {
+      return dbHighlights.map(h => h.title || '');
+    }
+    return highlights;
+  }, [dbHighlights]);
   
   const autoplayPlugin = useRef(
     Autoplay({ 
@@ -169,7 +208,7 @@ const Index = () => {
     );
   };
 
-  if (loading || roleLoading || settingsLoading) {
+  if (loading || roleLoading || settingsLoading || contentLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -209,7 +248,7 @@ const Index = () => {
           </div>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto min-h-[60px]">
             <TypewriterText 
-              text="Mapa Digital da Infraestrutura de Rede Física e CFTV. Rastreamento completo de cabos, portas, conexões e pontos de CFTV com identificação segura via QR Code."
+              text={heroDescription?.description || "Mapa Digital da Infraestrutura de Rede Física e CFTV. Rastreamento completo de cabos, portas, conexões e pontos de CFTV com identificação segura via QR Code."}
               speed={25}
               delay={800}
             />
@@ -223,7 +262,7 @@ const Index = () => {
 
         {/* Features Grid with Scroll Reveal */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto mt-16">
-          {features.map((feature, index) => {
+          {displayFeatures.map((feature, index) => {
             const Icon = feature.icon;
             return (
               <ScrollReveal
@@ -272,9 +311,9 @@ const Index = () => {
         <ScrollReveal animation="fade-up" duration={700} distance={50}>
           <section className="py-16 border-t border-border/30 w-full relative z-10">
             <div className="text-center px-4 sm:px-8 mb-10">
-              <h2 className="text-3xl font-bold mb-4">Conheça a Plataforma</h2>
+              <h2 className="text-3xl font-bold mb-4">{screenshotsTitle?.title || 'Conheça a Plataforma'}</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Interface moderna e intuitiva para gestão completa da sua infraestrutura
+                {screenshotsTitle?.description || 'Interface moderna e intuitiva para gestão completa da sua infraestrutura'}
               </p>
             </div>
             
@@ -330,16 +369,15 @@ const Index = () => {
               <ScrollReveal animation="zoom-in" delay={100} duration={500}>
                 <div className="inline-flex items-center gap-2 mb-4">
                   <Shield className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-medium text-primary uppercase tracking-wider">Plataforma Completa</span>
+                  <span className="text-sm font-medium text-primary uppercase tracking-wider">{highlightsSubtitle?.title || 'Plataforma Completa'}</span>
                 </div>
-                <h2 className="text-3xl font-bold mb-4">Mapa Operacional da Infraestrutura</h2>
+                <h2 className="text-3xl font-bold mb-4">{highlightsTitle?.title || 'Mapa Operacional da Infraestrutura'}</h2>
                 <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Solução completa para gestão de datacenter, cabeamento estruturado, OAM, 
-                  controle de IPs e monitoramento de rede e CFTV em uma única plataforma.
+                  {highlightsTitle?.description || 'Solução completa para gestão de datacenter, cabeamento estruturado, OAM, controle de IPs e monitoramento de rede e CFTV em uma única plataforma.'}
                 </p>
               </ScrollReveal>
               <div className="flex flex-wrap justify-center gap-3">
-                {highlights.map((item, index) => (
+                {displayHighlights.map((item, index) => (
                   <ScrollReveal
                     key={item}
                     animation="fade-up"

@@ -772,6 +772,45 @@ export type Database = {
           },
         ]
       }
+      landing_content: {
+        Row: {
+          content_key: string
+          content_type: string
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content_key: string
+          content_type: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content_key?: string
+          content_type?: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       landing_screenshots: {
         Row: {
           created_at: string | null
