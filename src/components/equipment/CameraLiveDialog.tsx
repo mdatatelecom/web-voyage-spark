@@ -343,12 +343,16 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         pcRef.current = null;
       }
 
-      // Create peer connection with STUN server
+      // Create peer connection with multiple STUN servers for better NAT traversal
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-        ]
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+        ],
+        iceCandidatePoolSize: 10,
       });
       pcRef.current = pc;
 
@@ -370,6 +374,13 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         };
       });
 
+      // Monitor ICE candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log('ICE candidate:', event.candidate.type, event.candidate.address);
+        }
+      };
+
       // Monitor connection state
       pc.onconnectionstatechange = () => {
         console.log('WebRTC connection state:', pc.connectionState);
@@ -379,18 +390,39 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         }
       };
 
-      // Create and send offer
+      // Monitor ICE connection state
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', pc.iceConnectionState);
+      };
+
+      // Create offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      if (!offer.sdp) {
+      // Wait for ICE gathering to complete or timeout
+      if (pc.iceGatheringState !== 'complete') {
+        await new Promise<void>((resolve) => {
+          const checkState = () => {
+            if (pc.iceGatheringState === 'complete') {
+              resolve();
+            }
+          };
+          pc.onicegatheringstatechange = checkState;
+          // Also resolve after a short timeout to not wait too long
+          setTimeout(resolve, 2000);
+        });
+      }
+
+      // Get the final SDP with ICE candidates
+      const finalOffer = pc.localDescription?.sdp;
+      if (!finalOffer) {
         throw new Error('Failed to create SDP offer');
       }
 
-      console.log('Sending SDP offer to go2rtc...');
+      console.log('Sending SDP offer to go2rtc with ICE candidates...');
       
       // Exchange SDP via Edge Function proxy with timeout
-      const sdpPromise = exchangeWebRtcSdp(streamName, offer.sdp);
+      const sdpPromise = exchangeWebRtcSdp(streamName, finalOffer);
       const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) => 
         setTimeout(() => resolve({ success: false, error: 'Timeout na troca SDP' }), WEBRTC_TIMEOUT_MS)
       );
