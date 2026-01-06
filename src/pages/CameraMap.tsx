@@ -591,6 +591,7 @@ export default function CameraMap() {
                         variant="secondary"
                         onClick={() => {
                           setCameraForLive(selectedCamera);
+                          setSelectedCamera(null); // Close details dialog first
                           setLiveDialogOpen(true);
                         }}
                       >
