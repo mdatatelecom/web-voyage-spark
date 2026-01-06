@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -43,7 +43,8 @@ export const useGo2rtcSettings = () => {
     loadSettings();
   }, []);
 
-  const loadSettings = async () => {
+
+  const loadSettings = useCallback(async () => {
     try {
       // Try to load from Supabase first
       const { data, error } = await supabase
@@ -81,9 +82,9 @@ export const useGo2rtcSettings = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const saveSettings = async (newSettings: Go2rtcSettings) => {
+  const saveSettings = useCallback(async (newSettings: Go2rtcSettings) => {
     // Normalizar URL antes de salvar
     const normalizedSettings = {
       ...newSettings,
@@ -137,9 +138,9 @@ export const useGo2rtcSettings = () => {
       });
       return false;
     }
-  };
+  }, [toast]);
 
-  const testConnection = async (url?: string): Promise<{ success: boolean; message: string }> => {
+  const testConnection = useCallback(async (url?: string): Promise<{ success: boolean; message: string }> => {
     const testUrl = normalizeServerUrl(url || settings.serverUrl);
     
     if (!testUrl) {
@@ -181,9 +182,9 @@ export const useGo2rtcSettings = () => {
       }
       return { success: false, message: 'Erro desconhecido ao conectar' };
     }
-  };
+  }, [settings.serverUrl]);
 
-  const registerStream = async (
+  const registerStream = useCallback(async (
     streamName: string,
     rtspUrl: string
   ): Promise<{ success: boolean; hlsUrl?: string; message?: string }> => {
@@ -226,9 +227,9 @@ export const useGo2rtcSettings = () => {
         message: error instanceof Error ? error.message : 'Erro ao registrar stream' 
       };
     }
-  };
+  }, [settings.enabled, settings.serverUrl]);
 
-  const exchangeWebRtcSdp = async (
+  const exchangeWebRtcSdp = useCallback(async (
     streamName: string,
     sdpOffer: string
   ): Promise<{ success: boolean; sdpAnswer?: string; error?: string }> => {
@@ -260,9 +261,9 @@ export const useGo2rtcSettings = () => {
         error: error instanceof Error ? error.message : 'Erro na troca SDP' 
       };
     }
-  };
+  }, [settings.enabled, settings.serverUrl]);
 
-  const getSnapshot = async (streamName: string): Promise<string | null> => {
+  const getSnapshot = useCallback(async (streamName: string): Promise<string | null> => {
     if (!settings.serverUrl) return null;
 
     const serverUrl = normalizeServerUrl(settings.serverUrl);
@@ -281,9 +282,9 @@ export const useGo2rtcSettings = () => {
     } catch {
       return null;
     }
-  };
+  }, [settings.serverUrl]);
 
-  const deleteStream = async (streamName: string): Promise<boolean> => {
+  const deleteStream = useCallback(async (streamName: string): Promise<boolean> => {
     if (!settings.serverUrl) return false;
 
     const serverUrl = normalizeServerUrl(settings.serverUrl);
@@ -307,9 +308,9 @@ export const useGo2rtcSettings = () => {
     } catch {
       return false;
     }
-  };
+  }, [settings.serverUrl]);
 
-  const testStreamConnection = async (streamName: string): Promise<{
+  const testStreamConnection = useCallback(async (streamName: string): Promise<{
     success: boolean;
     hasVideo: boolean;
     hasAudio: boolean;
@@ -372,7 +373,7 @@ export const useGo2rtcSettings = () => {
         error: err instanceof Error ? err.message : 'Erro desconhecido' 
       };
     }
-  };
+  }, [settings.serverUrl]);
 
   return {
     settings,

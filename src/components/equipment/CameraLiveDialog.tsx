@@ -190,7 +190,8 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const hlsRef = useRef<Hls | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const initRef = useRef(false);
-  
+  const lastErrorRef = useRef<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -202,9 +203,13 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
   const [isCapturing, setIsCapturing] = useState(false);
   const [isGo2rtcActive, setIsGo2rtcActive] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  useEffect(() => {
+    lastErrorRef.current = lastError;
+  }, [lastError]);
   
   const { settings: go2rtcSettings, registerStream, exchangeWebRtcSdp } = useGo2rtcSettings();
-  
+
   const originalStreamType = detectStreamType(streamUrl);
   const streamType = activeStreamType || originalStreamType;
   
@@ -334,17 +339,25 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     const video = videoRef.current;
     if (!video) return false;
 
+    // Local reference to avoid races if a re-render/cleanup closes the shared ref
+    let pc: RTCPeerConnection | null = null;
+
     try {
       console.log('Initializing WebRTC for stream:', streamName);
       
-      // Close existing connection if any
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
+      // Close existing connection if any (avoid races)
+      const existingPc = pcRef.current;
+      if (existingPc) {
+        try {
+          existingPc.close();
+        } catch (e) {
+          console.warn('Error closing previous RTCPeerConnection:', e);
+        }
+        if (pcRef.current === existingPc) pcRef.current = null;
       }
 
       // Create peer connection with multiple STUN servers for better NAT traversal
-      const pc = new RTCPeerConnection({
+      pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
@@ -435,6 +448,11 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
 
       console.log('Received SDP answer, setting remote description...');
 
+      // If something closed/replaced the connection, abort cleanly
+      if (pc.signalingState === 'closed') {
+        throw new Error('Conexão WebRTC reiniciada (peer connection fechada)');
+      }
+
       // Apply answer
       await pc.setRemoteDescription({
         type: 'answer',
@@ -458,9 +476,16 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     } catch (error) {
       console.error('WebRTC initialization failed:', error);
       setLastError(error instanceof Error ? error.message : 'Erro WebRTC desconhecido');
-      // Clean up on failure
-      if (pcRef.current) {
-        pcRef.current.close();
+
+      // Clean up ONLY this connection instance (avoid closing a newer one)
+      if (pc) {
+        try {
+          pc.close();
+        } catch {
+          // ignore
+        }
+      }
+      if (pcRef.current === pc) {
         pcRef.current = null;
       }
       return false;
@@ -658,10 +683,11 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           errorParts.push('Stream Wowza Cloud pode exigir URL HLS específica do painel Wowza.');
         }
         
-        if (lastError) {
-          errorParts.push(`Detalhe: ${lastError}`);
-        }
-        
+         const errDetail = lastErrorRef.current;
+         if (errDetail) {
+           errorParts.push(`Detalhe: ${errDetail}`);
+         }
+
         if (!go2rtcSettings.enabled || !go2rtcSettings.serverUrl) {
           errorParts.push('Configure go2rtc em Sistema > Streaming ou forneça URL HLS direta.');
         }
@@ -705,7 +731,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
         videoRef.current.srcObject = null;
       }
     };
-  }, [open, streamUrl, go2rtcSettings.enabled, go2rtcSettings.serverUrl, registerStream, cameraName, initHlsPlayer, initWebRtcPlayer, lastError]);
+  }, [open, streamUrl, go2rtcSettings.enabled, go2rtcSettings.serverUrl, registerStream, cameraName, initHlsPlayer, initWebRtcPlayer]);
 
   // Auto-refresh for snapshots
   useEffect(() => {
