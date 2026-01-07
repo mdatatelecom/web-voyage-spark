@@ -39,11 +39,17 @@ interface EquipmentData {
   poe_power_per_port?: Record<string, number>;
 }
 
+interface NvrConfig {
+  totalChannels: number;
+  poePorts: number;
+}
+
 interface CreateEquipmentParams {
   equipment: EquipmentData;
   portGroups: PortGroup[];
   reserveIP?: boolean;
   ipRecordId?: string;
+  nvrConfig?: NvrConfig;
 }
 
 export const useEquipment = (rackId?: string) => {
@@ -125,8 +131,24 @@ export const useEquipment = (rackId?: string) => {
       
       if (eqError) throw eqError;
       
-      // 4. Gerar e inserir portas
-      const portsToInsert = generatePorts(values.portGroups, newEquipment.id);
+      // 4. Gerar portas baseado no tipo de equipamento
+      let portsToInsert: any[] = [];
+      
+      const equipmentTypeStr = values.equipment.type as string;
+      const isNvrDvr = equipmentTypeStr === 'nvr' || equipmentTypeStr === 'nvr_poe' || equipmentTypeStr === 'dvr';
+      
+      if (isNvrDvr && values.nvrConfig) {
+        // Para NVR/DVR: criar apenas porta Uplink + portas PoE (se nvr_poe)
+        portsToInsert = generateNvrPorts(
+          equipmentTypeStr,
+          newEquipment.id,
+          values.nvrConfig.totalChannels,
+          values.nvrConfig.poePorts
+        );
+      } else {
+        // Para outros equipamentos: usar grupos de portas definidos
+        portsToInsert = generatePorts(values.portGroups, newEquipment.id);
+      }
       
       if (portsToInsert.length > 0) {
         const { error: portsError } = await supabase
@@ -251,6 +273,49 @@ function generatePorts(groups: PortGroup[], equipmentId: string) {
       });
     }
   });
+  
+  return ports;
+}
+
+/**
+ * Gera portas para NVR/DVR
+ * - NVR padrão: 1 porta Uplink (LAN) apenas
+ * - NVR PoE: 1 porta Uplink + N portas PoE para câmeras
+ * - DVR: 1 porta LAN apenas (vídeo é via BNC, não rede)
+ */
+function generateNvrPorts(
+  equipmentType: string, 
+  equipmentId: string, 
+  totalChannels: number,
+  poePorts: number
+) {
+  const ports: any[] = [];
+  
+  // Porta Uplink/LAN (comum a todos)
+  ports.push({
+    equipment_id: equipmentId,
+    name: 'Uplink',
+    port_number: 0,
+    port_type: 'rj45' as PortType,
+    speed: '1Gbps',
+    status: 'available',
+    notes: 'Porta de rede para conexão ao switch'
+  });
+  
+  // Para NVR com PoE, adicionar portas PoE
+  if (equipmentType === 'nvr_poe' && poePorts > 0) {
+    for (let i = 1; i <= poePorts; i++) {
+      ports.push({
+        equipment_id: equipmentId,
+        name: `PoE${i}`,
+        port_number: i,
+        port_type: 'rj45_poe' as PortType,
+        speed: '100Mbps',
+        status: 'available',
+        notes: `Porta PoE integrada - Canal ${i}`
+      });
+    }
+  }
   
   return ports;
 }

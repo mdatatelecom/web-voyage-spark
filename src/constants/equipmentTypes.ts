@@ -232,6 +232,9 @@ export interface EquipmentFieldConfig {
   hasPorts: boolean;        // Can have configurable ports
   hasConsolePorts: boolean; // Has console ports
   hasPowerPorts: boolean;   // Has power outlets
+  hasChannels?: boolean;    // Has video channels (NVR/DVR)
+  hasUplinkPort?: boolean;  // Auto-creates uplink port
+  channelOptions?: number[]; // Available channel options
   defaultPortTypes: string[];
   recommendedMountSide: 'front' | 'rear' | 'both';
   defaultUHeight: number;
@@ -412,20 +415,26 @@ export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
   // === SURVEILLANCE - Network + Video ===
   dvr: {
     hasNetwork: true,
-    hasPorts: true,
+    hasPorts: false,           // DVR não tem portas de rede configuráveis
     hasConsolePorts: false,
     hasPowerPorts: true,
-    defaultPortTypes: ['bnc', 'hdmi'],
+    hasChannels: true,         // Tem canais de vídeo
+    hasUplinkPort: true,       // Cria porta LAN automaticamente
+    channelOptions: [4, 8, 16, 32],
+    defaultPortTypes: ['rj45'],
     recommendedMountSide: 'front',
     defaultUHeight: 2,
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
   },
   nvr: {
     hasNetwork: true,
-    hasPorts: true,
+    hasPorts: false,           // NVR padrão não tem portas PoE configuráveis
     hasConsolePorts: false,
     hasPowerPorts: true,
-    defaultPortTypes: ['rj45', 'hdmi'],
+    hasChannels: true,         // Tem canais de vídeo
+    hasUplinkPort: true,       // Cria porta Uplink automaticamente
+    channelOptions: [4, 8, 16, 32, 64, 128],
+    defaultPortTypes: ['rj45'],
     recommendedMountSide: 'front',
     defaultUHeight: 2,
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
@@ -592,10 +601,13 @@ export const EQUIPMENT_FIELD_CONFIG: Record<string, EquipmentFieldConfig> = {
   },
   nvr_poe: {
     hasNetwork: true,
-    hasPorts: true,
+    hasPorts: true,            // NVR PoE tem portas PoE configuráveis
     hasConsolePorts: false,
     hasPowerPorts: true,
-    defaultPortTypes: ['rj45', 'rj45_poe', 'hdmi'],
+    hasChannels: true,         // Tem canais de vídeo
+    hasUplinkPort: true,       // Cria porta Uplink automaticamente
+    channelOptions: [4, 8, 16, 32, 64],
+    defaultPortTypes: ['rj45', 'rj45_poe'],
     recommendedMountSide: 'front',
     defaultUHeight: 2,
     fields: { hostname: true, ipAddress: true, macAddress: true, assetTag: true, powerConsumption: true, airflow: true, weight: true }
