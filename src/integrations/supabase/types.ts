@@ -1066,6 +1066,122 @@ export type Database = {
           },
         ]
       }
+      rack_occupancy_history: {
+        Row: {
+          action: string
+          created_at: string | null
+          equipment_id: string | null
+          equipment_name: string
+          id: string
+          mount_side: string | null
+          notes: string | null
+          performed_by: string | null
+          position_u_end: number
+          position_u_start: number
+          previous_rack_id: string | null
+          rack_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          equipment_id?: string | null
+          equipment_name: string
+          id?: string
+          mount_side?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          position_u_end: number
+          position_u_start: number
+          previous_rack_id?: string | null
+          rack_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          equipment_id?: string | null
+          equipment_name?: string
+          id?: string
+          mount_side?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          position_u_end?: number
+          position_u_start?: number
+          previous_rack_id?: string | null
+          rack_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rack_occupancy_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_a_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["equipment_b_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "v_port_availability"
+            referencedColumns: ["equipment_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_previous_rack_id_fkey"
+            columns: ["previous_rack_id"]
+            isOneToOne: false
+            referencedRelation: "racks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_previous_rack_id_fkey"
+            columns: ["previous_rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_a_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_previous_rack_id_fkey"
+            columns: ["previous_rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_b_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "racks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_a_id"]
+          },
+          {
+            foreignKeyName: "rack_occupancy_history_rack_id_fkey"
+            columns: ["rack_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["rack_b_id"]
+          },
+        ]
+      }
       rack_positions: {
         Row: {
           created_at: string | null

@@ -1,15 +1,14 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Building, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useLabels } from '@/hooks/useLabels';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
@@ -21,12 +20,27 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+interface MenuItem {
+  label: string;
+  icon: LucideIcon;
+  path: string;
+  visible: boolean;
+  action?: () => void;
+}
+
+interface MenuGroup {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: MenuItem[];
+  visible: boolean;
+}
+
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
-  const { labels } = useLabels();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
   const [terminalOpen, setTerminalOpen] = useState(false);
   
@@ -34,9 +48,18 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
   });
 
+  const [openGroups, setOpenGroups] = useState<string[]>(() => {
+    const stored = localStorage.getItem('sidebar-open-groups');
+    return stored ? JSON.parse(stored) : ['infrastructure', 'operations'];
+  });
+
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-open-groups', JSON.stringify(openGroups));
+  }, [openGroups]);
 
   // Use mobile layout for viewers and network_viewers
   const isMobileViewer = isViewer || isNetworkViewer;
@@ -49,30 +72,114 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     }
   };
 
-  const menuItems = [
-    { label: 'Dashboard', icon: Home, path: '/dashboard', visible: !isNetworkViewer, badge: undefined },
-    { label: 'Minhas Conexões', icon: Network, path: '/my-connections', visible: isNetworkViewer, badge: undefined },
-    { label: 'Localizações', icon: Building2, path: '/buildings', visible: !isNetworkViewer, badge: undefined },
-    { label: 'Racks', icon: Package, path: '/racks', visible: !isNetworkViewer, badge: undefined },
-    { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Conexões', icon: Network, path: '/connections', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Sub-redes', icon: Globe, path: '/ipam', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'VLANs', icon: Waypoints, path: '/vlans', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Mapa da Rede', icon: Waypoints, path: '/network-map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Mapa de Câmeras', icon: Camera, path: '/cameras/map', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Relatório NVR', icon: BarChart3, path: '/nvr-report', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Auditoria', icon: ClipboardCheck, path: '/audit', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true, badge: undefined },
-    { label: 'Etiquetas', icon: Tag, path: '/labels', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined, action: undefined },
-    { label: 'Chamados', icon: Ticket, path: '/tickets', visible: (isAdmin || isTechnician) && !isNetworkViewer, badge: undefined },
-    { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: isAdmin && !isNetworkViewer, badge: undefined },
-    { label: 'CLI', icon: Terminal, path: '#cli', visible: isAdmin && !isNetworkViewer, badge: undefined, action: () => setTerminalOpen(true) },
-    { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: isAdmin && !isNetworkViewer, badge: undefined },
-    { label: 'Alertas', icon: Bell, path: '/alerts', visible: !isNetworkViewer, badge: undefined },
-    { label: 'Meu Perfil', icon: User, path: '/profile', visible: true, badge: undefined },
-    { label: 'Sistema', icon: Settings, path: '/system', visible: isAdmin && !isNetworkViewer, badge: undefined },
-    { label: 'Usuários', icon: Users, path: '/users', visible: isAdmin && !isNetworkViewer, badge: undefined },
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+  };
+
+  const menuGroups: MenuGroup[] = [
+    {
+      id: 'main',
+      label: 'Principal',
+      icon: Home,
+      visible: !isNetworkViewer,
+      items: [
+        { label: 'Dashboard', icon: Home, path: '/dashboard', visible: true },
+      ],
+    },
+    {
+      id: 'network-viewer',
+      label: 'Minhas Conexões',
+      icon: Network,
+      visible: isNetworkViewer,
+      items: [
+        { label: 'Minhas Conexões', icon: Network, path: '/my-connections', visible: true },
+      ],
+    },
+    {
+      id: 'infrastructure',
+      label: 'Infraestrutura',
+      icon: Building2,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Localizações', icon: Building2, path: '/buildings', visible: true },
+        { label: 'Racks', icon: Package, path: '/racks', visible: true },
+        { label: 'Equipamentos', icon: Cable, path: '/equipment', visible: true },
+        { label: 'Conexões', icon: Network, path: '/connections', visible: true },
+      ],
+    },
+    {
+      id: 'network',
+      label: 'Rede',
+      icon: Globe,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Sub-redes', icon: Globe, path: '/ipam', visible: true },
+        { label: 'VLANs', icon: Waypoints, path: '/vlans', visible: true },
+        { label: 'Mapa da Rede', icon: Waypoints, path: '/network-map', visible: true },
+      ],
+    },
+    {
+      id: 'surveillance',
+      label: 'Vigilância',
+      icon: Camera,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Mapa de Câmeras', icon: Camera, path: '/cameras/map', visible: true },
+        { label: 'Relatório NVR', icon: BarChart3, path: '/nvr-report', visible: true },
+      ],
+    },
+    {
+      id: 'operations',
+      label: 'Operações',
+      icon: Ticket,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Chamados', icon: Ticket, path: '/tickets', visible: true },
+        { label: 'Etiquetas', icon: Tag, path: '/labels', visible: true },
+        { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: true },
+        { label: 'Auditoria', icon: ClipboardCheck, path: '/audit', visible: true },
+      ],
+    },
+    {
+      id: 'alerts',
+      label: 'Alertas',
+      icon: Bell,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Lista de Alertas', icon: Bell, path: '/alerts', visible: true },
+        { label: 'Dashboard', icon: BarChart3, path: '/alerts/dashboard', visible: true },
+      ],
+    },
+    {
+      id: 'system',
+      label: 'Sistema',
+      icon: Settings,
+      visible: isAdmin && !isNetworkViewer,
+      items: [
+        { label: 'Configurações', icon: Settings, path: '/system', visible: true },
+        { label: 'Usuários', icon: Users, path: '/users', visible: true },
+        { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: true },
+        { label: 'CLI', icon: Terminal, path: '#cli', visible: true, action: () => setTerminalOpen(true) },
+        { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: true },
+      ],
+    },
+    {
+      id: 'user',
+      label: 'Usuário',
+      icon: User,
+      visible: true,
+      items: [
+        { label: 'Meu Perfil', icon: User, path: '/profile', visible: true },
+        { label: 'Escanear QR', icon: QrCode, path: '/scan', visible: isViewer && !isTechnician && !isAdmin },
+      ],
+    },
   ];
+
+  const isGroupActive = (group: MenuGroup) => {
+    return group.items.some((item) => item.visible && location.pathname === item.path);
+  };
 
   // Return mobile layout for viewers
   if (isMobileViewer) {
@@ -111,18 +218,16 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                 </div>
               </div>
             )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={handleSignOut}>
-                    <LogOut className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Sair do sistema</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Sair do sistema</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
@@ -131,7 +236,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         {/* Sidebar */}
         <aside className={cn(
           "sticky top-16 h-[calc(100vh-4rem)] border-r bg-sidebar transition-all duration-300",
-          sidebarCollapsed ? "w-16" : "w-64"
+          sidebarCollapsed ? "w-16" : "w-56"
         )}>
           <div className="flex justify-end p-2 border-b">
             <Button
@@ -145,70 +250,123 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           </div>
           <ScrollArea className="h-[calc(100%-49px)]">
             <nav className="flex flex-col gap-1 p-2">
-              {menuItems.map((item) => {
-                if (!item.visible) return null;
-                
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-                
+              {menuGroups.map((group) => {
+                if (!group.visible) return null;
+                const visibleItems = group.items.filter((item) => item.visible);
+                if (visibleItems.length === 0) return null;
+
+                const GroupIcon = group.icon;
+                const isActive = isGroupActive(group);
+                const isOpen = openGroups.includes(group.id);
+
+                // Single item group - render directly
+                if (visibleItems.length === 1 && group.id === 'main') {
+                  const item = visibleItems[0];
+                  const ItemIcon = item.icon;
+                  const isItemActive = location.pathname === item.path;
+
+                  if (sidebarCollapsed) {
+                    return (
+                      <Tooltip key={group.id}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={isItemActive ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-10 w-10", isItemActive && "bg-primary/10 text-primary")}
+                            onClick={() => navigate(item.path)}
+                          >
+                            <ItemIcon className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">{item.label}</TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+
+                  return (
+                    <Button
+                      key={group.id}
+                      variant={isItemActive ? "secondary" : "ghost"}
+                      className={cn("justify-start gap-2", isItemActive && "bg-primary/10 text-primary font-medium")}
+                      onClick={() => navigate(item.path)}
+                    >
+                      <ItemIcon className="h-4 w-4" />
+                      {item.label}
+                    </Button>
+                  );
+                }
+
+                // Collapsed sidebar - show only icons
                 if (sidebarCollapsed) {
                   return (
-                    <Tooltip key={item.path}>
+                    <Tooltip key={group.id}>
                       <TooltipTrigger asChild>
                         <Button
                           variant={isActive ? "secondary" : "ghost"}
                           size="icon"
-                          className={cn(
-                            "h-10 w-10",
-                            isActive && "bg-primary/10 text-primary"
-                          )}
+                          className={cn("h-10 w-10", isActive && "bg-primary/10 text-primary")}
                           onClick={() => {
-                            if (item.action) {
-                              item.action();
-                            } else {
-                              navigate(item.path);
+                            setSidebarCollapsed(false);
+                            if (!openGroups.includes(group.id)) {
+                              toggleGroup(group.id);
                             }
                           }}
                         >
-                          <Icon className="h-4 w-4" />
-                          {item.badge !== undefined && item.badge > 0 && (
-                            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
-                              {item.badge}
-                            </span>
-                          )}
+                          <GroupIcon className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p>{item.label}</p>
-                      </TooltipContent>
+                      <TooltipContent side="right">{group.label}</TooltipContent>
                     </Tooltip>
                   );
                 }
-                
+
+                // Expanded sidebar - show collapsible groups
                 return (
-                  <Button
-                    key={item.path}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn(
-                      "justify-start gap-2 relative",
-                      isActive && "bg-primary/10 text-primary font-medium"
-                    )}
-                    onClick={() => {
-                      if (item.action) {
-                        item.action();
-                      } else {
-                        navigate(item.path);
-                      }
-                    }}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <Badge variant="secondary" className="ml-auto text-xs">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </Button>
+                  <Collapsible key={group.id} open={isOpen} onOpenChange={() => toggleGroup(group.id)}>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-between gap-2",
+                          isActive && "text-primary"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <GroupIcon className="h-4 w-4" />
+                          <span className="text-sm">{group.label}</span>
+                        </div>
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pl-4 space-y-1 mt-1">
+                      {visibleItems.map((item) => {
+                        const ItemIcon = item.icon;
+                        const isItemActive = location.pathname === item.path;
+
+                        return (
+                          <Button
+                            key={item.path}
+                            variant={isItemActive ? "secondary" : "ghost"}
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start gap-2 text-sm h-9",
+                              isItemActive && "bg-primary/10 text-primary font-medium"
+                            )}
+                            onClick={() => {
+                              if (item.action) {
+                                item.action();
+                              } else {
+                                navigate(item.path);
+                              }
+                            }}
+                          >
+                            <ItemIcon className="h-3.5 w-3.5" />
+                            {item.label}
+                          </Button>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               })}
             </nav>

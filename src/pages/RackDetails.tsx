@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable, AlertCircle, Box } from 'lucide-react';
+import { Edit, Plus, MapPin, Layers, DoorOpen, Package, Cable, AlertCircle, Box, History } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RackVisualization } from '@/components/racks/RackVisualization';
 import { Rack3DDialog } from '@/components/racks/Rack3DDialog';
+import { RackHistoryTimeline } from '@/components/racks/RackHistoryTimeline';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -212,6 +213,19 @@ export default function RackDetails() {
                 </CardContent>
               </Card>
             )}
+
+            {/* History Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Histórico de Ocupação
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RackHistoryTimeline rackId={rack.id} />
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right Column - Visualization */}

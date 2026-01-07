@@ -28,6 +28,7 @@ import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
 import AlertSettings from "./pages/AlertSettings";
+import AlertsDashboard from "./pages/AlertsDashboard";
 import MyConnections from "./pages/MyConnections";
 import NetworkMap from "./pages/NetworkMap";
 import RackComparison from "./pages/RackComparison";
@@ -204,6 +205,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <Alerts />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/alerts/dashboard" 
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <AlertsDashboard />
                 </ProtectedRoute>
               } 
             />
