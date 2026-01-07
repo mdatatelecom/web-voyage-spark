@@ -1,11 +1,101 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
+// Play beep sound using Web Audio API
+const playBeep = (frequency: number, duration: number, count: number) => {
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContext) return;
+  
+  try {
+    const ctx = new AudioContext();
+    
+    for (let i = 0; i < count; i++) {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      
+      const startTime = ctx.currentTime + (i * (duration + 0.1));
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    }
+  } catch (e) {
+    console.log('Audio playback failed:', e);
+  }
+};
+
+const playAlertSound = (severity: string) => {
+  // Check if sounds are enabled in localStorage
+  const soundEnabled = localStorage.getItem('alertSoundEnabled') !== 'false';
+  if (!soundEnabled) return;
+  
+  if (severity === 'critical') {
+    // 3 quick high beeps for critical
+    playBeep(880, 0.15, 3);
+  } else if (severity === 'warning') {
+    // 1 moderate beep for warning
+    playBeep(440, 0.3, 1);
+  }
+};
+
+const sendPushNotification = (alert: any) => {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+  
+  const iconMap: Record<string, string> = {
+    critical: '🔴',
+    warning: '🟡',
+    info: '🔵',
+  };
+  
+  try {
+    const notification = new Notification(`${iconMap[alert.severity] || ''} ${alert.title}`, {
+      body: alert.message,
+      icon: '/favicon.ico',
+      tag: alert.id, // Prevents duplicates
+      requireInteraction: alert.severity === 'critical', // Critical alerts don't auto-dismiss
+    });
+    
+    notification.onclick = () => {
+      window.focus();
+      if (alert.related_entity_type === 'rack') {
+        window.location.href = `/racks/${alert.related_entity_id}`;
+      } else if (alert.related_entity_type === 'equipment') {
+        window.location.href = `/equipment/${alert.related_entity_id}`;
+      } else {
+        window.location.href = '/alerts';
+      }
+      notification.close();
+    };
+  } catch (e) {
+    console.log('Push notification failed:', e);
+  }
+};
+
 export const useRealtimeAlerts = () => {
   const queryClient = useQueryClient();
+  const hasRequestedPermission = useRef(false);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (!hasRequestedPermission.current && 'Notification' in window && Notification.permission === 'default') {
+      hasRequestedPermission.current = true;
+      Notification.requestPermission().then((permission) => {
+        console.log('Notification permission:', permission);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -26,6 +116,14 @@ export const useRealtimeAlerts = () => {
           queryClient.invalidateQueries({ queryKey: ['alerts'] });
           queryClient.invalidateQueries({ queryKey: ['alerts-active-count'] });
           
+          // Play sound for critical and warning alerts
+          playAlertSound(newAlert.severity);
+          
+          // Send push notification for critical and warning alerts
+          if (newAlert.severity === 'critical' || newAlert.severity === 'warning') {
+            sendPushNotification(newAlert);
+          }
+          
           // Show toast notification
           const severityIcons = {
             info: Info,
@@ -37,7 +135,7 @@ export const useRealtimeAlerts = () => {
           
           toast(newAlert.title, {
             description: newAlert.message,
-            duration: 5000,
+            duration: newAlert.severity === 'critical' ? 10000 : 5000,
             action: {
               label: 'Ver',
               onClick: () => {
@@ -52,9 +150,7 @@ export const useRealtimeAlerts = () => {
             },
           });
           
-          // Optional: Play sound based on severity
           if (newAlert.severity === 'critical') {
-            // You can add sound here if needed
             console.log('🔴 Critical alert received!');
           }
         }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { useRooms } from '@/hooks/useRooms';
 import { useRacks } from '@/hooks/useRacks';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network, Video } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network, Video, AlertCircle } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
 import { Cable, Info, Zap, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
 import { VlanSelector } from '@/components/ipam/VlanSelector';
 import { IPSelector } from '@/components/ipam/IPSelector';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface EquipmentDialogProps {
   open: boolean;
@@ -91,6 +92,40 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
   const categoryTypes = EQUIPMENT_CATEGORIES.find(c => c.id === selectedCategory)?.types || [];
   
   const totalPorts = portGroups.reduce((sum, g) => sum + g.quantity, 0);
+  
+  // Check for position conflicts with existing equipment
+  const positionConflict = useMemo(() => {
+    if (!selectedRack || !formData.positionStart || !formData.positionEnd) {
+      return null;
+    }
+    
+    const start = parseInt(formData.positionStart);
+    const end = parseInt(formData.positionEnd);
+    const side = formData.mountSide;
+    
+    if (isNaN(start) || isNaN(end) || start < 1 || end < 1 || start > end) {
+      return null;
+    }
+    
+    const conflicting = selectedRack.equipment?.find((eq: any) => {
+      const eqSide = eq.mount_side || 'front';
+      // Check if same side (or both sides)
+      const sameOrBothSides = (side === 'both' || eqSide === 'both') || 
+        (side === 'rear' && eqSide === 'rear') ||
+        (side !== 'rear' && eqSide !== 'rear');
+      
+      if (!sameOrBothSides) return false;
+      
+      // Check for U range overlap
+      return !(end < eq.position_u_start || start > eq.position_u_end);
+    });
+    
+    if (conflicting) {
+      return `Conflito com "${conflicting.name}" (U${conflicting.position_u_start}-U${conflicting.position_u_end})`;
+    }
+    
+    return null;
+  }, [selectedRack, formData.positionStart, formData.positionEnd, formData.mountSide]);
 
   const addPortGroup = () => {
     setPortGroups([
@@ -556,10 +591,20 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
                   </div>
                 </div>
                 {formData.positionStart && formData.positionEnd && (
-                  <Badge>
+                  <Badge variant={positionConflict ? "destructive" : "default"}>
                     {parseInt(formData.positionEnd) - parseInt(formData.positionStart) + 1}U selecionadas
                     (U{formData.positionStart}-{formData.positionEnd})
                   </Badge>
+                )}
+                
+                {positionConflict && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Posição Ocupada</AlertTitle>
+                    <AlertDescription>
+                      {positionConflict}. Selecione uma posição disponível no mapa acima.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </>
             )}
@@ -1105,7 +1150,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
             <Button
               onClick={() => setStep(s => s + 1)}
               disabled={
-                (step === 1 && (!formData.rackId || !formData.positionStart || !formData.positionEnd)) ||
+                (step === 1 && (!formData.rackId || !formData.positionStart || !formData.positionEnd || !!positionConflict)) ||
                 (step === 2 && (!formData.name || !formData.type))
               }
             >
