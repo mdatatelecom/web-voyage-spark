@@ -114,7 +114,10 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         model: template.model,
         type: template.type,
         name: template.model,
-        poeBudget: template.poeBudgetWatts?.toString() || ''
+        poeBudget: template.poeBudgetWatts?.toString() || '',
+        // NVR/DVR specific fields from template
+        totalChannels: template.totalChannels?.toString() || '',
+        poePorts: template.poePorts?.toString() || ''
       }));
       setSelectedCategory(template.category);
       setPortGroups(template.portGroups.map((pg, idx) => ({

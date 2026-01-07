@@ -13,6 +13,10 @@ export interface ManufacturerTemplate {
   }[];
   poeBudgetWatts?: number;
   poePerPort?: number;
+  // NVR/DVR specific fields
+  totalChannels?: number;
+  poePorts?: number;
+  hddBays?: number;
 }
 
 export const MANUFACTURER_TEMPLATES: ManufacturerTemplate[] = [
@@ -646,6 +650,360 @@ export const MANUFACTURER_TEMPLATES: ManufacturerTemplate[] = [
     portGroups: [
       { type: 'sfp_plus', quantity: 8, speed: '10Gbps', prefix: 'Uplink', startNumber: 1 },
       { type: 'sfp', quantity: 128, speed: 'GPON', prefix: 'PON', startNumber: 1 },
+    ]
+  },
+  
+  // =========================================
+  // NVR - NETWORK VIDEO RECORDERS
+  // =========================================
+  
+  // HIKVISION NVR (Standard - without PoE)
+  {
+    id: 'hikvision_ds7608ni_k2',
+    manufacturer: 'Hikvision',
+    model: 'DS-7608NI-K2',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7616ni_k2',
+    manufacturer: 'Hikvision',
+    model: 'DS-7616NI-K2',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7632ni_k2',
+    manufacturer: 'Hikvision',
+    model: 'DS-7632NI-K2',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 32,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // HIKVISION NVR with PoE
+  {
+    id: 'hikvision_ds7608nxi_k2_8p',
+    manufacturer: 'Hikvision',
+    model: 'DS-7608NXI-K2/8P',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 8,
+    poePorts: 8,
+    hddBays: 2,
+    poeBudgetWatts: 110,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7616nxi_k2_16p',
+    manufacturer: 'Hikvision',
+    model: 'DS-7616NXI-K2/16P',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 16,
+    poePorts: 16,
+    hddBays: 2,
+    poeBudgetWatts: 200,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7732nxi_k4_16p',
+    manufacturer: 'Hikvision',
+    model: 'DS-7732NXI-K4/16P',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 32,
+    poePorts: 16,
+    hddBays: 4,
+    poeBudgetWatts: 200,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // DAHUA NVR (Standard)
+  {
+    id: 'dahua_nvr4108hs_4ks2l',
+    manufacturer: 'Dahua',
+    model: 'NVR4108HS-4KS2/L',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'dahua_nvr4116hs_4ks2l',
+    manufacturer: 'Dahua',
+    model: 'NVR4116HS-4KS2/L',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // DAHUA NVR with PoE
+  {
+    id: 'dahua_nvr4108hs_8p_4ks2l',
+    manufacturer: 'Dahua',
+    model: 'NVR4108HS-8P-4KS2/L',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 8,
+    poePorts: 8,
+    hddBays: 1,
+    poeBudgetWatts: 80,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'dahua_nvr4116hs_8p_4ks2l',
+    manufacturer: 'Dahua',
+    model: 'NVR4116HS-8P-4KS2/L',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 16,
+    poePorts: 8,
+    hddBays: 1,
+    poeBudgetWatts: 80,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'dahua_nvr4216_16p_4ks2l',
+    manufacturer: 'Dahua',
+    model: 'NVR4216-16P-4KS2/L',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 16,
+    poePorts: 16,
+    hddBays: 2,
+    poeBudgetWatts: 200,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // INTELBRAS NVR (Standard)
+  {
+    id: 'intelbras_nvd_1308',
+    manufacturer: 'Intelbras',
+    model: 'NVD 1308',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_nvd_1316',
+    manufacturer: 'Intelbras',
+    model: 'NVD 1316',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_nvd_1432',
+    manufacturer: 'Intelbras',
+    model: 'NVD 1432',
+    type: 'nvr',
+    category: 'surveillance',
+    totalChannels: 32,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // INTELBRAS NVR with PoE
+  {
+    id: 'intelbras_nvd_3308p',
+    manufacturer: 'Intelbras',
+    model: 'NVD 3308 P',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 8,
+    poePorts: 8,
+    hddBays: 1,
+    poeBudgetWatts: 80,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_nvd_3316p',
+    manufacturer: 'Intelbras',
+    model: 'NVD 3316 P',
+    type: 'nvr_poe',
+    category: 'surveillance',
+    totalChannels: 16,
+    poePorts: 16,
+    hddBays: 2,
+    poeBudgetWatts: 200,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // =========================================
+  // DVR - DIGITAL VIDEO RECORDERS
+  // =========================================
+  
+  // HIKVISION DVR
+  {
+    id: 'hikvision_ds7204huhi_k1',
+    manufacturer: 'Hikvision',
+    model: 'DS-7204HUHI-K1',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 4,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7208huhi_k2',
+    manufacturer: 'Hikvision',
+    model: 'DS-7208HUHI-K2',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'hikvision_ds7216huhi_k2',
+    manufacturer: 'Hikvision',
+    model: 'DS-7216HUHI-K2',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // DAHUA DVR
+  {
+    id: 'dahua_xvr5104hs_4kl_i3',
+    manufacturer: 'Dahua',
+    model: 'XVR5104HS-4KL-I3',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 4,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'dahua_xvr5108hs_4kl_i3',
+    manufacturer: 'Dahua',
+    model: 'XVR5108HS-4KL-I3',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'dahua_xvr5116hs_4kl_i3',
+    manufacturer: 'Dahua',
+    model: 'XVR5116HS-4KL-I3',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  
+  // INTELBRAS DVR
+  {
+    id: 'intelbras_mhdx_1004c',
+    manufacturer: 'Intelbras',
+    model: 'MHDX 1004-C',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 4,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_mhdx_1008c',
+    manufacturer: 'Intelbras',
+    model: 'MHDX 1008-C',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 8,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_mhdx_1016c',
+    manufacturer: 'Intelbras',
+    model: 'MHDX 1016-C',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 1,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '100Mbps', prefix: 'LAN', startNumber: 1 },
+    ]
+  },
+  {
+    id: 'intelbras_mhdx_3116c',
+    manufacturer: 'Intelbras',
+    model: 'MHDX 3116-C',
+    type: 'dvr',
+    category: 'surveillance',
+    totalChannels: 16,
+    hddBays: 2,
+    portGroups: [
+      { type: 'rj45', quantity: 1, speed: '1Gbps', prefix: 'LAN', startNumber: 1 },
     ]
   },
 ];
