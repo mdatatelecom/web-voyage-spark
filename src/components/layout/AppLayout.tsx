@@ -15,6 +15,7 @@ import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
 import { TerminalDialog } from '@/components/cli/TerminalDialog';
 import { SystemChatButton } from '@/components/ai/SystemChatButton';
+import { GlobalSearch } from './GlobalSearch';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -203,8 +204,8 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
               </>
             )}
           </div>
-
           <div className="ml-auto flex items-center gap-4">
+            <GlobalSearch />
             <AlertBell />
             {user?.email && (
               <div className="flex flex-col items-end gap-1">
