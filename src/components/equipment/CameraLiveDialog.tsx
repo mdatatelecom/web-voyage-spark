@@ -335,7 +335,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
     }
   }, []);
 
-  const initWebRtcPlayer = useCallback(async (streamName: string): Promise<boolean> => {
+  const initWebRtcPlayer = useCallback(async (streamName: string): Promise<boolean | 'codec_mismatch'> => {
     const video = videoRef.current;
     if (!video) return false;
 
@@ -443,7 +443,17 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       const result = await Promise.race([sdpPromise, timeoutPromise]);
       
       if (!result.success || !('sdpAnswer' in result) || !result.sdpAnswer) {
-        throw new Error(result.error || 'Failed to exchange SDP');
+        const errorMsg = result.error || 'Failed to exchange SDP';
+        
+        // Check for codec mismatch (H265 not supported by WebRTC)
+        if (errorMsg.includes('codecs not matched') || errorMsg.includes('H265')) {
+          console.log('Codec mismatch detected - H265 not supported by WebRTC');
+          pc.close();
+          if (pcRef.current === pc) pcRef.current = null;
+          return 'codec_mismatch';
+        }
+        
+        throw new Error(errorMsg);
       }
 
       console.log('Received SDP answer, setting remote description...');
@@ -630,22 +640,27 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
           setIsGo2rtcActive(true);
           
           // Try WebRTC first (lower latency ~100-300ms) with retry
-          let webrtcSuccess = false;
+          let webrtcResult: boolean | 'codec_mismatch' = false;
           for (let attempt = 1; attempt <= MAX_WEBRTC_ATTEMPTS; attempt++) {
             console.log(`WebRTC attempt ${attempt}/${MAX_WEBRTC_ATTEMPTS}...`);
-            webrtcSuccess = await initWebRtcPlayer(streamName);
-            if (webrtcSuccess) break;
+            webrtcResult = await initWebRtcPlayer(streamName);
+            
+            if (webrtcResult === true) {
+              console.log('WebRTC connection successful!');
+              setActiveStreamType('webrtc');
+              return; // Success with WebRTC!
+            }
+            
+            // If codec mismatch (H265), skip retries and go directly to HLS
+            if (webrtcResult === 'codec_mismatch') {
+              console.log('H265 codec detected - WebRTC not supported, using HLS...');
+              break;
+            }
             
             // Small delay before retry
             if (attempt < MAX_WEBRTC_ATTEMPTS) {
               await new Promise(r => setTimeout(r, 1000));
             }
-          }
-          
-          if (webrtcSuccess) {
-            console.log('WebRTC connection successful!');
-            setActiveStreamType('webrtc');
-            return; // Success with WebRTC!
           }
           
           // Fallback to HLS if WebRTC fails (~3-5s latency)
