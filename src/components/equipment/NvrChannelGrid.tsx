@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Camera, Plus, Hash, Server, Ban, AlertTriangle } from 'lucide-react';
+import { Camera, Plus, Hash, Server, Ban, AlertTriangle, Zap, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CameraInfo {
@@ -13,7 +13,9 @@ interface CameraInfo {
 }
 
 interface NvrNotesData {
+  total_channels?: number;
   totalChannels?: number;
+  poe_ports?: number;
   usedChannels?: number[];
   vacantChannels?: number[];
   cameras?: CameraInfo[];
@@ -32,9 +34,10 @@ interface NvrChannelGridProps {
   ports?: PortData[];
   defaultTotalChannels?: number;
   onPlanCamera?: (channel: number) => void;
+  isNvrPoe?: boolean;
 }
 
-export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlanCamera }: NvrChannelGridProps) {
+export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlanCamera, isNvrPoe = false }: NvrChannelGridProps) {
   const parseNotes = (notesStr: string | null): NvrNotesData => {
     if (!notesStr) return {};
     try {
@@ -46,9 +49,10 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
 
   const nvrData = parseNotes(notes);
   
-  // Determine total channels: notes > max port_number > default
+  // Determine total channels: notes (new format) > notes (old format) > max port_number > default
   const maxPortNumber = ports?.reduce((max, p) => Math.max(max, p.port_number || 0), 0) || 0;
-  const totalChannels = nvrData.totalChannels || (maxPortNumber > 0 ? maxPortNumber : defaultTotalChannels);
+  const totalChannels = nvrData.total_channels || nvrData.totalChannels || (maxPortNumber > 0 ? maxPortNumber : defaultTotalChannels);
+  const poePorts = nvrData.poe_ports || 0;
   
   // Legacy data from notes (fallback)
   const legacyUsedChannels = nvrData.usedChannels || [];
@@ -73,11 +77,15 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
     
     const camera = cameras.find(c => c.channel === channelNum);
     
+    // Determine if this channel uses PoE (for NVR with PoE, channels up to poePorts count)
+    const isPoeChannel = isNvrPoe && poePorts > 0 && channelNum <= poePorts;
+    
     return {
       number: channelNum,
       portId: port?.id,
       status,
-      camera
+      camera,
+      isPoe: isPoeChannel
     };
   });
 
@@ -91,7 +99,7 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
   };
 
   // Don't render if no channel configuration
-  if (!nvrData.totalChannels && !nvrData.cameras?.length && (!ports || ports.length === 0)) {
+  if (!nvrData.total_channels && !nvrData.totalChannels && !nvrData.cameras?.length && (!ports || ports.length === 0)) {
     return null;
   }
 
@@ -191,6 +199,10 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
                     {channel.status === 'available' && onPlanCamera && (
                       <Plus className="absolute -top-1 -right-1 w-3 h-3 text-orange-600" />
                     )}
+                    {/* PoE indicator for NVR with PoE */}
+                    {channel.isPoe && channel.status === 'in_use' && (
+                      <Zap className="absolute -top-1 -left-1 w-3 h-3 text-yellow-500" />
+                    )}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -204,6 +216,16 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
                     )}>
                       {getStatusLabel(channel.status)}
                     </p>
+                    {channel.isPoe && (
+                      <p className="text-yellow-600 flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> PoE Interno
+                      </p>
+                    )}
+                    {!channel.isPoe && channel.status === 'in_use' && (
+                      <p className="text-blue-600 flex items-center gap-1">
+                        <Globe className="w-3 h-3" /> Rede Externa
+                      </p>
+                    )}
                     {channel.camera && (
                       <>
                         <p className="text-muted-foreground">IP: {channel.camera.ip}</p>
@@ -235,6 +257,12 @@ export function NvrChannelGrid({ notes, ports, defaultTotalChannels = 16, onPlan
             <div className="w-4 h-4 rounded bg-slate-500/20 border-2 border-slate-500/30" />
             <span className="text-muted-foreground">Indisponível</span>
           </div>
+          {isNvrPoe && poePorts > 0 && (
+            <div className="flex items-center gap-2 text-sm">
+              <Zap className="w-4 h-4 text-yellow-500" />
+              <span className="text-muted-foreground">PoE Interno</span>
+            </div>
+          )}
         </div>
 
         {/* Plan Camera Button */}

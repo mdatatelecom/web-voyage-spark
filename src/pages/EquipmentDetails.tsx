@@ -13,6 +13,7 @@ import { PortStatusDialog } from '@/components/equipment/PortStatusDialog';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
 import { PoeBudgetIndicator } from '@/components/equipment/PoeBudgetIndicator';
 import { NvrChannelGrid } from '@/components/equipment/NvrChannelGrid';
+import { NvrTopologyDiagram } from '@/components/equipment/NvrTopologyDiagram';
 import { PlanCameraDialog } from '@/components/equipment/PlanCameraDialog';
 import { PortLocationDialog } from '@/components/equipment/PortLocationDialog';
 import { LocationGallery } from '@/components/equipment/LocationGallery';
@@ -542,12 +543,18 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
               );
             })()}
 
+            {/* NVR Topology Diagram - for NVR/DVR equipment */}
+            {(equipment?.type === 'nvr' || (equipment?.type as string) === 'nvr_poe' || equipment?.type === 'dvr') && (
+              <NvrTopologyDiagram equipmentId={equipment.id} />
+            )}
+
             {/* NVR Channel Grid - for NVR/DVR equipment */}
-            {(equipment?.type === 'nvr' || equipment?.type === 'dvr') && (
+            {(equipment?.type === 'nvr' || (equipment?.type as string) === 'nvr_poe' || equipment?.type === 'dvr') && (
               <NvrChannelGrid 
                 notes={equipment.notes}
                 ports={equipment.ports}
                 defaultTotalChannels={equipment.type === 'dvr' ? 8 : 16}
+                isNvrPoe={(equipment?.type as string) === 'nvr_poe'}
                 onPlanCamera={(channel) => {
                   setSelectedChannel(channel);
                   setPlanCameraDialogOpen(true);
