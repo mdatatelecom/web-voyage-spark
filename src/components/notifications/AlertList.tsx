@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 interface AlertListProps {
   compact?: boolean;
+  status?: 'active' | 'acknowledged' | 'resolved';
 }
 
 const getSeverityIcon = (severity: string, type: string) => {
@@ -70,9 +71,9 @@ const getAlertTypeLabel = (type: string) => {
   }
 };
 
-export const AlertList = ({ compact = false }: AlertListProps) => {
+export const AlertList = ({ compact = false, status = 'active' }: AlertListProps) => {
   const { alerts, isLoading, acknowledgeAlert, resolveAlert } = useAlerts({
-    status: 'active',
+    status: status,
   });
   const navigate = useNavigate();
 
@@ -81,10 +82,15 @@ export const AlertList = ({ compact = false }: AlertListProps) => {
   }
 
   if (!alerts || alerts.length === 0) {
+    const emptyMessages = {
+      active: 'Nenhum alerta ativo',
+      acknowledged: 'Nenhum alerta marcado como lido',
+      resolved: 'Nenhum alerta resolvido'
+    };
     return (
       <div className="p-8 text-center text-muted-foreground">
         <CheckCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p>Nenhum alerta ativo</p>
+        <p>{emptyMessages[status]}</p>
       </div>
     );
   }

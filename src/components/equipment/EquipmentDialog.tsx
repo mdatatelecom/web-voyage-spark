@@ -13,7 +13,9 @@ import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network, Video } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
-import { Cable, Info, Zap } from 'lucide-react';
+import { Cable, Info, Zap, Server } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
 import { VlanSelector } from '@/components/ipam/VlanSelector';
 import { IPSelector } from '@/components/ipam/IPSelector';
@@ -355,6 +357,162 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
 
             {selectedRack && (
               <>
+                {/* Mapa de Ocupação do Rack */}
+                <div className="p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Server className="w-4 h-4" />
+                    <Label className="mb-0">Mapa de Ocupação - {selectedRack.name}</Label>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {selectedRack.availableUs}U de {selectedRack.size_u}U disponíveis
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Lado Frontal */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2 font-medium">Frontal</p>
+                      <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+                        {Array.from({ length: selectedRack.size_u }, (_, i) => {
+                          const u = selectedRack.size_u - i;
+                          const equipment = selectedRack.equipment?.find((eq: any) => 
+                            eq.mount_side !== 'rear' && 
+                            u >= eq.position_u_start && u <= eq.position_u_end
+                          );
+                          const isOccupied = !!equipment;
+                          const isSelected = formData.mountSide !== 'rear' &&
+                            formData.positionStart && formData.positionEnd &&
+                            u >= parseInt(formData.positionStart) && u <= parseInt(formData.positionEnd);
+                          
+                          return (
+                            <TooltipProvider key={`front-${u}`}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div 
+                                    className={cn(
+                                      "h-5 flex items-center px-2 text-xs rounded cursor-pointer transition-colors",
+                                      isOccupied ? "bg-destructive/20 text-destructive border border-destructive/30" :
+                                      isSelected ? "bg-primary/30 text-primary border border-primary/50" : 
+                                      "bg-green-500/10 hover:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/20"
+                                    )}
+                                    onClick={() => {
+                                      if (!isOccupied) {
+                                        if (!formData.positionStart || formData.positionEnd) {
+                                          setFormData({ ...formData, positionStart: u.toString(), positionEnd: u.toString() });
+                                        } else {
+                                          const start = parseInt(formData.positionStart);
+                                          setFormData({ 
+                                            ...formData, 
+                                            positionStart: Math.min(start, u).toString(),
+                                            positionEnd: Math.max(start, u).toString()
+                                          });
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <span className="w-6 font-mono">U{u}</span>
+                                    {equipment && (
+                                      <span className="truncate text-[10px] ml-1">{equipment.name}</span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                  {equipment ? (
+                                    <div>
+                                      <p className="font-medium">{equipment.name}</p>
+                                      <p className="text-xs text-muted-foreground">{equipment.type} • U{equipment.position_u_start}-U{equipment.position_u_end}</p>
+                                    </div>
+                                  ) : (
+                                    <p>U{u} - Disponível (clique para selecionar)</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    {/* Lado Traseiro */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2 font-medium">Traseira</p>
+                      <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+                        {Array.from({ length: selectedRack.size_u }, (_, i) => {
+                          const u = selectedRack.size_u - i;
+                          const equipment = selectedRack.equipment?.find((eq: any) => 
+                            eq.mount_side === 'rear' && 
+                            u >= eq.position_u_start && u <= eq.position_u_end
+                          );
+                          const isOccupied = !!equipment;
+                          const isSelected = formData.mountSide === 'rear' &&
+                            formData.positionStart && formData.positionEnd &&
+                            u >= parseInt(formData.positionStart) && u <= parseInt(formData.positionEnd);
+                          
+                          return (
+                            <TooltipProvider key={`rear-${u}`}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div 
+                                    className={cn(
+                                      "h-5 flex items-center px-2 text-xs rounded cursor-pointer transition-colors",
+                                      isOccupied ? "bg-destructive/20 text-destructive border border-destructive/30" :
+                                      isSelected ? "bg-primary/30 text-primary border border-primary/50" : 
+                                      "bg-green-500/10 hover:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/20"
+                                    )}
+                                    onClick={() => {
+                                      if (!isOccupied) {
+                                        setFormData({ ...formData, mountSide: 'rear' });
+                                        if (!formData.positionStart || formData.positionEnd) {
+                                          setFormData({ ...formData, mountSide: 'rear', positionStart: u.toString(), positionEnd: u.toString() });
+                                        } else {
+                                          const start = parseInt(formData.positionStart);
+                                          setFormData({ 
+                                            ...formData, 
+                                            mountSide: 'rear',
+                                            positionStart: Math.min(start, u).toString(),
+                                            positionEnd: Math.max(start, u).toString()
+                                          });
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <span className="w-6 font-mono">U{u}</span>
+                                    {equipment && (
+                                      <span className="truncate text-[10px] ml-1">{equipment.name}</span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                  {equipment ? (
+                                    <div>
+                                      <p className="font-medium">{equipment.name}</p>
+                                      <p className="text-xs text-muted-foreground">{equipment.type} • U{equipment.position_u_start}-U{equipment.position_u_end}</p>
+                                    </div>
+                                  ) : (
+                                    <p>U{u} - Disponível (clique para selecionar)</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Legenda */}
+                  <div className="flex gap-4 mt-3 text-xs border-t pt-3">
+                    <span className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500/20 border border-green-500/30 rounded" /> Disponível
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-destructive/20 border border-destructive/30 rounded" /> Ocupado
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-primary/30 border border-primary/50 rounded" /> Selecionado
+                    </span>
+                  </div>
+                </div>
+
                 <div>
                   <Label>Lado de Montagem *</Label>
                   <Select value={formData.mountSide} onValueChange={(v) => setFormData({ ...formData, mountSide: v })}>
