@@ -4,6 +4,33 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
+// Send WhatsApp alert for critical/warning alerts
+const sendWhatsAppAlert = async (alert: any) => {
+  try {
+    const { data: settings } = await supabase
+      .from('system_settings')
+      .select('setting_value')
+      .eq('setting_key', 'whatsapp_settings')
+      .single();
+    
+    if (!settings?.setting_value) return;
+    
+    const whatsappSettings = settings.setting_value as any;
+    if (!whatsappSettings.isEnabled) return;
+    
+    const icon = alert.severity === 'critical' ? '🚨' : '⚠️';
+    const message = `${icon} *ALERTA ${alert.severity.toUpperCase()}*\n\n*${alert.title}*\n\n${alert.message}`;
+    
+    const body = whatsappSettings.targetType === 'group' 
+      ? { action: 'send-group', groupId: whatsappSettings.selectedGroupId, message }
+      : { action: 'send', phone: whatsappSettings.defaultPhone, message };
+    
+    await supabase.functions.invoke('send-whatsapp', { body });
+    console.log('✅ WhatsApp alert sent successfully');
+  } catch (error) {
+    console.error('Failed to send WhatsApp alert:', error);
+  }
+};
 // Play beep sound using Web Audio API
 const playBeep = (frequency: number, duration: number, count: number) => {
   const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -119,9 +146,10 @@ export const useRealtimeAlerts = () => {
           // Play sound for critical and warning alerts
           playAlertSound(newAlert.severity);
           
-          // Send push notification for critical and warning alerts
+          // Send push notification and WhatsApp for critical and warning alerts
           if (newAlert.severity === 'critical' || newAlert.severity === 'warning') {
             sendPushNotification(newAlert);
+            sendWhatsAppAlert(newAlert);
           }
           
           // Show toast notification
