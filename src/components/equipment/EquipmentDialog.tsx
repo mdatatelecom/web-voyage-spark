@@ -11,7 +11,7 @@ import { useRooms } from '@/hooks/useRooms';
 import { useRacks } from '@/hooks/useRacks';
 import { useEquipment } from '@/hooks/useEquipment';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Plus, Sparkles, Network, Video } from 'lucide-react';
 import { EQUIPMENT_CATEGORIES, PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, AIRFLOW_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants/equipmentTypes';
 import { Cable, Info, Zap } from 'lucide-react';
 import { MANUFACTURER_TEMPLATES, getTemplatesByManufacturer, getTemplateById } from '@/constants/manufacturerTemplates';
@@ -70,7 +70,10 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
     weightKg: '',
     equipmentStatus: 'active',
     // PoE fields
-    poeBudget: ''
+    poeBudget: '',
+    // NVR/DVR Channel fields
+    totalChannels: '',
+    poePorts: ''
   });
   
   // Get field configuration based on selected equipment type
@@ -128,8 +131,21 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
   }, [selectedTemplateId]);
 
   const handleSubmit = () => {
-    // Only include portGroups if this equipment type supports ports
-    const portsToCreate = fieldConfig.hasPorts ? portGroups : [];
+    // Only include portGroups if this equipment type supports ports AND is not NVR/DVR
+    const isNvrDvr = formData.type === 'nvr' || formData.type === 'nvr_poe' || formData.type === 'dvr';
+    const portsToCreate = (fieldConfig.hasPorts && !isNvrDvr) ? portGroups : [];
+    
+    // Build notes JSON for NVR/DVR with channel info
+    let notesData = formData.notes;
+    if (isNvrDvr && formData.totalChannels) {
+      const channelConfig = {
+        total_channels: parseInt(formData.totalChannels),
+        poe_ports: formData.type === 'nvr_poe' && formData.poePorts ? parseInt(formData.poePorts) : undefined,
+        used_channels: 0,
+        cameras: []
+      };
+      notesData = JSON.stringify(channelConfig);
+    }
     
     createEquipment({
       equipment: {
@@ -143,7 +159,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         serial_number: formData.serialNumber || undefined,
         hostname: fieldConfig.fields.hostname ? formData.hostname || undefined : undefined,
         ip_address: fieldConfig.fields.ipAddress ? formData.ipAddress || undefined : undefined,
-        notes: formData.notes || undefined,
+        notes: notesData || undefined,
         mount_side: formData.mountSide as any,
         // New fields
         asset_tag: fieldConfig.fields.assetTag ? formData.assetTag || undefined : undefined,
@@ -153,11 +169,16 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
         airflow: fieldConfig.fields.airflow ? formData.airflow || undefined : undefined,
         equipment_status: formData.equipmentStatus || 'active',
         // PoE Budget
-        poe_budget_watts: (formData.type === 'switch_poe' || formData.type === 'pdu_smart') && formData.poeBudget ? parseFloat(formData.poeBudget) : undefined
+        poe_budget_watts: (formData.type === 'switch_poe' || formData.type === 'pdu_smart' || formData.type === 'nvr_poe') && formData.poeBudget ? parseFloat(formData.poeBudget) : undefined
       },
       portGroups: portsToCreate,
       reserveIP: !!formData.ipRecordId,
-      ipRecordId: formData.ipRecordId || undefined
+      ipRecordId: formData.ipRecordId || undefined,
+      // NVR/DVR specific
+      nvrConfig: isNvrDvr ? {
+        totalChannels: parseInt(formData.totalChannels) || 16,
+        poePorts: formData.type === 'nvr_poe' ? parseInt(formData.poePorts) || 0 : 0
+      } : undefined
     }, {
       onSuccess: () => {
         onOpenChange(false);
@@ -173,7 +194,8 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
           manufacturer: '', model: '', serialNumber: '', hostname: '',
           ipAddress: '', ipRecordId: '', vlanUuid: '', notes: '', mountSide: 'front',
           assetTag: '', macAddress: '', powerConsumption: '', airflow: '',
-          weightKg: '', equipmentStatus: 'active', poeBudget: ''
+          weightKg: '', equipmentStatus: 'active', poeBudget: '',
+          totalChannels: '', poePorts: ''
         });
       }
     });
@@ -630,6 +652,69 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
               </div>
             )}
 
+            {/* NVR/DVR Channel Configuration */}
+            {fieldConfig.hasChannels && (
+              <div className="p-4 border rounded-lg bg-blue-500/5 border-blue-500/20 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                  <Video className="w-4 h-4" />
+                  Configuração de Canais de Vídeo
+                </div>
+                
+                <div>
+                  <Label>Quantidade de Canais *</Label>
+                  <Select 
+                    value={formData.totalChannels} 
+                    onValueChange={(v) => setFormData({ ...formData, totalChannels: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a quantidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(fieldConfig.channelOptions || [4, 8, 16, 32]).map(ch => (
+                        <SelectItem key={ch} value={ch.toString()}>{ch} canais</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Número máximo de câmeras que o equipamento pode gravar
+                  </p>
+                </div>
+
+                {/* PoE Ports - only for NVR with PoE */}
+                {formData.type === 'nvr_poe' && (
+                  <div>
+                    <Label>Portas PoE Integradas</Label>
+                    <Select 
+                      value={formData.poePorts} 
+                      onValueChange={(v) => setFormData({ ...formData, poePorts: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Quantidade de portas PoE" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[4, 8, 16, 24, 32].map(p => (
+                          <SelectItem key={p} value={p.toString()}>{p} portas PoE</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      💡 Portas físicas PoE para conectar câmeras IP diretamente ao NVR
+                    </p>
+                  </div>
+                )}
+
+                {/* Info box about uplink port */}
+                <div className="p-3 bg-muted rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    ℹ️ Uma porta <strong>Uplink</strong> será criada automaticamente para conexão ao switch de rede.
+                    {formData.type === 'nvr_poe' && formData.poePorts && (
+                      <> Além disso, {formData.poePorts} portas PoE serão criadas para câmeras.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <Label>Observações</Label>
               <Textarea
@@ -643,8 +728,27 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
 
         {step === 4 && (
           <div className="space-y-4">
+            {/* Show message for NVR/DVR - ports are auto-created */}
+            {fieldConfig.hasChannels && (
+              <div className="text-center py-8 bg-blue-500/5 rounded-lg border border-blue-500/20">
+                <Video className="w-12 h-12 mx-auto mb-4 text-blue-500" />
+                <h3 className="font-semibold">Portas Criadas Automaticamente</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {formData.type === 'nvr_poe' 
+                    ? `1 porta Uplink + ${formData.poePorts || 0} portas PoE serão criadas automaticamente.`
+                    : 'Uma porta Uplink será criada automaticamente para conexão ao switch.'
+                  }
+                </p>
+                {formData.totalChannels && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    📹 {formData.totalChannels} canais de vídeo configurados
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Show message for equipment without ports */}
-            {!fieldConfig.hasPorts && (
+            {!fieldConfig.hasPorts && !fieldConfig.hasChannels && (
               <div className="text-center py-8 bg-muted rounded-lg">
                 <Cable className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="font-semibold">Sem Portas Configuráveis</h3>
@@ -657,7 +761,7 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
               </div>
             )}
 
-            {fieldConfig.hasPorts && (
+            {fieldConfig.hasPorts && !fieldConfig.hasChannels && (
               <>
                 <div className="flex items-center justify-between">
                   <Label className="text-base">🔌 Configuração de Portas</Label>
@@ -813,7 +917,14 @@ export function EquipmentDialog({ open, onOpenChange }: EquipmentDialogProps) {
               )}
               <div>
                 <p className="text-sm font-medium text-muted-foreground">🔌 Portas</p>
-                <p className="text-sm">{totalPorts} portas ({portGroups.length} grupos)</p>
+                {fieldConfig.hasChannels ? (
+                  <>
+                    <p className="text-sm">📹 {formData.totalChannels || 0} canais de vídeo</p>
+                    <p className="text-sm">1 porta Uplink{formData.type === 'nvr_poe' && formData.poePorts ? ` + ${formData.poePorts} portas PoE` : ''}</p>
+                  </>
+                ) : (
+                  <p className="text-sm">{totalPorts} portas ({portGroups.length} grupos)</p>
+                )}
               </div>
             </div>
           </div>
