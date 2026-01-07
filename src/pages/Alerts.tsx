@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { AlertList } from '@/components/notifications/AlertList';
 export default function Alerts() {
   const navigate = useNavigate();
   const { isAdmin } = useUserRole();
+  const [activeTab, setActiveTab] = useState('active');
   const { alerts: activeAlerts } = useAlerts({ status: 'active' });
   const { alerts: acknowledgedAlerts } = useAlerts({ status: 'acknowledged' });
   const { alerts: resolvedAlerts } = useAlerts({ status: 'resolved' });
@@ -33,7 +35,7 @@ export default function Alerts() {
           )}
         </div>
 
-        <Tabs defaultValue="active" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="active" className="relative">
               Ativos
@@ -55,15 +57,15 @@ export default function Alerts() {
           </TabsList>
 
           <TabsContent value="active" className="mt-6">
-            <AlertList />
+            <AlertList status="active" />
           </TabsContent>
 
           <TabsContent value="acknowledged" className="mt-6">
-            <AlertList />
+            <AlertList status="acknowledged" />
           </TabsContent>
 
           <TabsContent value="resolved" className="mt-6">
-            <AlertList />
+            <AlertList status="resolved" />
           </TabsContent>
         </Tabs>
       </div>

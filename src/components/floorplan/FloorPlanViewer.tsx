@@ -144,7 +144,7 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
   // LocalStorage key for persisting view state
   const storageKey = `floorplan-view-${floorPlan.id}`;
   
-  // Load saved view state on mount
+  // Load saved view state on mount or center if no saved state
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
     if (saved) {
@@ -158,6 +158,37 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
     }
     setIsInitialized(true);
   }, [storageKey]);
+  
+  // Auto-center and fit image on first load when no saved state exists
+  useEffect(() => {
+    if (!isInitialized || !image || dimensions.width === 0 || dimensions.height === 0) return;
+    
+    const saved = localStorage.getItem(storageKey);
+    if (saved) return; // Don't auto-center if there's a saved state
+    
+    // Calculate scale to fit image with some margin
+    const containerRatio = dimensions.width / dimensions.height;
+    const imageRatio = image.width / image.height;
+    
+    let fitScale: number;
+    if (imageRatio > containerRatio) {
+      fitScale = (dimensions.width * 0.9) / image.width;
+    } else {
+      fitScale = (dimensions.height * 0.9) / image.height;
+    }
+    
+    // Clamp scale
+    fitScale = Math.max(0.5, Math.min(1.5, fitScale));
+    
+    // Calculate center position
+    const scaledWidth = image.width * fitScale;
+    const scaledHeight = image.height * fitScale;
+    const centerX = (dimensions.width - scaledWidth) / 2;
+    const centerY = (dimensions.height - scaledHeight) / 2;
+    
+    setScale(fitScale);
+    setPosition({ x: centerX, y: centerY });
+  }, [isInitialized, image, dimensions, storageKey]);
   
   // Save view state with debounce
   useEffect(() => {
@@ -183,8 +214,32 @@ export const FloorPlanViewer = forwardRef<FloorPlanViewerRef, FloorPlanViewerPro
       setScale(clampedZoom);
     },
     fitToView: () => {
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
+      if (!image || dimensions.width === 0 || dimensions.height === 0) {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+        return;
+      }
+      
+      // Calculate scale to fit image with margin
+      const containerRatio = dimensions.width / dimensions.height;
+      const imageRatio = image.width / image.height;
+      
+      let fitScale: number;
+      if (imageRatio > containerRatio) {
+        fitScale = (dimensions.width * 0.9) / image.width;
+      } else {
+        fitScale = (dimensions.height * 0.9) / image.height;
+      }
+      
+      fitScale = Math.max(0.5, Math.min(1.5, fitScale));
+      
+      const scaledWidth = image.width * fitScale;
+      const scaledHeight = image.height * fitScale;
+      const centerX = (dimensions.width - scaledWidth) / 2;
+      const centerY = (dimensions.height - scaledHeight) / 2;
+      
+      setScale(fitScale);
+      setPosition({ x: centerX, y: centerY });
     },
     resetView: () => {
       localStorage.removeItem(storageKey);
