@@ -37,7 +37,7 @@ export const useFloorPlans = (floorId?: string) => {
       if (error) throw error;
       return data as FloorPlan[];
     },
-    enabled: !!floorId,
+    enabled: true,
   });
 
   const activeFloorPlan = floorPlans?.find(fp => fp.is_active) || floorPlans?.[0];

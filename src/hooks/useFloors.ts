@@ -24,7 +24,7 @@ export const useFloors = (buildingId?: string) => {
       if (error) throw error;
       return data;
     },
-    enabled: !!buildingId,
+    enabled: true,
   });
 
   const createMutation = useMutation({
