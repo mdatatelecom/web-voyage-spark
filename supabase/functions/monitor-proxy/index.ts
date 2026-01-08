@@ -36,6 +36,108 @@ interface HostsResponse {
   hosts: string[];
 }
 
+// Interface para dados processados
+interface ProcessedInterface {
+  name: string;
+  type: string;
+  status: string;
+  speed: string;
+  mac: string;
+  rxBytes: number;
+  txBytes: number;
+}
+
+interface ProcessedVlan {
+  id: number;
+  name: string;
+  ports: string[];
+}
+
+// OIDs conhecidos para interfaces
+const INTERFACE_OIDS = {
+  ifDescr: '1.3.6.1.2.1.2.2.1.2',
+  ifType: '1.3.6.1.2.1.2.2.1.3',
+  ifOperStatus: '1.3.6.1.2.1.2.2.1.8',
+  ifSpeed: '1.3.6.1.2.1.2.2.1.5',
+  ifPhysAddress: '1.3.6.1.2.1.2.2.1.6',
+  ifHCInOctets: '1.3.6.1.2.1.31.1.1.1.6',
+  ifHCOutOctets: '1.3.6.1.2.1.31.1.1.1.10',
+  ifHighSpeed: '1.3.6.1.2.1.31.1.1.1.15',
+  ifInOctets: '1.3.6.1.2.1.2.2.1.10',
+  ifOutOctets: '1.3.6.1.2.1.2.2.1.16',
+};
+
+// Função para extrair índice de interface do OID
+function extractInterfaceIndex(oid: string): string | null {
+  const parts = oid.split('.');
+  return parts.length > 0 ? parts[parts.length - 1] : null;
+}
+
+// Função para processar dados de interfaces
+function processInterfaceData(interfaceOids: Array<{ oid: string; value: string }>): ProcessedInterface[] {
+  const interfaceMap = new Map<string, Partial<ProcessedInterface>>();
+  
+  for (const item of interfaceOids) {
+    const index = extractInterfaceIndex(item.oid);
+    if (!index) continue;
+    
+    if (!interfaceMap.has(index)) {
+      interfaceMap.set(index, { rxBytes: 0, txBytes: 0 });
+    }
+    
+    const iface = interfaceMap.get(index)!;
+    
+    if (item.oid.includes(INTERFACE_OIDS.ifDescr)) {
+      iface.name = item.value;
+    } else if (item.oid.includes(INTERFACE_OIDS.ifType)) {
+      iface.type = item.value;
+    } else if (item.oid.includes(INTERFACE_OIDS.ifOperStatus)) {
+      iface.status = item.value === '1' ? 'up' : 'down';
+    } else if (item.oid.includes(INTERFACE_OIDS.ifHighSpeed) || item.oid.includes(INTERFACE_OIDS.ifSpeed)) {
+      iface.speed = item.value;
+    } else if (item.oid.includes(INTERFACE_OIDS.ifPhysAddress)) {
+      iface.mac = item.value;
+    }
+  }
+  
+  // Também processar dados de tráfego para interfaces
+  return Array.from(interfaceMap.entries())
+    .filter(([_, iface]) => iface.name)
+    .map(([_, iface]) => ({
+      name: iface.name || 'unknown',
+      type: iface.type || 'unknown',
+      status: iface.status || 'unknown',
+      speed: iface.speed || '',
+      mac: iface.mac || '',
+      rxBytes: iface.rxBytes || 0,
+      txBytes: iface.txBytes || 0,
+    }));
+}
+
+// Função para processar dados de VLANs
+function processVlanData(outrosOids: Array<{ oid: string; value: string }>): ProcessedVlan[] {
+  const vlanMap = new Map<number, ProcessedVlan>();
+  
+  // VLANs geralmente estão em OIDs específicos de vendors ou 1.3.6.1.4.1.xxx
+  // Procurar por padrões comuns de VLAN
+  for (const item of outrosOids) {
+    // Padrão: OID contém "vlan" ou valores numéricos que parecem IDs de VLAN
+    if (item.oid.toLowerCase().includes('vlan') || item.oid.includes('1.3.6.1.4.1.9.9.46')) {
+      const match = item.value.match(/VLAN(\d+)/i) || item.value.match(/^(\d+)$/);
+      if (match) {
+        const vlanId = parseInt(match[1]);
+        if (vlanId >= 1 && vlanId <= 4094) {
+          if (!vlanMap.has(vlanId)) {
+            vlanMap.set(vlanId, { id: vlanId, name: `VLAN ${vlanId}`, ports: [] });
+          }
+        }
+      }
+    }
+  }
+  
+  return Array.from(vlanMap.values());
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -345,6 +447,97 @@ serve(async (req) => {
                 console.error('Error inserting SNMP metrics:', metricsError);
               } else {
                 console.log(`Inserted ${metricsToInsert.length} SNMP metrics`);
+              }
+            }
+
+            // Processar e salvar interfaces automaticamente
+            const interfaceOids = responseData.data.interfaces || [];
+            const trafegoOids = responseData.data.trafego || [];
+            const allInterfaceOids = [...interfaceOids, ...trafegoOids];
+            
+            if (allInterfaceOids.length > 0) {
+              const processedInterfaces = processInterfaceData(allInterfaceOids);
+              console.log(`Processed ${processedInterfaces.length} interfaces`);
+
+              for (const iface of processedInterfaces) {
+                const { error: ifaceError } = await supabase
+                  .from('monitored_interfaces')
+                  .upsert({
+                    device_uuid: deviceUuid,
+                    interface_name: iface.name,
+                    interface_type: iface.type,
+                    status: iface.status,
+                    rx_bytes: iface.rxBytes,
+                    tx_bytes: iface.txBytes,
+                    speed: iface.speed,
+                    mac_address: iface.mac,
+                    last_updated: new Date().toISOString(),
+                  }, { onConflict: 'device_uuid,interface_name' });
+
+                if (ifaceError) {
+                  console.error('Error upserting interface:', ifaceError.message);
+                }
+              }
+            }
+
+            // Processar e salvar VLANs automaticamente
+            const outrosOids = responseData.data.outros || [];
+            const processedVlans = processVlanData(outrosOids);
+            
+            if (processedVlans.length > 0) {
+              console.log(`Processed ${processedVlans.length} VLANs`);
+
+              for (const vlan of processedVlans) {
+                const { error: vlanError } = await supabase
+                  .from('monitored_vlans')
+                  .upsert({
+                    device_uuid: deviceUuid,
+                    vlan_id: vlan.id,
+                    vlan_name: vlan.name,
+                    interfaces: vlan.ports,
+                    last_updated: new Date().toISOString(),
+                  }, { onConflict: 'device_uuid,vlan_id' });
+
+                if (vlanError) {
+                  console.error('Error upserting VLAN:', vlanError.message);
+                }
+              }
+            }
+
+            // Salvar snapshot de configuração se houve mudanças
+            const currentConfig = {
+              interfaces: processInterfaceData(allInterfaceOids),
+              vlans: processedVlans,
+            };
+
+            // Verificar último snapshot
+            const { data: lastSnapshot } = await supabase
+              .from('device_config_snapshots')
+              .select('config_data')
+              .eq('device_uuid', deviceUuid)
+              .order('collected_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            const lastConfig = lastSnapshot?.config_data as { interfaces?: unknown[]; vlans?: unknown[] } | null;
+            const configChanged = !lastSnapshot || 
+              JSON.stringify(lastConfig?.interfaces) !== JSON.stringify(currentConfig.interfaces) ||
+              JSON.stringify(lastConfig?.vlans) !== JSON.stringify(currentConfig.vlans);
+
+            if (configChanged && (currentConfig.interfaces.length > 0 || currentConfig.vlans.length > 0)) {
+              const { error: snapshotError } = await supabase
+                .from('device_config_snapshots')
+                .insert({
+                  device_uuid: deviceUuid,
+                  config_type: 'full',
+                  config_data: currentConfig,
+                  collected_at: new Date().toISOString(),
+                });
+
+              if (snapshotError) {
+                console.error('Error saving config snapshot:', snapshotError.message);
+              } else {
+                console.log('Saved new config snapshot');
               }
             }
 
