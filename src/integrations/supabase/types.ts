@@ -893,6 +893,7 @@ export type Database = {
           last_seen: string | null
           model: string | null
           notes: string | null
+          protocol: string | null
           status: string | null
           updated_at: string | null
           uptime_raw: string | null
@@ -911,6 +912,7 @@ export type Database = {
           last_seen?: string | null
           model?: string | null
           notes?: string | null
+          protocol?: string | null
           status?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
@@ -929,6 +931,7 @@ export type Database = {
           last_seen?: string | null
           model?: string | null
           notes?: string | null
+          protocol?: string | null
           status?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
