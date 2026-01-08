@@ -174,9 +174,9 @@ export default function Dashboard() {
             />
             
             {/* Card de Portas */}
-            <Card className="mt-4 relative overflow-hidden border-border/50 bg-gradient-to-br from-card to-green-500/5">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full -mr-12 -mt-12" />
-              <CardHeader className="pb-2">
+            <Card className="mt-4 relative overflow-hidden border-border/50 bg-gradient-to-br from-card to-green-500/5 isolate">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full -mr-12 -mt-12 z-0" />
+              <CardHeader className="pb-2 relative z-10">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium uppercase tracking-wider">
                     Disponibilidade de Portas
@@ -184,7 +184,7 @@ export default function Dashboard() {
                   <Cable className="h-4 w-4 text-green-500" />
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10">
                 <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                   {portStats?.available || 0}
                 </div>
@@ -213,14 +213,14 @@ export default function Dashboard() {
         </section>
 
         {/* Seção de Acesso Rápido */}
-        <section className="mb-8">
+        <section className="mb-8 relative z-10">
           <div className="mb-4 flex items-center gap-2">
             <Zap className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Acesso Rápido
             </h3>
           </div>
-          <Card className="p-5 bg-card/50 backdrop-blur-sm border-border/50">
+          <Card className="p-5 bg-card backdrop-blur-sm border-border/50 shadow-sm">
             <QuickAccessWidget />
           </Card>
         </section>
