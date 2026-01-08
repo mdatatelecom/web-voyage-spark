@@ -7,13 +7,14 @@ import { useAllDevicesSLA, useDeviceSLA } from '@/hooks/useDeviceSLA';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Award, Clock, AlertTriangle, TrendingUp, Server } from 'lucide-react';
+import { Award, Clock, AlertTriangle, TrendingUp, Server, RefreshCw, Wrench } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { ExportButton } from '@/components/export/ExportButton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function MonitoringSLA() {
   const [selectedDevice, setSelectedDevice] = useState<string | undefined>();
@@ -210,7 +211,7 @@ export default function MonitoringSLA() {
             ) : deviceSLA ? (
               <div className="space-y-6">
                 {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   <div className="p-4 bg-muted rounded-lg">
                     <p className="text-sm text-muted-foreground">Uptime (3 meses)</p>
                     <p className={`text-2xl font-bold ${getSLAColor(deviceSLA.uptimePercentage)}`}>
@@ -231,6 +232,58 @@ export default function MonitoringSLA() {
                     <p className="text-sm text-muted-foreground">Verificações</p>
                     <p className="text-2xl font-bold">{deviceSLA.totalChecks}</p>
                   </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="p-4 bg-muted rounded-lg cursor-help">
+                          <div className="flex items-center gap-1">
+                            <Wrench className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">MTTR</p>
+                          </div>
+                          <p className="text-2xl font-bold">
+                            {deviceSLA.mttr !== null 
+                              ? deviceSLA.mttr < 60 
+                                ? `${deviceSLA.mttr} min`
+                                : `${Math.floor(deviceSLA.mttr / 60)}h ${deviceSLA.mttr % 60}m`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-semibold">Mean Time To Recovery</p>
+                        <p className="text-sm text-muted-foreground">
+                          Tempo médio para recuperar de uma falha
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="p-4 bg-muted rounded-lg cursor-help">
+                          <div className="flex items-center gap-1">
+                            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">MTBF</p>
+                          </div>
+                          <p className="text-2xl font-bold">
+                            {deviceSLA.mtbf !== null 
+                              ? deviceSLA.mtbf < 60 
+                                ? `${deviceSLA.mtbf} min`
+                                : deviceSLA.mtbf < 1440
+                                  ? `${Math.floor(deviceSLA.mtbf / 60)}h ${deviceSLA.mtbf % 60}m`
+                                  : `${Math.floor(deviceSLA.mtbf / 1440)}d ${Math.floor((deviceSLA.mtbf % 1440) / 60)}h`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-semibold">Mean Time Between Failures</p>
+                        <p className="text-sm text-muted-foreground">
+                          Tempo médio entre falhas
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 {/* Monthly Chart */}
