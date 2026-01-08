@@ -37,13 +37,131 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+    const { device_id, api_token, action, server_address, host } = body;
+
+    // ========== DIRECT SERVER ACTIONS (without device lookup) ==========
+    
+    // Test server connection
+    if (action === 'test-server' && server_address) {
+      try {
+        const cleanAddress = server_address.replace(/^https?:\/\//, '');
+        const testUrl = `http://${cleanAddress}/status`;
+        
+        console.log('Testing server connection:', testUrl);
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(testUrl, {
+          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        
+        return new Response(JSON.stringify({
+          success: response.ok,
+          message: response.ok ? 'Servidor conectado' : `Erro: ${response.status}`,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        return new Response(JSON.stringify({
+          success: false,
+          message: errorMsg.includes('abort') ? 'Timeout na conexão' : 'Falha ao conectar',
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Discover hosts
+    if (action === 'discover' && server_address) {
+      try {
+        const cleanAddress = server_address.replace(/^https?:\/\//, '');
+        const hostsUrl = `http://${cleanAddress}/hosts`;
+        
+        console.log('Discovering hosts at:', hostsUrl);
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(hostsUrl, {
+          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        
+        if (!response.ok) {
+          console.log('Hosts endpoint returned:', response.status);
+          return new Response(JSON.stringify({
+            success: false,
+            hosts: [],
+            message: `Endpoint /hosts retornou ${response.status}`,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        
+        const data = await response.json();
+        console.log('Hosts response:', data);
+        
+        // Handle different response formats
+        let hosts: Array<{ host: string; status?: string }> = [];
+        if (Array.isArray(data)) {
+          hosts = data.map((h: unknown) => typeof h === 'string' ? { host: h } : h as { host: string });
+        } else if (data.hosts && Array.isArray(data.hosts)) {
+          hosts = data.hosts.map((h: unknown) => typeof h === 'string' ? { host: h } : h as { host: string });
+        }
+        
+        return new Response(JSON.stringify({
+          success: true,
+          hosts,
+          message: `${hosts.length} host(s) encontrado(s)`,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error('Discover error:', errorMsg);
+        return new Response(JSON.stringify({
+          success: false,
+          hosts: [],
+          message: errorMsg.includes('abort') ? 'Timeout' : 'Erro ao descobrir hosts',
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Test specific host
+    if (action === 'test-host' && server_address && host) {
+      try {
+        const cleanAddress = server_address.replace(/^https?:\/\//, '');
+        const testUrl = `http://${cleanAddress}/metrics/${host}`;
+        
+        console.log('Testing host:', testUrl);
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(testUrl, {
+          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        
+        return new Response(JSON.stringify({
+          success: response.ok,
+          message: response.ok ? 'Host respondendo' : `Host não encontrado (${response.status})`,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        return new Response(JSON.stringify({
+          success: false,
+          message: errorMsg.includes('abort') ? 'Timeout' : 'Erro ao testar host',
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // ========== DEVICE-BASED ACTIONS ==========
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { device_id, api_token, action } = await req.json();
-
-    if (!device_id && action !== 'status' && action !== 'discover') {
+    if (!device_id && action !== 'status') {
       return new Response(
         JSON.stringify({ error: 'device_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
