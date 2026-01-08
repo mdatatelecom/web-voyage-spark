@@ -23,6 +23,8 @@ interface DeviceSLAData {
   onlineChecks: number;
   avgResponseTime: number | null;
   downtimeIncidents: DowntimeIncident[];
+  mttr: number | null; // Mean Time To Recovery (minutos)
+  mtbf: number | null; // Mean Time Between Failures (minutos)
   monthlyData: {
     month: string;
     uptimePercentage: number;
@@ -52,8 +54,8 @@ export function useDeviceSLA(deviceUuid?: string, months = 3) {
         .from('device_uptime_history')
         .select('*')
         .eq('device_uuid', deviceUuid)
-        .gte('checked_at', startDate.toISOString())
-        .order('checked_at', { ascending: true });
+        .gte('collected_at', startDate.toISOString())
+        .order('collected_at', { ascending: true });
 
       if (error) {
         console.error('Error fetching uptime history:', error);
@@ -103,6 +105,28 @@ export function useDeviceSLA(deviceUuid?: string, months = 3) {
         });
       }
 
+      // Calcular MTTR (Mean Time To Recovery)
+      // Tempo médio que leva para recuperar de uma falha
+      const completedIncidents = downtimeIncidents.filter(i => i.endTime !== null);
+      const mttr = completedIncidents.length > 0
+        ? completedIncidents.reduce((sum, i) => sum + i.durationMinutes, 0) / completedIncidents.length
+        : null;
+
+      // Calcular MTBF (Mean Time Between Failures)
+      // Tempo médio entre o início de duas falhas consecutivas
+      let mtbf: number | null = null;
+      if (downtimeIncidents.length > 1) {
+        let totalTimeBetweenFailures = 0;
+        for (let i = 1; i < downtimeIncidents.length; i++) {
+          const timeBetween = differenceInMinutes(
+            downtimeIncidents[i].startTime,
+            downtimeIncidents[i - 1].startTime
+          );
+          totalTimeBetweenFailures += timeBetween;
+        }
+        mtbf = totalTimeBetweenFailures / (downtimeIncidents.length - 1);
+      }
+
       // Calcular dados mensais
       const monthlyData: DeviceSLAData['monthlyData'] = [];
       for (let i = months - 1; i >= 0; i--) {
@@ -139,6 +163,8 @@ export function useDeviceSLA(deviceUuid?: string, months = 3) {
         onlineChecks,
         avgResponseTime: avgResponseTime ? Math.round(avgResponseTime) : null,
         downtimeIncidents,
+        mttr: mttr ? Math.round(mttr) : null,
+        mtbf: mtbf ? Math.round(mtbf) : null,
         monthlyData
       };
     },
@@ -165,8 +191,8 @@ export function useAllDevicesSLA(months = 1) {
       const { data: allHistory } = await supabase
         .from('device_uptime_history')
         .select('*')
-        .gte('checked_at', startDate.toISOString())
-        .order('checked_at', { ascending: true });
+        .gte('collected_at', startDate.toISOString())
+        .order('collected_at', { ascending: true });
 
       const history = (allHistory || []) as (UptimeRecord & { device_uuid: string })[];
 

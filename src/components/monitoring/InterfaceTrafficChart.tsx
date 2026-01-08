@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { format, subHours, subDays } from 'date-fns';
-import { Activity, ArrowDown, ArrowUp } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, TrendingUp, Gauge } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMonitoredInterfaces } from '@/hooks/useMonitoredInterfaces';
 
 interface TrafficChartProps {
   deviceUuid: string;
@@ -18,13 +19,25 @@ type TimeRange = '1h' | '6h' | '24h' | '7d';
 interface MetricRow {
   id: string;
   oid: string;
+  oid_name: string | null;
   value: string;
   category: string;
   collected_at: string;
 }
 
+interface TrafficDataPoint {
+  time: string;
+  timestamp: Date;
+  rx: number;
+  tx: number;
+  interfaceName?: string;
+}
+
 export function InterfaceTrafficChart({ deviceUuid }: TrafficChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [selectedInterface, setSelectedInterface] = useState<string>('all');
+  
+  const { interfaces } = useMonitoredInterfaces(deviceUuid);
 
   const getStartDate = (range: TimeRange) => {
     switch (range) {
@@ -78,7 +91,7 @@ export function InterfaceTrafficChart({ deviceUuid }: TrafficChartProps) {
       const sorted = Array.from(grouped.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       
       // Calcular taxa de bits por segundo entre coletas
-      const chartData = [];
+      const chartData: TrafficDataPoint[] = [];
       for (let i = 1; i < sorted.length; i++) {
         const prev = sorted[i - 1];
         const curr = sorted[i];
@@ -103,11 +116,45 @@ export function InterfaceTrafficChart({ deviceUuid }: TrafficChartProps) {
     enabled: !!deviceUuid
   });
 
-  // Calcular totais
-  const totalRx = trafficData?.reduce((sum, d) => sum + d.rx, 0) || 0;
-  const totalTx = trafficData?.reduce((sum, d) => sum + d.tx, 0) || 0;
-  const avgRx = trafficData && trafficData.length > 0 ? totalRx / trafficData.length : 0;
-  const avgTx = trafficData && trafficData.length > 0 ? totalTx / trafficData.length : 0;
+  // Calcular estatísticas avançadas
+  const stats = useMemo(() => {
+    if (!trafficData || trafficData.length === 0) {
+      return { avgRx: 0, avgTx: 0, peakRx: 0, peakTx: 0, p95Rx: 0, p95Tx: 0, peakRxTime: null, peakTxTime: null };
+    }
+
+    const rxValues = trafficData.map(d => d.rx);
+    const txValues = trafficData.map(d => d.tx);
+    
+    // Média
+    const avgRx = rxValues.reduce((sum, v) => sum + v, 0) / rxValues.length;
+    const avgTx = txValues.reduce((sum, v) => sum + v, 0) / txValues.length;
+    
+    // Pico
+    const peakRx = Math.max(...rxValues);
+    const peakTx = Math.max(...txValues);
+    
+    // Encontrar horário do pico
+    const peakRxPoint = trafficData.find(d => d.rx === peakRx);
+    const peakTxPoint = trafficData.find(d => d.tx === peakTx);
+    
+    // 95th Percentile
+    const sortedRx = [...rxValues].sort((a, b) => a - b);
+    const sortedTx = [...txValues].sort((a, b) => a - b);
+    const p95Index = Math.floor(sortedRx.length * 0.95);
+    const p95Rx = sortedRx[p95Index] || 0;
+    const p95Tx = sortedTx[p95Index] || 0;
+
+    return {
+      avgRx,
+      avgTx,
+      peakRx,
+      peakTx,
+      p95Rx,
+      p95Tx,
+      peakRxTime: peakRxPoint?.timestamp || null,
+      peakTxTime: peakTxPoint?.timestamp || null
+    };
+  }, [trafficData]);
 
   const chartConfig = {
     rx: { label: 'Download (Mbps)', color: 'hsl(var(--chart-1))' },
@@ -129,38 +176,75 @@ export function InterfaceTrafficChart({ deviceUuid }: TrafficChartProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-muted-foreground" />
           <CardTitle>Tráfego de Rede</CardTitle>
         </div>
-        <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1h">1 hora</SelectItem>
-            <SelectItem value="6h">6 horas</SelectItem>
-            <SelectItem value="24h">24 horas</SelectItem>
-            <SelectItem value="7d">7 dias</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {interfaces && interfaces.length > 0 && (
+            <Select value={selectedInterface} onValueChange={setSelectedInterface}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Interface" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {interfaces.map((iface) => (
+                  <SelectItem key={iface.id} value={iface.interface_name}>
+                    {iface.interface_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">1 hora</SelectItem>
+              <SelectItem value="6h">6 horas</SelectItem>
+              <SelectItem value="24h">24 horas</SelectItem>
+              <SelectItem value="7d">7 dias</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         {/* Summary Stats */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-            <ArrowDown className="h-5 w-5 text-blue-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Download Médio</p>
-              <p className="text-lg font-semibold">{avgRx.toFixed(2)} Mbps</p>
+            <ArrowDown className="h-5 w-5 text-blue-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Download Médio</p>
+              <p className="text-lg font-semibold">{stats.avgRx.toFixed(2)} Mbps</p>
             </div>
           </div>
           <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-            <ArrowUp className="h-5 w-5 text-green-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Upload Médio</p>
-              <p className="text-lg font-semibold">{avgTx.toFixed(2)} Mbps</p>
+            <ArrowUp className="h-5 w-5 text-green-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Upload Médio</p>
+              <p className="text-lg font-semibold">{stats.avgTx.toFixed(2)} Mbps</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <TrendingUp className="h-5 w-5 text-orange-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">Pico Download</p>
+              <p className="text-lg font-semibold">{stats.peakRx.toFixed(2)} Mbps</p>
+              {stats.peakRxTime && (
+                <p className="text-xs text-muted-foreground">
+                  {format(stats.peakRxTime, 'HH:mm')}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <Gauge className="h-5 w-5 text-purple-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">95th Percentile</p>
+              <p className="text-lg font-semibold">{stats.p95Rx.toFixed(2)} / {stats.p95Tx.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">RX / TX</p>
             </div>
           </div>
         </div>
