@@ -306,6 +306,85 @@ export type Database = {
           },
         ]
       }
+      device_config_snapshots: {
+        Row: {
+          collected_at: string | null
+          config_data: Json
+          config_type: string
+          created_at: string | null
+          device_uuid: string | null
+          id: string
+        }
+        Insert: {
+          collected_at?: string | null
+          config_data: Json
+          config_type: string
+          created_at?: string | null
+          device_uuid?: string | null
+          id?: string
+        }
+        Update: {
+          collected_at?: string | null
+          config_data?: Json
+          config_type?: string
+          created_at?: string | null
+          device_uuid?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_config_snapshots_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_offline_alerts: {
+        Row: {
+          created_at: string | null
+          device_uuid: string | null
+          email_enabled: boolean | null
+          id: string
+          is_active: boolean | null
+          last_alert_sent_at: string | null
+          offline_threshold_minutes: number | null
+          updated_at: string | null
+          whatsapp_enabled: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_uuid?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          last_alert_sent_at?: string | null
+          offline_threshold_minutes?: number | null
+          updated_at?: string | null
+          whatsapp_enabled?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          device_uuid?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          last_alert_sent_at?: string | null
+          offline_threshold_minutes?: number | null
+          updated_at?: string | null
+          whatsapp_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_offline_alerts_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_uptime_history: {
         Row: {
           collected_at: string | null

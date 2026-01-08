@@ -52,6 +52,8 @@ import FloorPlanSelector from "./pages/FloorPlanSelector";
 import MonitoringDashboard from "./pages/MonitoringDashboard";
 import MonitoringDevices from "./pages/MonitoringDevices";
 import MonitoringDeviceDetails from "./pages/MonitoringDeviceDetails";
+import MonitoringSLA from "./pages/MonitoringSLA";
+import ConfigComparison from "./pages/ConfigComparison";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -439,6 +441,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <MonitoringDeviceDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/sla"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <MonitoringSLA />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/config-compare"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <ConfigComparison />
                 </ProtectedRoute>
               } 
             />
