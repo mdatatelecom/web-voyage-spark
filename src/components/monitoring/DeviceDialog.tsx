@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
 
 interface DeviceDialogProps {
@@ -20,6 +21,7 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
     device_id: device?.device_id || '',
     hostname: device?.hostname || '',
     ip_address: device?.ip_address || '',
+    protocol: device?.protocol || 'http',
     api_token: device?.api_token || '',
     customer_name: device?.customer_name || '',
     notes: device?.notes || '',
@@ -71,25 +73,41 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="ip_address">Endereço IP</Label>
+              <Label htmlFor="protocol">Protocolo</Label>
+              <Select 
+                value={formData.protocol} 
+                onValueChange={(value) => handleChange('protocol', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Protocolo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="http">HTTP</SelectItem>
+                  <SelectItem value="https">HTTPS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="ip_address">Endereço IP:Porta</Label>
               <Input
                 id="ip_address"
                 value={formData.ip_address}
                 onChange={(e) => handleChange('ip_address', e.target.value)}
-                placeholder="Ex: 192.168.1.1"
+                placeholder="Ex: 192.168.1.1:3000"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer_name">Cliente</Label>
-              <Input
-                id="customer_name"
-                value={formData.customer_name}
-                onChange={(e) => handleChange('customer_name', e.target.value)}
-                placeholder="Nome do cliente"
-              />
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="customer_name">Cliente</Label>
+            <Input
+              id="customer_name"
+              value={formData.customer_name}
+              onChange={(e) => handleChange('customer_name', e.target.value)}
+              placeholder="Nome do cliente"
+            />
           </div>
 
           <div className="space-y-2">

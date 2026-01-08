@@ -9,6 +9,7 @@ export interface MonitoredDevice {
   vendor: string | null;
   model: string | null;
   ip_address: string | null;
+  protocol: string | null;
   api_token: string | null;
   is_active: boolean;
   status: string;
@@ -25,6 +26,7 @@ export interface CreateDeviceInput {
   device_id: string;
   hostname?: string;
   ip_address?: string;
+  protocol?: string;
   api_token?: string;
   customer_name?: string;
   notes?: string;

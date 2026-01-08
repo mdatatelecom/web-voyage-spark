@@ -57,22 +57,15 @@ serve(async (req) => {
       );
     }
 
-    // Buscar dispositivo do banco se não tiver token
-    let token = api_token;
-    let deviceUuid: string | null = null;
+    // Buscar dispositivo do banco
+    const { data: deviceData } = await supabase
+      .from('monitored_devices')
+      .select('id, api_token, ip_address, protocol')
+      .eq('device_id', device_id)
+      .single();
 
-    if (!token) {
-      const { data: deviceData } = await supabase
-        .from('monitored_devices')
-        .select('id, api_token')
-        .eq('device_id', device_id)
-        .single();
-
-      if (deviceData) {
-        token = deviceData.api_token;
-        deviceUuid = deviceData.id;
-      }
-    }
+    const token = api_token || deviceData?.api_token;
+    const deviceUuid = deviceData?.id || null;
 
     if (!token) {
       return new Response(
@@ -81,7 +74,12 @@ serve(async (req) => {
       );
     }
 
-    const apiUrl = `https://86.48.3.172/api/monitor/${device_id}`;
+    // Construir URL dinâmica baseada nos dados do dispositivo
+    const protocol = deviceData?.protocol || 'http';
+    const ipAddress = deviceData?.ip_address || '86.48.3.172:3000';
+    const apiUrl = `${protocol}://${ipAddress}/api/monitor/${device_id}`;
+    
+    console.log(`Device config: protocol=${protocol}, ip=${ipAddress}`);
     const startTime = Date.now();
 
     console.log(`Fetching data from: ${apiUrl}`);
