@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,17 +9,24 @@ import { InterfaceTable } from '@/components/monitoring/InterfaceTable';
 import { VlanTable } from '@/components/monitoring/VlanTable';
 import { UptimeChart } from '@/components/monitoring/UptimeChart';
 import { DeviceDocumentation } from '@/components/monitoring/DeviceDocumentation';
+import { DeviceMetricsHistory } from '@/components/monitoring/DeviceMetricsHistory';
+import { DeviceAlertConfigDialog } from '@/components/monitoring/DeviceAlertConfigDialog';
+import { ConfigComparisonDialog } from '@/components/monitoring/ConfigComparisonDialog';
+import { InterfaceTrafficChart } from '@/components/monitoring/InterfaceTrafficChart';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useMonitoredInterfaces } from '@/hooks/useMonitoredInterfaces';
 import { useMonitoredVlans } from '@/hooks/useMonitoredVlans';
 import { useUptimeHistory } from '@/hooks/useUptimeHistory';
 import { useDeviceStatus, useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
-import { ArrowLeft, RefreshCw, Server, Network, Layers, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Server, Network, Layers, FileText, Clock, Bell, GitCompare, Activity, BarChart3 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MonitoringDeviceDetails() {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
+  
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [comparisonDialogOpen, setComparisonDialogOpen] = useState(false);
   
   const { devices, isLoading: devicesLoading } = useMonitoredDevices();
   const device = devices?.find((d) => d.id === deviceId) || null;
@@ -75,14 +83,32 @@ export default function MonitoringDeviceDetails() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => refreshDevice(device.device_id)}
-            disabled={statusFetching}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${statusFetching ? 'animate-spin' : ''}`} />
-            Atualizar Agora
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setAlertDialogOpen(true)}
+              title="Configurar Alertas"
+            >
+              <Bell className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setComparisonDialogOpen(true)}
+              title="Comparar Configurações"
+            >
+              <GitCompare className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => refreshDevice(device.device_id)}
+              disabled={statusFetching}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${statusFetching ? 'animate-spin' : ''}`} />
+              Atualizar Agora
+            </Button>
+          </div>
         </div>
 
         {/* Info Card */}
@@ -130,6 +156,14 @@ export default function MonitoringDeviceDetails() {
               <Layers className="h-4 w-4" />
               VLANs
             </TabsTrigger>
+            <TabsTrigger value="metrics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Métricas
+            </TabsTrigger>
+            <TabsTrigger value="traffic" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Tráfego
+            </TabsTrigger>
             <TabsTrigger value="documentation" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Documentação
@@ -174,6 +208,24 @@ export default function MonitoringDeviceDetails() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="metrics">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Histórico de Métricas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DeviceMetricsHistory deviceUuid={deviceId || ''} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="traffic">
+            <InterfaceTrafficChart deviceUuid={deviceId || ''} />
+          </TabsContent>
+
           <TabsContent value="documentation">
             <DeviceDocumentation
               device={device}
@@ -182,6 +234,20 @@ export default function MonitoringDeviceDetails() {
             />
           </TabsContent>
         </Tabs>
+
+        {/* Dialogs */}
+        <DeviceAlertConfigDialog
+          deviceUuid={deviceId || ''}
+          deviceName={device.hostname || device.device_id}
+          open={alertDialogOpen}
+          onOpenChange={setAlertDialogOpen}
+        />
+        <ConfigComparisonDialog
+          deviceUuid={deviceId || ''}
+          deviceName={device.hostname || device.device_id}
+          open={comparisonDialogOpen}
+          onOpenChange={setComparisonDialogOpen}
+        />
       </div>
     </AppLayout>
   );
