@@ -306,6 +306,41 @@ export type Database = {
           },
         ]
       }
+      device_uptime_history: {
+        Row: {
+          collected_at: string | null
+          device_uuid: string
+          id: string
+          is_online: boolean
+          response_time_ms: number | null
+          uptime_raw: string | null
+        }
+        Insert: {
+          collected_at?: string | null
+          device_uuid: string
+          id?: string
+          is_online: boolean
+          response_time_ms?: number | null
+          uptime_raw?: string | null
+        }
+        Update: {
+          collected_at?: string | null
+          device_uuid?: string
+          id?: string
+          is_online?: boolean
+          response_time_ms?: number | null
+          uptime_raw?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_uptime_history_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment: {
         Row: {
           airflow: string | null
@@ -843,6 +878,157 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      monitored_devices: {
+        Row: {
+          api_token: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_name: string | null
+          device_id: string
+          hostname: string | null
+          id: string
+          ip_address: string | null
+          is_active: boolean | null
+          last_seen: string | null
+          model: string | null
+          notes: string | null
+          status: string | null
+          updated_at: string | null
+          uptime_raw: string | null
+          vendor: string | null
+        }
+        Insert: {
+          api_token?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_name?: string | null
+          device_id: string
+          hostname?: string | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean | null
+          last_seen?: string | null
+          model?: string | null
+          notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          uptime_raw?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          api_token?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_name?: string | null
+          device_id?: string
+          hostname?: string | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean | null
+          last_seen?: string | null
+          model?: string | null
+          notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          uptime_raw?: string | null
+          vendor?: string | null
+        }
+        Relationships: []
+      }
+      monitored_interfaces: {
+        Row: {
+          created_at: string | null
+          device_uuid: string
+          id: string
+          interface_name: string
+          interface_type: string | null
+          is_monitored: boolean | null
+          last_updated: string | null
+          mac_address: string | null
+          rx_bytes: number | null
+          speed: string | null
+          status: string | null
+          tx_bytes: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_uuid: string
+          id?: string
+          interface_name: string
+          interface_type?: string | null
+          is_monitored?: boolean | null
+          last_updated?: string | null
+          mac_address?: string | null
+          rx_bytes?: number | null
+          speed?: string | null
+          status?: string | null
+          tx_bytes?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          device_uuid?: string
+          id?: string
+          interface_name?: string
+          interface_type?: string | null
+          is_monitored?: boolean | null
+          last_updated?: string | null
+          mac_address?: string | null
+          rx_bytes?: number | null
+          speed?: string | null
+          status?: string | null
+          tx_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitored_interfaces_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitored_vlans: {
+        Row: {
+          created_at: string | null
+          device_uuid: string
+          id: string
+          interfaces: Json | null
+          is_monitored: boolean | null
+          last_updated: string | null
+          vlan_id: number
+          vlan_name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_uuid: string
+          id?: string
+          interfaces?: Json | null
+          is_monitored?: boolean | null
+          last_updated?: string | null
+          vlan_id: number
+          vlan_name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_uuid?: string
+          id?: string
+          interfaces?: Json | null
+          is_monitored?: boolean | null
+          last_updated?: string | null
+          vlan_id?: number
+          vlan_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitored_vlans_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_settings: {
         Row: {
