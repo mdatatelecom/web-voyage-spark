@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper para formatar o header Authorization corretamente
+const formatAuthHeader = (token: string): string => {
+  if (!token) return '';
+  return token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+};
+
 // Estrutura da resposta real da API /metrics/:host
 interface MetricsResponse {
   host: string;
@@ -54,7 +60,7 @@ serve(async (req) => {
         const timeout = setTimeout(() => controller.abort(), 5000);
         
         const response = await fetch(testUrl, {
-          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          headers: body.api_token ? { 'Authorization': formatAuthHeader(body.api_token) } : {},
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -72,7 +78,7 @@ serve(async (req) => {
       }
     }
 
-    // Discover hosts
+    // Discover hosts (direct server action)
     if (action === 'discover' && server_address) {
       try {
         const cleanAddress = server_address.replace(/^https?:\/\//, '');
@@ -84,7 +90,7 @@ serve(async (req) => {
         const timeout = setTimeout(() => controller.abort(), 10000);
         
         const response = await fetch(hostsUrl, {
-          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          headers: body.api_token ? { 'Authorization': formatAuthHeader(body.api_token) } : {},
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -137,7 +143,7 @@ serve(async (req) => {
         const timeout = setTimeout(() => controller.abort(), 10000);
         
         const response = await fetch(testUrl, {
-          headers: body.api_token ? { 'Authorization': body.api_token } : {},
+          headers: body.api_token ? { 'Authorization': formatAuthHeader(body.api_token) } : {},
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -185,22 +191,23 @@ serve(async (req) => {
       );
     }
 
-    // Configurar endereços - agora separamos servidor da API e host monitorado
+    // Configurar endereços
     const protocol = deviceData?.protocol || 'http';
-    const serverAddress = deviceData?.server_address || '86.48.3.172:3000';
+    const serverAddr = deviceData?.server_address || '86.48.3.172:3000';
     const monitoredHost = deviceData?.monitored_host || deviceData?.ip_address;
+    const authHeader = formatAuthHeader(token);
 
-    console.log(`Device config: protocol=${protocol}, server=${serverAddress}, host=${monitoredHost}`);
+    console.log(`Device config: protocol=${protocol}, server=${serverAddr}, host=${monitoredHost}`);
 
     // ========== ACTION: STATUS ==========
     if (action === 'status') {
-      const statusUrl = `${protocol}://${serverAddress}/status`;
+      const statusUrl = `${protocol}://${serverAddr}/status`;
       console.log(`Checking API status: ${statusUrl}`);
 
       try {
         const response = await fetch(statusUrl, {
           method: 'GET',
-          headers: { 'Authorization': token },
+          headers: { 'Authorization': authHeader },
         });
 
         if (response.ok) {
@@ -224,46 +231,50 @@ serve(async (req) => {
       }
     }
 
-    // ========== ACTION: DISCOVER ==========
-    if (action === 'discover') {
-      const hostsUrl = `${protocol}://${serverAddress}/hosts`;
-      console.log(`Discovering hosts: ${hostsUrl}`);
+    // ========== ACTION: HISTORY ==========
+    if (action === 'history') {
+      const historyUrl = `${protocol}://${serverAddr}/metrics/${monitoredHost}/history`;
+      console.log(`Fetching history from: ${historyUrl}`);
 
       try {
-        const response = await fetch(hostsUrl, {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(historyUrl, {
           method: 'GET',
-          headers: { 'Authorization': token },
+          headers: { 'Authorization': authHeader },
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
-          const hostsData: HostsResponse = await response.json();
+          const historyData = await response.json();
           return new Response(
-            JSON.stringify({ success: true, hosts: hostsData.hosts }),
+            JSON.stringify({ success: true, host: monitoredHost, history: historyData }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } else {
           return new Response(
-            JSON.stringify({ success: false, error: 'Failed to get hosts', status: response.status }),
+            JSON.stringify({ success: false, error: 'Failed to get history', status: response.status }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
       } catch (error) {
-        console.error('Host discovery failed:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('History fetch failed:', errorMsg);
         return new Response(
-          JSON.stringify({ success: false, error: 'Failed to connect to API' }),
+          JSON.stringify({ success: false, error: errorMsg.includes('abort') ? 'Timeout' : 'Failed to get history' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
     // ========== ACTION: COLLECT (default) ==========
-    // Endpoint correto: GET /metrics/:host
-    const apiUrl = `${protocol}://${serverAddress}/metrics/${monitoredHost}`;
+    const apiUrl = `${protocol}://${serverAddr}/metrics/${monitoredHost}`;
     const startTime = Date.now();
 
     console.log(`Fetching metrics from: ${apiUrl}`);
 
-    // Chamar API externa com timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -274,7 +285,7 @@ serve(async (req) => {
       const apiResponse = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': token,
+          'Authorization': authHeader,
           'Accept': 'application/json',
         },
         signal: controller.signal,
@@ -325,7 +336,6 @@ serve(async (req) => {
               }
             }
 
-            // Inserir métricas em lote
             if (metricsToInsert.length > 0) {
               const { error: metricsError } = await supabase
                 .from('snmp_metrics')
@@ -338,7 +348,6 @@ serve(async (req) => {
               }
             }
 
-            // Calcular contagem de interfaces para referência
             const interfaceCount = responseData.data.interfaces?.length || 0;
             console.log(`Found ${interfaceCount} interface OIDs`);
           }
@@ -352,7 +361,6 @@ serve(async (req) => {
       console.error(`Failed to fetch device ${device_id}:`, fetchError);
       isOnline = false;
 
-      // Registrar como offline
       if (deviceUuid) {
         await supabase
           .from('monitored_devices')
