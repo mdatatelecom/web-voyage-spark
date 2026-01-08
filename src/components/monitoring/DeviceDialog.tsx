@@ -20,8 +20,9 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
   const [formData, setFormData] = useState({
     device_id: device?.device_id || '',
     hostname: device?.hostname || '',
-    ip_address: device?.ip_address || '',
     protocol: device?.protocol || 'http',
+    server_address: device?.server_address || '86.48.3.172:3000',
+    monitored_host: device?.monitored_host || '',
     api_token: device?.api_token || '',
     customer_name: device?.customer_name || '',
     notes: device?.notes || '',
@@ -43,7 +44,7 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>
             {device ? 'Editar Dispositivo' : 'Adicionar Dispositivo'}
@@ -57,7 +58,7 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
                 id="device_id"
                 value={formData.device_id}
                 onChange={(e) => handleChange('device_id', e.target.value)}
-                placeholder="Ex: router-01"
+                placeholder="Ex: iw-01"
                 required
                 disabled={!!device}
               />
@@ -90,14 +91,31 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
               </Select>
             </div>
             <div className="space-y-2 col-span-2">
-              <Label htmlFor="ip_address">Endereço IP:Porta</Label>
+              <Label htmlFor="server_address">Servidor da API (IP:Porta)</Label>
               <Input
-                id="ip_address"
-                value={formData.ip_address}
-                onChange={(e) => handleChange('ip_address', e.target.value)}
-                placeholder="Ex: 192.168.1.1:3000"
+                id="server_address"
+                value={formData.server_address}
+                onChange={(e) => handleChange('server_address', e.target.value)}
+                placeholder="Ex: 86.48.3.172:3000"
               />
+              <p className="text-xs text-muted-foreground">
+                Endereço do servidor que hospeda a API de monitoramento
+              </p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="monitored_host">Host Monitorado (IP) *</Label>
+            <Input
+              id="monitored_host"
+              value={formData.monitored_host}
+              onChange={(e) => handleChange('monitored_host', e.target.value)}
+              placeholder="Ex: 179.124.212.112"
+              required={!device}
+            />
+            <p className="text-xs text-muted-foreground">
+              IP do dispositivo que será monitorado via SNMP
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -121,7 +139,7 @@ export function DeviceDialog({ open, onOpenChange, device, onSave, isLoading }: 
               required={!device}
             />
             <p className="text-xs text-muted-foreground">
-              Token HTTP para autenticar na API de monitoramento
+              Token para autenticar na API (sem "Bearer")
             </p>
           </div>
 

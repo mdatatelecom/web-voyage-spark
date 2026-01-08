@@ -6,35 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface DeviceData {
-  hostname: string;
-  vendor: string;
-  model: string;
-  uptime: string;
+// Estrutura da resposta real da API /metrics/:host
+interface MetricsResponse {
+  host: string;
+  data: {
+    interfaces: Array<{ oid: string; value: string }>;
+    cpu: Array<{ oid: string; value: string }>;
+    memoria: Array<{ oid: string; value: string }>;
+    trafego: Array<{ oid: string; value: string }>;
+    outros: Array<{ oid: string; value: string }>;
+  };
+}
+
+// Estrutura da resposta /status
+interface StatusResponse {
   status: string;
-  collected_at: string;
+  hosts_monitored: number;
+  last_update: string;
 }
 
-interface InterfaceData {
-  name: string;
-  type: string;
-  status: string;
-  rx_bytes: number;
-  tx_bytes: number;
-  speed: string;
-  mac_address: string;
-}
-
-interface VlanData {
-  vlan_id: number;
-  name: string;
-  interfaces: string[];
-}
-
-interface ApiResponse {
-  device: DeviceData;
-  interfaces: InterfaceData[];
-  vlans: VlanData[];
+// Estrutura da resposta /hosts
+interface HostsResponse {
+  hosts: string[];
 }
 
 serve(async (req) => {
@@ -50,7 +43,7 @@ serve(async (req) => {
 
     const { device_id, api_token, action } = await req.json();
 
-    if (!device_id) {
+    if (!device_id && action !== 'status' && action !== 'discover') {
       return new Response(
         JSON.stringify({ error: 'device_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -60,7 +53,7 @@ serve(async (req) => {
     // Buscar dispositivo do banco
     const { data: deviceData } = await supabase
       .from('monitored_devices')
-      .select('id, api_token, ip_address, protocol')
+      .select('id, api_token, ip_address, protocol, server_address, monitored_host')
       .eq('device_id', device_id)
       .single();
 
@@ -74,29 +67,96 @@ serve(async (req) => {
       );
     }
 
-    // Construir URL dinâmica baseada nos dados do dispositivo
+    // Configurar endereços - agora separamos servidor da API e host monitorado
     const protocol = deviceData?.protocol || 'http';
-    const ipAddress = deviceData?.ip_address || '86.48.3.172:3000';
-    const apiUrl = `${protocol}://${ipAddress}/api/monitor/${device_id}`;
-    
-    console.log(`Device config: protocol=${protocol}, ip=${ipAddress}`);
+    const serverAddress = deviceData?.server_address || '86.48.3.172:3000';
+    const monitoredHost = deviceData?.monitored_host || deviceData?.ip_address;
+
+    console.log(`Device config: protocol=${protocol}, server=${serverAddress}, host=${monitoredHost}`);
+
+    // ========== ACTION: STATUS ==========
+    if (action === 'status') {
+      const statusUrl = `${protocol}://${serverAddress}/status`;
+      console.log(`Checking API status: ${statusUrl}`);
+
+      try {
+        const response = await fetch(statusUrl, {
+          method: 'GET',
+          headers: { 'Authorization': token },
+        });
+
+        if (response.ok) {
+          const statusData: StatusResponse = await response.json();
+          return new Response(
+            JSON.stringify({ success: true, ...statusData }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ success: false, error: 'API offline', status: response.status }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (error) {
+        console.error('Status check failed:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to connect to API' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // ========== ACTION: DISCOVER ==========
+    if (action === 'discover') {
+      const hostsUrl = `${protocol}://${serverAddress}/hosts`;
+      console.log(`Discovering hosts: ${hostsUrl}`);
+
+      try {
+        const response = await fetch(hostsUrl, {
+          method: 'GET',
+          headers: { 'Authorization': token },
+        });
+
+        if (response.ok) {
+          const hostsData: HostsResponse = await response.json();
+          return new Response(
+            JSON.stringify({ success: true, hosts: hostsData.hosts }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to get hosts', status: response.status }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (error) {
+        console.error('Host discovery failed:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to connect to API' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // ========== ACTION: COLLECT (default) ==========
+    // Endpoint correto: GET /metrics/:host
+    const apiUrl = `${protocol}://${serverAddress}/metrics/${monitoredHost}`;
     const startTime = Date.now();
 
-    console.log(`Fetching data from: ${apiUrl}`);
+    console.log(`Fetching metrics from: ${apiUrl}`);
 
     // Chamar API externa com timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    let apiResponse: Response;
     let isOnline = false;
-    let responseData: ApiResponse | null = null;
+    let responseData: MetricsResponse | null = null;
 
     try {
-      apiResponse = await fetch(apiUrl, {
+      const apiResponse = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': token,
           'Accept': 'application/json',
         },
         signal: controller.signal,
@@ -108,7 +168,7 @@ serve(async (req) => {
       if (apiResponse.ok) {
         responseData = await apiResponse.json();
         isOnline = true;
-        console.log(`Device ${device_id} is online. Response time: ${responseTime}ms`);
+        console.log(`Device ${device_id} (host: ${monitoredHost}) is online. Response time: ${responseTime}ms`);
 
         // Atualizar dispositivo no banco
         if (deviceUuid) {
@@ -117,59 +177,52 @@ serve(async (req) => {
             .update({
               status: 'online',
               last_seen: new Date().toISOString(),
-              hostname: responseData?.device?.hostname,
-              vendor: responseData?.device?.vendor,
-              model: responseData?.device?.model,
-              uptime_raw: responseData?.device?.uptime,
             })
             .eq('id', deviceUuid);
 
-          // Inserir histórico
+          // Inserir histórico de uptime
           await supabase
             .from('device_uptime_history')
             .insert({
               device_uuid: deviceUuid,
               is_online: true,
-              uptime_raw: responseData?.device?.uptime,
               response_time_ms: responseTime,
             });
 
-          // Atualizar interfaces
-          if (responseData?.interfaces) {
-            for (const iface of responseData.interfaces) {
-              await supabase
-                .from('monitored_interfaces')
-                .upsert({
-                  device_uuid: deviceUuid,
-                  interface_name: iface.name,
-                  interface_type: iface.type || 'ethernet',
-                  status: iface.status || 'unknown',
-                  rx_bytes: iface.rx_bytes || 0,
-                  tx_bytes: iface.tx_bytes || 0,
-                  speed: iface.speed,
-                  mac_address: iface.mac_address,
-                  last_updated: new Date().toISOString(),
-                }, {
-                  onConflict: 'device_uuid,interface_name',
-                });
-            }
-          }
+          // Processar e armazenar métricas SNMP
+          if (responseData?.data) {
+            const metricsToInsert = [];
+            const categories = ['interfaces', 'cpu', 'memoria', 'trafego', 'outros'] as const;
 
-          // Atualizar VLANs
-          if (responseData?.vlans) {
-            for (const vlan of responseData.vlans) {
-              await supabase
-                .from('monitored_vlans')
-                .upsert({
+            for (const category of categories) {
+              const items = responseData.data[category] || [];
+              for (const item of items) {
+                metricsToInsert.push({
                   device_uuid: deviceUuid,
-                  vlan_id: vlan.vlan_id,
-                  vlan_name: vlan.name,
-                  interfaces: vlan.interfaces || [],
-                  last_updated: new Date().toISOString(),
-                }, {
-                  onConflict: 'device_uuid,vlan_id',
+                  oid: item.oid,
+                  value: item.value,
+                  category: category,
+                  collected_at: new Date().toISOString(),
                 });
+              }
             }
+
+            // Inserir métricas em lote
+            if (metricsToInsert.length > 0) {
+              const { error: metricsError } = await supabase
+                .from('snmp_metrics')
+                .insert(metricsToInsert);
+
+              if (metricsError) {
+                console.error('Error inserting SNMP metrics:', metricsError);
+              } else {
+                console.log(`Inserted ${metricsToInsert.length} SNMP metrics`);
+              }
+            }
+
+            // Calcular contagem de interfaces para referência
+            const interfaceCount = responseData.data.interfaces?.length || 0;
+            console.log(`Found ${interfaceCount} interface OIDs`);
           }
         }
       } else {
@@ -202,9 +255,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         is_online: isOnline,
-        device: responseData?.device || null,
-        interfaces: responseData?.interfaces || [],
-        vlans: responseData?.vlans || [],
+        host: responseData?.host || monitoredHost,
+        data: responseData?.data || null,
         collected_at: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
