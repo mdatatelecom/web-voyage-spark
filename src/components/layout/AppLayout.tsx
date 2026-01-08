@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon, Activity, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -129,6 +129,16 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       items: [
         { label: 'Mapa de Câmeras', icon: Camera, path: '/cameras/map', visible: true },
         { label: 'Relatório NVR', icon: BarChart3, path: '/nvr-report', visible: true },
+      ],
+    },
+    {
+      id: 'monitoring',
+      label: 'Monitoramento',
+      icon: Activity,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Dashboard', icon: Activity, path: '/monitoring', visible: true },
+        { label: 'Dispositivos', icon: Server, path: '/monitoring/devices', visible: true },
       ],
     },
     {
