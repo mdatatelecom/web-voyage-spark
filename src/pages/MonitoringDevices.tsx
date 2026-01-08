@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { DeviceDialog } from '@/components/monitoring/DeviceDialog';
 import { useMonitoredDevices, MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
-import { Plus, Pencil, Trash2, Server, ExternalLink } from 'lucide-react';
+import { useDeviceBatchSync } from '@/hooks/useDeviceBatchSync';
+import { Plus, Pencil, Trash2, Server, ExternalLink, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -36,10 +37,17 @@ export default function MonitoringDevices() {
     isDeleting,
   } = useMonitoredDevices();
 
+  const { isSyncing, lastSyncTime, syncAllDevices, startAutoSync, stopAutoSync } = useDeviceBatchSync();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<MonitoredDevice | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<MonitoredDevice | null>(null);
+
+  useEffect(() => {
+    startAutoSync(60000);
+    return () => stopAutoSync();
+  }, [startAutoSync, stopAutoSync]);
 
   const handleAdd = () => {
     setEditingDevice(null);
@@ -76,7 +84,6 @@ export default function MonitoringDevices() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -87,13 +94,23 @@ export default function MonitoringDevices() {
               Cadastre e gerencie os dispositivos monitorados
             </p>
           </div>
-          <Button onClick={handleAdd}>
-            <Plus className="h-4 w-4 mr-2" />
-            Adicionar Dispositivo
-          </Button>
+          <div className="flex gap-2 items-center">
+            {lastSyncTime && (
+              <span className="text-sm text-muted-foreground">
+                Sync: {formatDistanceToNow(lastSyncTime, { addSuffix: true, locale: ptBR })}
+              </span>
+            )}
+            <Button variant="outline" onClick={() => syncAllDevices()} disabled={isSyncing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+            </Button>
+            <Button onClick={handleAdd}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar
+            </Button>
+          </div>
         </div>
 
-        {/* Table */}
         <Card>
           <CardHeader>
             <CardTitle>Dispositivos Cadastrados</CardTitle>
@@ -130,25 +147,16 @@ export default function MonitoringDevices() {
                 <TableBody>
                   {devices.map((device) => (
                     <TableRow key={device.id}>
-                      <TableCell className="font-medium">
-                        {device.hostname || '-'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {device.device_id}
-                      </TableCell>
-                      <TableCell className="font-mono">
-                        {device.ip_address || '-'}
-                      </TableCell>
+                      <TableCell className="font-medium">{device.hostname || '-'}</TableCell>
+                      <TableCell className="font-mono text-sm">{device.device_id}</TableCell>
+                      <TableCell className="font-mono">{device.ip_address || '-'}</TableCell>
                       <TableCell>{device.customer_name || '-'}</TableCell>
                       <TableCell>
                         <DeviceStatusBadge status={device.status} size="sm" />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {device.last_seen
-                          ? formatDistanceToNow(new Date(device.last_seen), {
-                              addSuffix: true,
-                              locale: ptBR,
-                            })
+                          ? formatDistanceToNow(new Date(device.last_seen), { addSuffix: true, locale: ptBR })
                           : 'Nunca'}
                       </TableCell>
                       <TableCell>
@@ -158,25 +166,13 @@ export default function MonitoringDevices() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => navigate(`/monitoring/${device.id}`)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => navigate(`/monitoring/${device.id}`)}>
                             <ExternalLink className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(device)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(device)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(device)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(device)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
@@ -190,7 +186,6 @@ export default function MonitoringDevices() {
         </Card>
       </div>
 
-      {/* Device Dialog */}
       <DeviceDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -199,14 +194,12 @@ export default function MonitoringDevices() {
         isLoading={isCreating || isUpdating}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja remover o dispositivo "{deviceToDelete?.hostname || deviceToDelete?.device_id}"?
-              Esta ação não pode ser desfeita e todo o histórico será perdido.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

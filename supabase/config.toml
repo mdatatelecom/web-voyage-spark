@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.monitor-proxy]
 verify_jwt = true
+
+[functions.check-device-status]
+verify_jwt = false
