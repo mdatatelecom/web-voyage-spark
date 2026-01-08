@@ -49,6 +49,9 @@ import VlanDetails from "./pages/VlanDetails";
 import IPAMDashboard from "./pages/IPAMDashboard";
 import LandingScreenshots from "./pages/LandingScreenshots";
 import FloorPlanSelector from "./pages/FloorPlanSelector";
+import MonitoringDashboard from "./pages/MonitoringDashboard";
+import MonitoringDevices from "./pages/MonitoringDevices";
+import MonitoringDeviceDetails from "./pages/MonitoringDeviceDetails";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -412,6 +415,30 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <LandingScreenshots />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <MonitoringDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/devices"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <MonitoringDevices />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/:deviceId"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <MonitoringDeviceDetails />
                 </ProtectedRoute>
               } 
             />
