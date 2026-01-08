@@ -22,7 +22,14 @@ export function useDeviceBatchSync() {
       return { device_id: device.device_id, success: true, is_online: false };
     }
 
+    if (!device.device_id) {
+      console.warn('Device missing device_id, skipping');
+      return { device_id: 'unknown', success: false, is_online: false, error: 'Missing device_id' };
+    }
+
     try {
+      console.log(`Syncing device: ${device.device_id}`);
+      
       const { data, error } = await supabase.functions.invoke('monitor-proxy', {
         body: { device_id: device.device_id, action: 'collect' }
       });
@@ -32,6 +39,7 @@ export function useDeviceBatchSync() {
         return { device_id: device.device_id, success: false, is_online: false, error: error.message };
       }
 
+      console.log(`Sync result for ${device.device_id}:`, data);
       return {
         device_id: device.device_id,
         success: true,
