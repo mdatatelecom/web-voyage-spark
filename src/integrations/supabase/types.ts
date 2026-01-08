@@ -892,8 +892,10 @@ export type Database = {
           is_active: boolean | null
           last_seen: string | null
           model: string | null
+          monitored_host: string | null
           notes: string | null
           protocol: string | null
+          server_address: string | null
           status: string | null
           updated_at: string | null
           uptime_raw: string | null
@@ -911,8 +913,10 @@ export type Database = {
           is_active?: boolean | null
           last_seen?: string | null
           model?: string | null
+          monitored_host?: string | null
           notes?: string | null
           protocol?: string | null
+          server_address?: string | null
           status?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
@@ -930,8 +934,10 @@ export type Database = {
           is_active?: boolean | null
           last_seen?: string | null
           model?: string | null
+          monitored_host?: string | null
           notes?: string | null
           protocol?: string | null
+          server_address?: string | null
           status?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
@@ -1526,6 +1532,47 @@ export type Database = {
             columns: ["floor_id"]
             isOneToOne: false
             referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      snmp_metrics: {
+        Row: {
+          category: string | null
+          collected_at: string | null
+          created_at: string | null
+          device_uuid: string | null
+          id: string
+          oid: string
+          oid_name: string | null
+          value: string | null
+        }
+        Insert: {
+          category?: string | null
+          collected_at?: string | null
+          created_at?: string | null
+          device_uuid?: string | null
+          id?: string
+          oid: string
+          oid_name?: string | null
+          value?: string | null
+        }
+        Update: {
+          category?: string | null
+          collected_at?: string | null
+          created_at?: string | null
+          device_uuid?: string | null
+          id?: string
+          oid?: string
+          oid_name?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snmp_metrics_device_uuid_fkey"
+            columns: ["device_uuid"]
+            isOneToOne: false
+            referencedRelation: "monitored_devices"
             referencedColumns: ["id"]
           },
         ]
