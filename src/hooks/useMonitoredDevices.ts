@@ -22,6 +22,11 @@ export interface MonitoredDevice {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+  // System info fields from SNMP
+  sys_name: string | null;
+  sys_description: string | null;
+  sys_location: string | null;
+  sys_contact: string | null;
 }
 
 export interface CreateDeviceInput {

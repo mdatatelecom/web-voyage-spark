@@ -12,6 +12,15 @@ const formatAuthHeader = (token: string): string => {
   return token.startsWith('Bearer ') ? token : `Bearer ${token}`;
 };
 
+// OIDs de sistema SNMP
+const SYSTEM_OIDS = {
+  sysDescr: '1.3.6.1.2.1.1.1.0',
+  sysUpTime: '1.3.6.1.2.1.1.3.0',
+  sysName: '1.3.6.1.2.1.1.5.0',
+  sysLocation: '1.3.6.1.2.1.1.6.0',
+  sysContact: '1.3.6.1.2.1.1.4.0',
+};
+
 // Estrutura da resposta real da API /metrics/:host
 interface MetricsResponse {
   host: string;
@@ -31,11 +40,6 @@ interface StatusResponse {
   last_update: string;
 }
 
-// Estrutura da resposta /hosts
-interface HostsResponse {
-  hosts: string[];
-}
-
 // Interface para dados processados
 interface ProcessedInterface {
   name: string;
@@ -51,6 +55,15 @@ interface ProcessedVlan {
   id: number;
   name: string;
   ports: string[];
+}
+
+interface SystemInfo {
+  description: string | null;
+  uptime: string | null;
+  uptimeRaw: string | null;
+  name: string | null;
+  location: string | null;
+  contact: string | null;
 }
 
 // OIDs conhecidos para interfaces
@@ -71,6 +84,47 @@ const INTERFACE_OIDS = {
 function extractInterfaceIndex(oid: string): string | null {
   const parts = oid.split('.');
   return parts.length > 0 ? parts[parts.length - 1] : null;
+}
+
+// Função para formatar uptime de ticks (centésimos de segundo) para string legível
+function formatUptime(ticks: number): string {
+  const seconds = Math.floor(ticks / 100);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${days}d ${hours}h ${minutes}m`;
+}
+
+// Função para extrair informações do sistema dos OIDs
+function extractSystemInfo(data: MetricsResponse['data']): SystemInfo {
+  const outros = data?.outros || [];
+  
+  const findOid = (oidPrefix: string) => {
+    const found = outros.find(o => o.oid.includes(oidPrefix));
+    return found?.value || null;
+  };
+  
+  const uptimeTicks = findOid(SYSTEM_OIDS.sysUpTime);
+  
+  return {
+    description: findOid(SYSTEM_OIDS.sysDescr),
+    uptime: uptimeTicks ? formatUptime(parseInt(uptimeTicks)) : null,
+    uptimeRaw: uptimeTicks,
+    name: findOid(SYSTEM_OIDS.sysName),
+    location: findOid(SYSTEM_OIDS.sysLocation),
+    contact: findOid(SYSTEM_OIDS.sysContact),
+  };
+}
+
+// Função para extrair timestamp do nome do arquivo de histórico
+function extractTimestampFromFilename(filename: string): string | null {
+  // Formato esperado: "192.168.1.1_2026-01-09T10-30-00.json"
+  const match = filename.match(/(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
+  if (match) {
+    // Converter de formato de arquivo (2026-01-09T10-30-00) para ISO (2026-01-09T10:30:00)
+    return match[1].replace(/T(\d{2})-(\d{2})-(\d{2})/, 'T$1:$2:$3');
+  }
+  return null;
 }
 
 // Função para processar dados de interfaces
@@ -333,6 +387,70 @@ serve(async (req) => {
       }
     }
 
+    // ========== ACTION: DEVICE (informações completas) ==========
+    if (action === 'device') {
+      const deviceUrl = `${protocol}://${serverAddr}/device/${monitoredHost}`;
+      console.log(`Fetching device info from: ${deviceUrl}`);
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(deviceUrl, {
+          method: 'GET',
+          headers: { 'Authorization': authHeader },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const deviceInfo = await response.json();
+          
+          // Extrair informações do sistema
+          const systemInfo = extractSystemInfo(deviceInfo.data || deviceInfo);
+          
+          // Atualizar dispositivo no banco com informações do sistema
+          if (deviceUuid && systemInfo) {
+            await supabase
+              .from('monitored_devices')
+              .update({
+                sys_name: systemInfo.name,
+                sys_description: systemInfo.description,
+                sys_location: systemInfo.location,
+                sys_contact: systemInfo.contact,
+                uptime_raw: systemInfo.uptimeRaw,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', deviceUuid);
+            
+            console.log('Updated device system info:', systemInfo.name);
+          }
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              host: monitoredHost, 
+              system: systemInfo,
+              data: deviceInfo.data || deviceInfo 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to get device info', status: response.status }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Device info fetch failed:', errorMsg);
+        return new Response(
+          JSON.stringify({ success: false, error: errorMsg.includes('abort') ? 'Timeout' : 'Failed to get device info' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // ========== ACTION: HISTORY ==========
     if (action === 'history') {
       const historyUrl = `${protocol}://${serverAddr}/metrics/${monitoredHost}/history`;
@@ -351,8 +469,18 @@ serve(async (req) => {
 
         if (response.ok) {
           const historyData = await response.json();
+          
+          // Processar para extrair timestamps dos nomes de arquivo
+          const processedHistory = Array.isArray(historyData) 
+            ? historyData.map((item: { file?: string; data: unknown }) => ({
+                timestamp: item.file ? extractTimestampFromFilename(item.file) : null,
+                filename: item.file || null,
+                data: item.data || item,
+              }))
+            : historyData;
+          
           return new Response(
-            JSON.stringify({ success: true, host: monitoredHost, history: historyData }),
+            JSON.stringify({ success: true, host: monitoredHost, history: processedHistory }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } else {
@@ -382,6 +510,7 @@ serve(async (req) => {
 
     let isOnline = false;
     let responseData: MetricsResponse | null = null;
+    let systemInfo: SystemInfo | null = null;
 
     try {
       const apiResponse = await fetch(apiUrl, {
@@ -401,14 +530,30 @@ serve(async (req) => {
         isOnline = true;
         console.log(`Device ${device_id} (host: ${monitoredHost}) is online. Response time: ${responseTime}ms`);
 
+        // Extrair informações do sistema
+        if (responseData?.data) {
+          systemInfo = extractSystemInfo(responseData.data);
+        }
+
         // Atualizar dispositivo no banco
         if (deviceUuid) {
+          const updateData: Record<string, unknown> = {
+            status: 'online',
+            last_seen: new Date().toISOString(),
+          };
+          
+          // Adicionar informações do sistema se disponíveis
+          if (systemInfo) {
+            if (systemInfo.name) updateData.sys_name = systemInfo.name;
+            if (systemInfo.description) updateData.sys_description = systemInfo.description;
+            if (systemInfo.location) updateData.sys_location = systemInfo.location;
+            if (systemInfo.contact) updateData.sys_contact = systemInfo.contact;
+            if (systemInfo.uptimeRaw) updateData.uptime_raw = systemInfo.uptimeRaw;
+          }
+          
           await supabase
             .from('monitored_devices')
-            .update({
-              status: 'online',
-              last_seen: new Date().toISOString(),
-            })
+            .update(updateData)
             .eq('id', deviceUuid);
 
           // Inserir histórico de uptime
@@ -418,6 +563,7 @@ serve(async (req) => {
               device_uuid: deviceUuid,
               is_online: true,
               response_time_ms: responseTime,
+              uptime_raw: systemInfo?.uptimeRaw || null,
             });
 
           // Processar e armazenar métricas SNMP
@@ -508,6 +654,7 @@ serve(async (req) => {
             const currentConfig = {
               interfaces: processInterfaceData(allInterfaceOids),
               vlans: processedVlans,
+              system: systemInfo,
             };
 
             // Verificar último snapshot
@@ -519,7 +666,7 @@ serve(async (req) => {
               .limit(1)
               .maybeSingle();
 
-            const lastConfig = lastSnapshot?.config_data as { interfaces?: unknown[]; vlans?: unknown[] } | null;
+            const lastConfig = lastSnapshot?.config_data as { interfaces?: unknown[]; vlans?: unknown[]; system?: unknown } | null;
             const configChanged = !lastSnapshot || 
               JSON.stringify(lastConfig?.interfaces) !== JSON.stringify(currentConfig.interfaces) ||
               JSON.stringify(lastConfig?.vlans) !== JSON.stringify(currentConfig.vlans);
@@ -575,6 +722,7 @@ serve(async (req) => {
         success: true,
         is_online: isOnline,
         host: responseData?.host || monitoredHost,
+        system: systemInfo,
         data: responseData?.data || null,
         collected_at: new Date().toISOString(),
       }),
