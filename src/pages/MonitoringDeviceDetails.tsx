@@ -114,14 +114,14 @@ export default function MonitoringDeviceDetails() {
         {/* Info Card */}
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Cliente</span>
                 <p className="font-medium">{device.customer_name || '-'}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Device ID</span>
-                <p className="font-mono">{device.device_id}</p>
+                <p className="font-mono text-xs">{device.device_id}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Uptime</span>
@@ -138,7 +138,41 @@ export default function MonitoringDeviceDetails() {
                 <span className="text-muted-foreground">VLANs</span>
                 <p className="font-medium">{vlans?.length || 0}</p>
               </div>
+              <div>
+                <span className="text-muted-foreground">sysName</span>
+                <p className="font-medium truncate" title={device.sys_name || undefined}>
+                  {device.sys_name || '-'}
+                </p>
+              </div>
             </div>
+            
+            {/* System Info Section */}
+            {(device.sys_description || device.sys_location || device.sys_contact) && (
+              <div className="mt-4 pt-4 border-t space-y-2 text-sm">
+                {device.sys_description && (
+                  <div>
+                    <span className="text-muted-foreground">Descrição SNMP:</span>
+                    <p className="font-mono text-xs bg-muted p-2 rounded mt-1 break-all">
+                      {device.sys_description}
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {device.sys_location && (
+                    <div>
+                      <span className="text-muted-foreground">Localização:</span>
+                      <p className="font-medium">{device.sys_location}</p>
+                    </div>
+                  )}
+                  {device.sys_contact && (
+                    <div>
+                      <span className="text-muted-foreground">Contato:</span>
+                      <p className="font-medium">{device.sys_contact}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

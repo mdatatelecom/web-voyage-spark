@@ -976,6 +976,10 @@ export type Database = {
           protocol: string | null
           server_address: string | null
           status: string | null
+          sys_contact: string | null
+          sys_description: string | null
+          sys_location: string | null
+          sys_name: string | null
           updated_at: string | null
           uptime_raw: string | null
           vendor: string | null
@@ -997,6 +1001,10 @@ export type Database = {
           protocol?: string | null
           server_address?: string | null
           status?: string | null
+          sys_contact?: string | null
+          sys_description?: string | null
+          sys_location?: string | null
+          sys_name?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
           vendor?: string | null
@@ -1018,6 +1026,10 @@ export type Database = {
           protocol?: string | null
           server_address?: string | null
           status?: string | null
+          sys_contact?: string | null
+          sys_description?: string | null
+          sys_location?: string | null
+          sys_name?: string | null
           updated_at?: string | null
           uptime_raw?: string | null
           vendor?: string | null
