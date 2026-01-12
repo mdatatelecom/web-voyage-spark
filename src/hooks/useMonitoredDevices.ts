@@ -9,10 +9,6 @@ export interface MonitoredDevice {
   vendor: string | null;
   model: string | null;
   ip_address: string | null;
-  protocol: string | null;
-  server_address: string | null;
-  monitored_host: string | null;
-  api_token: string | null;
   is_active: boolean;
   status: string;
   last_seen: string | null;
@@ -22,11 +18,6 @@ export interface MonitoredDevice {
   created_at: string;
   updated_at: string;
   created_by: string | null;
-  // System info fields from SNMP
-  sys_name: string | null;
-  sys_description: string | null;
-  sys_location: string | null;
-  sys_contact: string | null;
   // Grafana/Zabbix integration fields
   data_source_type: string | null;
   grafana_host_id: string | null;
@@ -37,13 +28,9 @@ export interface MonitoredDevice {
 export interface CreateDeviceInput {
   device_id: string;
   hostname?: string;
-  ip_address?: string;
-  protocol?: string;
-  server_address?: string;
-  monitored_host?: string;
-  api_token?: string;
   customer_name?: string;
   notes?: string;
+  is_active?: boolean;
   // Grafana/Zabbix fields
   data_source_type?: string;
   grafana_host_id?: string;
@@ -75,6 +62,7 @@ export function useMonitoredDevices() {
         .from('monitored_devices')
         .insert({
           ...input,
+          data_source_type: 'grafana',
           created_by: user?.id,
         })
         .select()
@@ -96,7 +84,10 @@ export function useMonitoredDevices() {
     mutationFn: async ({ id, ...updates }: Partial<MonitoredDevice> & { id: string }) => {
       const { data, error } = await supabase
         .from('monitored_devices')
-        .update(updates)
+        .update({
+          ...updates,
+          data_source_type: 'grafana',
+        })
         .eq('id', id)
         .select()
         .single();
