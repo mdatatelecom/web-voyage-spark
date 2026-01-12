@@ -17,7 +17,7 @@ export function useDeviceBatchSync() {
   const queryClient = useQueryClient();
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const syncDevice = async (device: { device_id: string; is_active: boolean }): Promise<SyncResult> => {
+  const syncDevice = async (device: { device_id: string; is_active: boolean; data_source_type?: string | null; api_token?: string | null }): Promise<SyncResult> => {
     if (!device.is_active) {
       return { device_id: device.device_id, success: true, is_online: false };
     }
@@ -27,8 +27,20 @@ export function useDeviceBatchSync() {
       return { device_id: 'unknown', success: false, is_online: false, error: 'Missing device_id' };
     }
 
+    // Skip Grafana/Zabbix devices - they use a different sync mechanism
+    if (device.data_source_type === 'grafana' || device.data_source_type === 'zabbix') {
+      console.log(`Skipping SNMP sync for ${device.device_id} (uses ${device.data_source_type})`);
+      return { device_id: device.device_id, success: true, is_online: true };
+    }
+
+    // Skip devices without API token (they can't be synced via SNMP)
+    if (!device.api_token) {
+      console.warn(`Device ${device.device_id} has no API token, skipping SNMP sync`);
+      return { device_id: device.device_id, success: true, is_online: false };
+    }
+
     try {
-      console.log(`Syncing device: ${device.device_id}`);
+      console.log(`Syncing SNMP device: ${device.device_id}`);
       
       const { data, error } = await supabase.functions.invoke('monitor-proxy', {
         body: { device_id: device.device_id, action: 'collect' }
@@ -56,10 +68,10 @@ export function useDeviceBatchSync() {
     setIsSyncing(true);
 
     try {
-      // Buscar dispositivos ativos
+      // Buscar dispositivos ativos com informações de tipo
       const { data: devices, error } = await supabase
         .from('monitored_devices')
-        .select('device_id, is_active')
+        .select('device_id, is_active, data_source_type, api_token')
         .eq('is_active', true);
 
       if (error) {
