@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,24 +7,70 @@ import { GrafanaConfigDialog } from '@/components/monitoring/GrafanaConfigDialog
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
 import { useGrafanaConfig } from '@/hooks/useGrafanaConfig';
-import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus, Settings, BarChart3 } from 'lucide-react';
+import { useDeviceBatchSync } from '@/hooks/useDeviceBatchSync';
+import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus, Settings, BarChart3, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+const REFRESH_INTERVALS = [
+  { value: 0, label: 'Manual' },
+  { value: 30000, label: '30 segundos' },
+  { value: 60000, label: '1 minuto' },
+  { value: 300000, label: '5 minutos' },
+  { value: 600000, label: '10 minutos' },
+];
+
+const STORAGE_KEY = 'monitoring-refresh-interval';
 
 export default function MonitoringDashboard() {
   const navigate = useNavigate();
   const { devices, isLoading } = useMonitoredDevices();
   const { refreshAll } = useRefreshDeviceStatus();
   const { config: grafanaConfig, isLoading: grafanaLoading } = useGrafanaConfig();
+  const { isSyncing, lastSyncTime, syncAllDevices, startAutoSync, stopAutoSync } = useDeviceBatchSync();
   
   const [grafanaDialogOpen, setGrafanaDialogOpen] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState<number>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? parseInt(saved, 10) : 60000; // Default: 1 minuto
+  });
+
+  // Gerenciar auto-sync baseado no intervalo selecionado
+  useEffect(() => {
+    if (refreshInterval > 0) {
+      startAutoSync(refreshInterval);
+    } else {
+      stopAutoSync();
+    }
+
+    return () => stopAutoSync();
+  }, [refreshInterval, startAutoSync, stopAutoSync]);
+
+  const handleIntervalChange = (value: string) => {
+    const interval = parseInt(value, 10);
+    setRefreshInterval(interval);
+    localStorage.setItem(STORAGE_KEY, value);
+    
+    if (interval === 0) {
+      toast.info('Atualização automática desativada');
+    } else {
+      const label = REFRESH_INTERVALS.find(i => i.value === interval)?.label;
+      toast.success(`Atualização automática: ${label}`);
+    }
+  };
 
   const activeDevices = devices?.filter((d) => d.is_active) || [];
   const onlineCount = activeDevices.filter((d) => d.status === 'online').length;
   const offlineCount = activeDevices.filter((d) => d.status === 'offline').length;
 
   const handleRefreshAll = () => {
+    syncAllDevices(true);
     refreshAll();
   };
 
@@ -44,7 +90,32 @@ export default function MonitoringDashboard() {
               Acompanhe o status dos dispositivos via Grafana/Zabbix
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {/* Indicador de última atualização */}
+            {lastSyncTime && (
+              <span className="text-xs text-muted-foreground hidden sm:block">
+                Atualizado: {format(lastSyncTime, 'HH:mm:ss', { locale: ptBR })}
+              </span>
+            )}
+            
+            {/* Seletor de intervalo */}
+            <Select 
+              value={refreshInterval.toString()} 
+              onValueChange={handleIntervalChange}
+            >
+              <SelectTrigger className="w-[140px]">
+                <Clock className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REFRESH_INTERVALS.map((interval) => (
+                  <SelectItem key={interval.value} value={interval.value.toString()}>
+                    {interval.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -65,9 +136,13 @@ export default function MonitoringDashboard() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <Button variant="outline" onClick={handleRefreshAll}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar Tudo
+            <Button 
+              variant="outline" 
+              onClick={handleRefreshAll}
+              disabled={isSyncing}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
+              {isSyncing ? 'Sincronizando...' : 'Atualizar'}
             </Button>
             <Button onClick={() => navigate('/monitoring/devices')}>
               <Plus className="h-4 w-4 mr-2" />
