@@ -44,11 +44,150 @@ serve(async (req) => {
       });
     }
 
-    const { action, grafana_url, api_key, datasource_uid, host_id, query } = await req.json();
+    const { action, grafana_url, api_key, datasource_uid, host_id, zabbix_host_id, query } = await req.json();
 
     console.log(`Grafana proxy action: ${action}`);
 
+    // For actions that need config from database
+    const getConfigAndApiKey = async () => {
+      // Get Grafana config from database
+      const { data: configData } = await supabase
+        .from('grafana_config')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!configData) {
+        throw new Error('Grafana configuration not found');
+      }
+
+      // Get API key from system_settings
+      const { data: apiKeyData } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'grafana_api_key')
+        .maybeSingle();
+
+      const apiKeyValue = (apiKeyData?.setting_value as { key?: string })?.key;
+      if (!apiKeyValue) {
+        throw new Error('Grafana API key not configured');
+      }
+
+      return { config: configData, apiKey: apiKeyValue };
+    };
+
     switch (action) {
+      case 'get-host-status': {
+        // Get host status from Zabbix via Grafana - uses stored config
+        const hostId = zabbix_host_id || host_id;
+        if (!hostId) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            is_online: false,
+            device: null,
+            collected_at: new Date().toISOString(),
+            error: 'zabbix_host_id is required' 
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          const { config, apiKey: storedApiKey } = await getConfigAndApiKey();
+          const grafanaUrl = config.grafana_url;
+          const dsUid = config.datasource_uid;
+
+          // Get host info from Zabbix
+          const hostResponse = await fetch(`${grafanaUrl}/api/datasources/uid/${dsUid}/resources/zabbix-api`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${storedApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'host.get',
+              params: {
+                output: ['hostid', 'host', 'name', 'status', 'available', 'snmp_available', 'description'],
+                hostids: hostId,
+                selectInterfaces: ['ip', 'type', 'available'],
+              },
+              id: 1,
+            }),
+          });
+
+          if (!hostResponse.ok) {
+            console.error('Failed to get host status:', hostResponse.status);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              is_online: false,
+              device: null,
+              collected_at: new Date().toISOString(),
+              error: `Grafana error: ${hostResponse.status}` 
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const hostData = await hostResponse.json();
+          const host = hostData.result?.[0];
+
+          if (!host) {
+            return new Response(JSON.stringify({ 
+              success: false, 
+              is_online: false,
+              device: null,
+              collected_at: new Date().toISOString(),
+              error: 'Host not found in Zabbix' 
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Determine online status
+          // available: 0=unknown, 1=available, 2=unavailable
+          // snmp_available: same
+          // status: 0=monitored, 1=unmonitored
+          const isOnline = host.available === '1' || host.snmp_available === '1';
+          const interfaces = host.interfaces || [];
+          const ip = interfaces.find((i: any) => i.ip)?.ip || 'N/A';
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            is_online: isOnline,
+            device: {
+              hostname: host.name || host.host,
+              vendor: 'Zabbix',
+              model: host.description || 'Unknown',
+              uptime: 'N/A',
+              status: isOnline ? 'online' : 'offline',
+              ip_address: ip,
+              collected_at: new Date().toISOString(),
+            },
+            collected_at: new Date().toISOString(),
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+          console.error('Error getting host status:', errorMsg);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            is_online: false,
+            device: null,
+            collected_at: new Date().toISOString(),
+            error: errorMsg 
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'test-connection': {
         // Test connection to Grafana
         const response = await fetch(`${grafana_url}/api/health`, {
