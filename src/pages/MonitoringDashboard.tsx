@@ -7,10 +7,9 @@ import { GrafanaConfigDialog } from '@/components/monitoring/GrafanaConfigDialog
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
 import { useGrafanaConfig } from '@/hooks/useGrafanaConfig';
-import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus, Settings, Radio, BarChart3 } from 'lucide-react';
+import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus, Settings, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function MonitoringDashboard() {
@@ -24,11 +23,6 @@ export default function MonitoringDashboard() {
   const activeDevices = devices?.filter((d) => d.is_active) || [];
   const onlineCount = activeDevices.filter((d) => d.status === 'online').length;
   const offlineCount = activeDevices.filter((d) => d.status === 'offline').length;
-  
-  // Count devices by data source type
-  const snmpDevices = devices?.filter((d) => d.data_source_type === 'snmp' || !d.data_source_type) || [];
-  const grafanaDevices = devices?.filter((d) => d.data_source_type === 'grafana') || [];
-  const hybridDevices = devices?.filter((d) => d.data_source_type === 'hybrid') || [];
 
   const handleRefreshAll = () => {
     refreshAll();
@@ -47,7 +41,7 @@ export default function MonitoringDashboard() {
               Monitoramento de Rede
             </h1>
             <p className="text-muted-foreground">
-              Acompanhe o status dos dispositivos em tempo real
+              Acompanhe o status dos dispositivos via Grafana/Zabbix
             </p>
           </div>
           <div className="flex gap-2">
@@ -83,7 +77,7 @@ export default function MonitoringDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -136,26 +130,6 @@ export default function MonitoringDashboard() {
               <div className="flex items-center gap-2">
                 <XCircle className="h-5 w-5 text-red-500" />
                 <span className="text-2xl font-bold text-red-600">{offlineCount}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Por Fonte de Dados
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline" className="text-xs">
-                  <Radio className="h-3 w-3 mr-1" />
-                  SNMP: {snmpDevices.length}
-                </Badge>
-                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-600">
-                  <BarChart3 className="h-3 w-3 mr-1" />
-                  Grafana: {grafanaDevices.length + hybridDevices.length}
-                </Badge>
               </div>
             </CardContent>
           </Card>

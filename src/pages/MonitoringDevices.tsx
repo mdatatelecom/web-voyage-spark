@@ -5,10 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { DeviceDialog } from '@/components/monitoring/DeviceDialog';
-import { HostDiscoveryDialog } from '@/components/monitoring/HostDiscoveryDialog';
 import { useMonitoredDevices, MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
 import { useDeviceBatchSync } from '@/hooks/useDeviceBatchSync';
-import { Plus, Pencil, Trash2, Server, ExternalLink, RefreshCw, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Server, ExternalLink, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -44,13 +43,6 @@ export default function MonitoringDevices() {
   const [editingDevice, setEditingDevice] = useState<MonitoredDevice | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<MonitoredDevice | null>(null);
-  const [discoveryDialogOpen, setDiscoveryDialogOpen] = useState(false);
-
-  const handleHostSelected = (host: string, serverAddress: string, apiToken: string) => {
-    setEditingDevice(null);
-    setDialogOpen(true);
-    // The dialog will open with default values, user can fill in the rest
-  };
 
   useEffect(() => {
     startAutoSync(60000);
@@ -99,7 +91,7 @@ export default function MonitoringDevices() {
               Gerenciar Dispositivos
             </h1>
             <p className="text-muted-foreground">
-              Cadastre e gerencie os dispositivos monitorados
+              Cadastre e gerencie os dispositivos monitorados via Grafana/Zabbix
             </p>
           </div>
           <div className="flex gap-2 items-center">
@@ -111,10 +103,6 @@ export default function MonitoringDevices() {
             <Button variant="outline" onClick={() => syncAllDevices()} disabled={isSyncing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
               {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
-            </Button>
-            <Button variant="outline" onClick={() => setDiscoveryDialogOpen(true)}>
-              <Search className="h-4 w-4 mr-2" />
-              Descobrir Hosts
             </Button>
             <Button onClick={handleAdd}>
               <Plus className="h-4 w-4 mr-2" />
@@ -148,7 +136,6 @@ export default function MonitoringDevices() {
                   <TableRow>
                     <TableHead>Hostname</TableHead>
                     <TableHead>Device ID</TableHead>
-                    <TableHead>IP</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Última Coleta</TableHead>
@@ -161,7 +148,6 @@ export default function MonitoringDevices() {
                     <TableRow key={device.id}>
                       <TableCell className="font-medium">{device.hostname || '-'}</TableCell>
                       <TableCell className="font-mono text-sm">{device.device_id}</TableCell>
-                      <TableCell className="font-mono">{device.ip_address || '-'}</TableCell>
                       <TableCell>{device.customer_name || '-'}</TableCell>
                       <TableCell>
                         <DeviceStatusBadge status={device.status} size="sm" />
@@ -222,12 +208,6 @@ export default function MonitoringDevices() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <HostDiscoveryDialog
-        open={discoveryDialogOpen}
-        onOpenChange={setDiscoveryDialogOpen}
-        onSelectHost={handleHostSelected}
-      />
     </AppLayout>
   );
 }
