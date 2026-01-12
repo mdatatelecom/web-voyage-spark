@@ -1002,6 +1002,7 @@ export type Database = {
           customer_name: string | null
           data_source_type: string | null
           device_id: string
+          external_panel_url: string | null
           grafana_dashboard_uid: string | null
           grafana_host_id: string | null
           hostname: string | null
@@ -1031,6 +1032,7 @@ export type Database = {
           customer_name?: string | null
           data_source_type?: string | null
           device_id: string
+          external_panel_url?: string | null
           grafana_dashboard_uid?: string | null
           grafana_host_id?: string | null
           hostname?: string | null
@@ -1060,6 +1062,7 @@ export type Database = {
           customer_name?: string | null
           data_source_type?: string | null
           device_id?: string
+          external_panel_url?: string | null
           grafana_dashboard_uid?: string | null
           grafana_host_id?: string | null
           hostname?: string | null

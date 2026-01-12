@@ -23,6 +23,8 @@ export interface MonitoredDevice {
   grafana_host_id: string | null;
   grafana_dashboard_uid: string | null;
   zabbix_host_id: string | null;
+  // External panel URL
+  external_panel_url: string | null;
 }
 
 export interface CreateDeviceInput {
@@ -36,6 +38,8 @@ export interface CreateDeviceInput {
   grafana_host_id?: string;
   grafana_dashboard_uid?: string;
   zabbix_host_id?: string;
+  // External panel URL
+  external_panel_url?: string;
 }
 
 export function useMonitoredDevices() {
