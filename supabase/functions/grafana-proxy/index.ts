@@ -123,101 +123,142 @@ serve(async (req) => {
       }
 
       case 'zabbix-hosts': {
-        // Get hosts from Zabbix via Grafana datasource
-        const queryBody = {
-          queries: [{
-            refId: 'A',
-            datasource: { uid: datasource_uid },
-            queryType: 'zabbixAPI',
-            group: { filter: '' },
-            host: { filter: '' },
-            application: { filter: '' },
-            item: { filter: '' },
-            functions: [],
-            mode: 0,
-            options: {
-              showDisabledItems: false,
-              skipEmptyValues: false,
-            },
-            // Custom Zabbix API query
-            zabbixAPI: {
-              method: 'host.get',
-              params: {
-                output: ['hostid', 'host', 'name', 'status', 'description'],
-                selectGroups: ['groupid', 'name'],
-                selectInterfaces: ['interfaceid', 'ip', 'dns', 'port', 'type'],
-                filter: {},
-              }
-            }
-          }],
-          from: 'now-1h',
-          to: 'now',
+        // Get hosts from Zabbix via Grafana Zabbix plugin API
+        console.log('Fetching Zabbix hosts via Grafana plugin...');
+        console.log(`Datasource UID: ${datasource_uid}`);
+        
+        // Use Grafana's Zabbix plugin API endpoint
+        const zabbixApiUrl = `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`;
+        console.log(`Zabbix API URL: ${zabbixApiUrl}`);
+
+        const zabbixRequest = {
+          jsonrpc: '2.0',
+          method: 'host.get',
+          params: {
+            output: ['hostid', 'host', 'name', 'status', 'description'],
+            selectGroups: ['groupid', 'name'],
+            selectInterfaces: ['interfaceid', 'ip', 'dns', 'port', 'type'],
+            limit: 1000,
+          },
+          id: 1,
         };
 
-        // Try the Grafana datasource proxy endpoint
-        const response = await fetch(`${grafana_url}/api/ds/query`, {
+        console.log('Zabbix request:', JSON.stringify(zabbixRequest));
+
+        const response = await fetch(zabbixApiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${api_key}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json-rpc',
           },
-          body: JSON.stringify(queryBody),
+          body: JSON.stringify(zabbixRequest),
         });
 
+        const responseText = await response.text();
+        console.log('Zabbix response status:', response.status);
+        console.log('Zabbix response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
+        console.log('Zabbix response body (first 1000 chars):', responseText.substring(0, 1000));
+
         if (!response.ok) {
-          // Try alternative approach - direct datasource proxy
-          console.log('Trying alternative endpoint for Zabbix hosts...');
+          console.error('Failed to fetch Zabbix hosts, status:', response.status);
           
-          const altResponse = await fetch(`${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`, {
+          // Try alternative: use Grafana's resource API for Zabbix plugin
+          console.log('Trying Grafana resource API...');
+          const resourceUrl = `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`;
+          console.log(`Resource URL: ${resourceUrl}`);
+          
+          const resourceResponse = await fetch(resourceUrl, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${api_key}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              jsonrpc: '2.0',
               method: 'host.get',
               params: {
                 output: ['hostid', 'host', 'name', 'status', 'description'],
                 selectGroups: ['groupid', 'name'],
                 selectInterfaces: ['interfaceid', 'ip', 'dns', 'port', 'type'],
-              },
-              id: 1,
+              }
             }),
           });
 
-          if (!altResponse.ok) {
-            const errorText = await altResponse.text();
-            console.error('Failed to fetch Zabbix hosts:', errorText);
+          const resourceText = await resourceResponse.text();
+          console.log('Resource response status:', resourceResponse.status);
+          console.log('Resource response body (first 1000 chars):', resourceText.substring(0, 1000));
+
+          if (!resourceResponse.ok) {
             return new Response(JSON.stringify({ 
               success: false, 
-              error: `Failed to fetch hosts: ${altResponse.status}` 
+              error: `Failed to fetch hosts. Proxy: ${response.status}, Resource: ${resourceResponse.status}`,
+              details: {
+                proxyResponse: responseText.substring(0, 500),
+                resourceResponse: resourceText.substring(0, 500)
+              }
             }), {
               status: 200,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
 
-          const altData = await altResponse.json();
-          console.log(`Fetched ${altData.result?.length || 0} hosts from Zabbix`);
+          try {
+            const resourceData = JSON.parse(resourceText);
+            const hosts = resourceData.result || resourceData || [];
+            console.log(`Fetched ${Array.isArray(hosts) ? hosts.length : 0} hosts via resource API`);
+            
+            return new Response(JSON.stringify({ 
+              success: true, 
+              data: Array.isArray(hosts) ? hosts : [] 
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } catch (e) {
+            console.error('Failed to parse resource response:', e);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: 'Invalid response from Zabbix API' 
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        // Parse the response
+        try {
+          const data = JSON.parse(responseText);
+          
+          // Check for Zabbix API error
+          if (data.error) {
+            console.error('Zabbix API error:', data.error);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: `Zabbix API error: ${data.error.message || data.error.data || JSON.stringify(data.error)}` 
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const hosts = data.result || [];
+          console.log(`Successfully fetched ${hosts.length} hosts from Zabbix`);
 
           return new Response(JSON.stringify({ 
             success: true, 
-            data: altData.result || [] 
+            data: hosts 
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
+        } catch (e) {
+          console.error('Failed to parse Zabbix response:', e);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Invalid JSON response from Zabbix' 
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
-
-        const data = await response.json();
-        console.log('Zabbix hosts response:', JSON.stringify(data).substring(0, 500));
-
-        return new Response(JSON.stringify({ 
-          success: true, 
-          data: data.results?.A?.frames?.[0]?.data || data 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
       }
 
       case 'host-metrics': {
