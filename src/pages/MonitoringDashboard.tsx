@@ -1,25 +1,40 @@
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MonitoringCard } from '@/components/monitoring/MonitoringCard';
+import { GrafanaConfigDialog } from '@/components/monitoring/GrafanaConfigDialog';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
-import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
+import { useGrafanaConfig } from '@/hooks/useGrafanaConfig';
+import { Activity, Server, CheckCircle, XCircle, RefreshCw, Plus, Settings, Radio, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function MonitoringDashboard() {
   const navigate = useNavigate();
   const { devices, isLoading } = useMonitoredDevices();
   const { refreshAll } = useRefreshDeviceStatus();
+  const { config: grafanaConfig, isLoading: grafanaLoading } = useGrafanaConfig();
+  
+  const [grafanaDialogOpen, setGrafanaDialogOpen] = useState(false);
 
   const activeDevices = devices?.filter((d) => d.is_active) || [];
   const onlineCount = activeDevices.filter((d) => d.status === 'online').length;
   const offlineCount = activeDevices.filter((d) => d.status === 'offline').length;
+  
+  // Count devices by data source type
+  const snmpDevices = devices?.filter((d) => d.data_source_type === 'snmp' || !d.data_source_type) || [];
+  const grafanaDevices = devices?.filter((d) => d.data_source_type === 'grafana') || [];
+  const hybridDevices = devices?.filter((d) => d.data_source_type === 'hybrid') || [];
 
   const handleRefreshAll = () => {
     refreshAll();
   };
+
+  const isGrafanaConfigured = !!grafanaConfig?.grafana_url && !!grafanaConfig?.datasource_uid;
 
   return (
     <AppLayout>
@@ -36,6 +51,26 @@ export default function MonitoringDashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setGrafanaDialogOpen(true)}
+                    className="relative"
+                  >
+                    <Settings className="h-4 w-4" />
+                    {isGrafanaConfigured && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Configurar Grafana/Zabbix</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button variant="outline" onClick={handleRefreshAll}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar Tudo
@@ -48,7 +83,7 @@ export default function MonitoringDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -104,7 +139,54 @@ export default function MonitoringDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Por Fonte de Dados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">
+                  <Radio className="h-3 w-3 mr-1" />
+                  SNMP: {snmpDevices.length}
+                </Badge>
+                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-600">
+                  <BarChart3 className="h-3 w-3 mr-1" />
+                  Grafana: {grafanaDevices.length + hybridDevices.length}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Grafana Status Banner */}
+        {!grafanaLoading && !isGrafanaConfigured && (
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardContent className="py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-medium">Integração Grafana/Zabbix não configurada</p>
+                    <p className="text-xs text-muted-foreground">
+                      Configure para coletar métricas do Zabbix via Grafana
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setGrafanaDialogOpen(true)}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Configurar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Devices Grid */}
         {isLoading ? (
@@ -135,6 +217,12 @@ export default function MonitoringDashboard() {
           </div>
         )}
       </div>
+
+      {/* Grafana Config Dialog */}
+      <GrafanaConfigDialog
+        open={grafanaDialogOpen}
+        onOpenChange={setGrafanaDialogOpen}
+      />
     </AppLayout>
   );
 }
