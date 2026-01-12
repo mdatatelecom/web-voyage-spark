@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { InterfaceTable } from '@/components/monitoring/InterfaceTable';
 import { VlanTable } from '@/components/monitoring/VlanTable';
@@ -13,12 +14,13 @@ import { DeviceMetricsHistory } from '@/components/monitoring/DeviceMetricsHisto
 import { DeviceAlertConfigDialog } from '@/components/monitoring/DeviceAlertConfigDialog';
 import { ConfigComparisonDialog } from '@/components/monitoring/ConfigComparisonDialog';
 import { InterfaceTrafficChart } from '@/components/monitoring/InterfaceTrafficChart';
+import { GrafanaMetricsPanel } from '@/components/monitoring/GrafanaMetricsPanel';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useMonitoredInterfaces } from '@/hooks/useMonitoredInterfaces';
 import { useMonitoredVlans } from '@/hooks/useMonitoredVlans';
 import { useUptimeHistory } from '@/hooks/useUptimeHistory';
 import { useDeviceStatus, useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
-import { ArrowLeft, RefreshCw, Server, Network, Layers, FileText, Clock, Bell, GitCompare, Activity, BarChart3 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Server, Network, Layers, FileText, Clock, Bell, GitCompare, Activity, BarChart3, Radio } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MonitoringDeviceDetails() {
@@ -36,6 +38,34 @@ export default function MonitoringDeviceDetails() {
   const { data: history, isLoading: historyLoading } = useUptimeHistory(deviceId || null);
   const { data: status, isFetching: statusFetching } = useDeviceStatus(device);
   const { refreshDevice } = useRefreshDeviceStatus();
+
+  const showGrafanaTab = device?.data_source_type === 'grafana' || device?.data_source_type === 'hybrid';
+  const showSnmpTabs = device?.data_source_type === 'snmp' || device?.data_source_type === 'hybrid' || !device?.data_source_type;
+
+  const getDataSourceBadge = () => {
+    if (!device?.data_source_type || device.data_source_type === 'snmp') {
+      return (
+        <Badge variant="outline" className="text-xs">
+          <Radio className="h-3 w-3 mr-1" />
+          SNMP
+        </Badge>
+      );
+    }
+    if (device.data_source_type === 'grafana') {
+      return (
+        <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-600">
+          <BarChart3 className="h-3 w-3 mr-1" />
+          Grafana
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-xs border-purple-500/50 text-purple-600">
+        <Activity className="h-3 w-3 mr-1" />
+        Híbrido
+      </Badge>
+    );
+  };
 
   if (devicesLoading) {
     return (
@@ -77,6 +107,7 @@ export default function MonitoringDeviceDetails() {
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold">{device.hostname || device.device_id}</h1>
                 <DeviceStatusBadge status={device.status} size="lg" />
+                {getDataSourceBadge()}
               </div>
               <p className="text-muted-foreground">
                 {device.vendor} {device.model} • {device.ip_address}
@@ -180,85 +211,109 @@ export default function MonitoringDeviceDetails() {
         <UptimeChart history={history || []} isLoading={historyLoading} />
 
         {/* Tabs */}
-        <Tabs defaultValue="interfaces" className="space-y-4">
+        <Tabs defaultValue={showGrafanaTab && !showSnmpTabs ? 'grafana' : 'interfaces'} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="interfaces" className="flex items-center gap-2">
-              <Network className="h-4 w-4" />
-              Interfaces
-            </TabsTrigger>
-            <TabsTrigger value="vlans" className="flex items-center gap-2">
-              <Layers className="h-4 w-4" />
-              VLANs
-            </TabsTrigger>
-            <TabsTrigger value="metrics" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Métricas
-            </TabsTrigger>
-            <TabsTrigger value="traffic" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Tráfego
-            </TabsTrigger>
+            {showSnmpTabs && (
+              <>
+                <TabsTrigger value="interfaces" className="flex items-center gap-2">
+                  <Network className="h-4 w-4" />
+                  Interfaces
+                </TabsTrigger>
+                <TabsTrigger value="vlans" className="flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  VLANs
+                </TabsTrigger>
+                <TabsTrigger value="metrics" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Métricas
+                </TabsTrigger>
+                <TabsTrigger value="traffic" className="flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Tráfego
+                </TabsTrigger>
+              </>
+            )}
+            {showGrafanaTab && (
+              <TabsTrigger value="grafana" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Grafana/Zabbix
+              </TabsTrigger>
+            )}
             <TabsTrigger value="documentation" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Documentação
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="interfaces">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Network className="h-5 w-5" />
-                  Interfaces do Dispositivo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <InterfaceTable
-                  interfaces={interfaces || []}
-                  isLoading={interfacesLoading}
-                  onToggleMonitoring={(id, isMonitored) => toggleInterface({ id, is_monitored: isMonitored })}
-                  isToggling={isTogglingInterface}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {showSnmpTabs && (
+            <>
+              <TabsContent value="interfaces">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Network className="h-5 w-5" />
+                      Interfaces do Dispositivo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <InterfaceTable
+                      interfaces={interfaces || []}
+                      isLoading={interfacesLoading}
+                      onToggleMonitoring={(id, isMonitored) => toggleInterface({ id, is_monitored: isMonitored })}
+                      isToggling={isTogglingInterface}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="vlans">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Layers className="h-5 w-5" />
-                  VLANs Configuradas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <VlanTable
-                  vlans={vlans || []}
-                  isLoading={vlansLoading}
-                  onToggleMonitoring={(id, isMonitored) => toggleVlan({ id, is_monitored: isMonitored })}
-                  isToggling={isTogglingVlan}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+              <TabsContent value="vlans">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Layers className="h-5 w-5" />
+                      VLANs Configuradas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <VlanTable
+                      vlans={vlans || []}
+                      isLoading={vlansLoading}
+                      onToggleMonitoring={(id, isMonitored) => toggleVlan({ id, is_monitored: isMonitored })}
+                      isToggling={isTogglingVlan}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="metrics">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Histórico de Métricas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DeviceMetricsHistory deviceUuid={deviceId || ''} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+              <TabsContent value="metrics">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Histórico de Métricas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <DeviceMetricsHistory deviceUuid={deviceId || ''} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="traffic">
-            <InterfaceTrafficChart deviceUuid={deviceId || ''} />
-          </TabsContent>
+              <TabsContent value="traffic">
+                <InterfaceTrafficChart deviceUuid={deviceId || ''} />
+              </TabsContent>
+            </>
+          )}
+
+          {showGrafanaTab && (
+            <TabsContent value="grafana">
+              <GrafanaMetricsPanel
+                deviceId={deviceId || ''}
+                zabbixHostId={device.zabbix_host_id || ''}
+                grafanaDashboardUid={device.grafana_dashboard_uid || ''}
+              />
+            </TabsContent>
+          )}
 
           <TabsContent value="documentation">
             <DeviceDocumentation
