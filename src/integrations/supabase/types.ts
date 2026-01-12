@@ -760,6 +760,42 @@ export type Database = {
           },
         ]
       }
+      grafana_config: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          datasource_name: string | null
+          datasource_uid: string | null
+          grafana_org_id: number | null
+          grafana_url: string
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          datasource_name?: string | null
+          datasource_uid?: string | null
+          grafana_org_id?: number | null
+          grafana_url: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          datasource_name?: string | null
+          datasource_uid?: string | null
+          grafana_org_id?: number | null
+          grafana_url?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ip_addresses: {
         Row: {
           created_at: string | null
@@ -964,7 +1000,10 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           customer_name: string | null
+          data_source_type: string | null
           device_id: string
+          grafana_dashboard_uid: string | null
+          grafana_host_id: string | null
           hostname: string | null
           id: string
           ip_address: string | null
@@ -983,13 +1022,17 @@ export type Database = {
           updated_at: string | null
           uptime_raw: string | null
           vendor: string | null
+          zabbix_host_id: string | null
         }
         Insert: {
           api_token?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_name?: string | null
+          data_source_type?: string | null
           device_id: string
+          grafana_dashboard_uid?: string | null
+          grafana_host_id?: string | null
           hostname?: string | null
           id?: string
           ip_address?: string | null
@@ -1008,13 +1051,17 @@ export type Database = {
           updated_at?: string | null
           uptime_raw?: string | null
           vendor?: string | null
+          zabbix_host_id?: string | null
         }
         Update: {
           api_token?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_name?: string | null
+          data_source_type?: string | null
           device_id?: string
+          grafana_dashboard_uid?: string | null
+          grafana_host_id?: string | null
           hostname?: string | null
           id?: string
           ip_address?: string | null
@@ -1033,6 +1080,7 @@ export type Database = {
           updated_at?: string | null
           uptime_raw?: string | null
           vendor?: string | null
+          zabbix_host_id?: string | null
         }
         Relationships: []
       }
@@ -2324,6 +2372,42 @@ export type Database = {
           template_type?: string
           updated_at?: string | null
           variables?: string[] | null
+        }
+        Relationships: []
+      }
+      zabbix_hosts_cache: {
+        Row: {
+          created_at: string | null
+          groups: Json | null
+          host_display_name: string | null
+          host_id: string
+          host_name: string
+          id: string
+          interfaces: Json | null
+          last_synced: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          groups?: Json | null
+          host_display_name?: string | null
+          host_id: string
+          host_name: string
+          id?: string
+          interfaces?: Json | null
+          last_synced?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          groups?: Json | null
+          host_display_name?: string | null
+          host_id?: string
+          host_name?: string
+          id?: string
+          interfaces?: Json | null
+          last_synced?: string | null
+          status?: string | null
         }
         Relationships: []
       }
