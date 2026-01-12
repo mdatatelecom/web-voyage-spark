@@ -3,15 +3,48 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
-import { useHostDiscovery, DiscoveredHost } from '@/hooks/useHostDiscovery';
-import { ZabbixHostSelector } from './ZabbixHostSelector';
-import { Loader2, Search, Server, CheckCircle, XCircle, Radio } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { useHostDiscovery } from '@/hooks/useHostDiscovery';
+import { useGrafanaConfig } from '@/hooks/useGrafanaConfig';
+import { ZabbixHostSelector } from './ZabbixHostSelector';
+import { GrafanaConfigDialog } from './GrafanaConfigDialog';
+import { Loader2, Search, Server, CheckCircle, XCircle, Radio, Settings, AlertTriangle } from 'lucide-react';
+
+interface MonitoredDevice {
+  id: string;
+  device_id: string;
+  hostname?: string | null;
+  protocol?: string | null;
+  server_address?: string | null;
+  monitored_host?: string | null;
+  api_token?: string | null;
+  customer_name?: string | null;
+  notes?: string | null;
+  is_active?: boolean | null;
+  data_source_type?: string | null;
+  zabbix_host_id?: string | null;
+  grafana_dashboard_uid?: string | null;
+}
+
+interface CreateDeviceInput {
+  device_id: string;
+  hostname?: string;
+  protocol?: string;
+  server_address?: string;
+  monitored_host?: string;
+  api_token?: string;
+  customer_name?: string;
+  notes?: string;
+  is_active?: boolean;
+  data_source_type?: string;
+  zabbix_host_id?: string;
+  grafana_dashboard_uid?: string;
+}
 
 interface DeviceDialogProps {
   open: boolean;
