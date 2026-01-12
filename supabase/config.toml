@@ -50,3 +50,6 @@ verify_jwt = true
 
 [functions.check-device-status]
 verify_jwt = false
+
+[functions.grafana-proxy]
+verify_jwt = true

@@ -27,6 +27,11 @@ export interface MonitoredDevice {
   sys_description: string | null;
   sys_location: string | null;
   sys_contact: string | null;
+  // Grafana/Zabbix integration fields
+  data_source_type: string | null;
+  grafana_host_id: string | null;
+  grafana_dashboard_uid: string | null;
+  zabbix_host_id: string | null;
 }
 
 export interface CreateDeviceInput {
@@ -39,6 +44,11 @@ export interface CreateDeviceInput {
   api_token?: string;
   customer_name?: string;
   notes?: string;
+  // Grafana/Zabbix fields
+  data_source_type?: string;
+  grafana_host_id?: string;
+  grafana_dashboard_uid?: string;
+  zabbix_host_id?: string;
 }
 
 export function useMonitoredDevices() {
