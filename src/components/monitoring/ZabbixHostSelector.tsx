@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Check, ChevronsUpDown, RefreshCw, Search, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Check, ChevronsUpDown, RefreshCw, Search, Loader2, AlertTriangle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,8 +16,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useZabbixHosts, CachedZabbixHost } from '@/hooks/useZabbixHosts';
+import { useGrafanaConfig } from '@/hooks/useGrafanaConfig';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ZabbixHostSelectorProps {
   value?: string;
@@ -33,9 +35,11 @@ export function ZabbixHostSelector({
   placeholder = "Selecione um host do Zabbix" 
 }: ZabbixHostSelectorProps) {
   const { hosts, isLoading, syncHosts, isSyncing, getHostById, lastSyncTime } = useZabbixHosts();
+  const { config, isLoading: configLoading } = useGrafanaConfig();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const isGrafanaConfigured = !!config?.grafana_url && !!config?.datasource_uid;
   const selectedHost = value ? getHostById(value) : undefined;
 
   const filteredHosts = hosts.filter(host => {
@@ -61,6 +65,18 @@ export function ZabbixHostSelector({
     const date = new Date(lastSyncTime);
     return `Última sync: ${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
   };
+
+  // Show config warning if Grafana is not configured
+  if (!configLoading && !isGrafanaConfigured) {
+    return (
+      <Alert variant="destructive" className="py-2">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription className="flex items-center justify-between">
+          <span className="text-sm">Configure a integração Grafana primeiro no Dashboard de Monitoramento.</span>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <TooltipProvider>
