@@ -589,47 +589,82 @@ serve(async (req) => {
           });
         }
 
-        // Fetch items (metrics) for the host
-        const response = await fetch(`${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`, {
+        // Use correct endpoint: resources/zabbix-api
+        const metricsUrl = `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`;
+        const metricsBody = JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'item.get',
+          params: {
+            output: ['itemid', 'name', 'key_', 'lastvalue', 'units', 'lastclock', 'status'],
+            hostids: host_id,
+            filter: { status: 0 },
+            sortfield: 'name',
+          },
+          id: 1,
+        });
+        
+        console.log(`Fetching metrics from: ${metricsUrl}`);
+        console.log(`Request body: ${metricsBody}`);
+
+        const response = await fetch(metricsUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${api_key}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'item.get',
-            params: {
-              output: ['itemid', 'name', 'key_', 'lastvalue', 'units', 'lastclock', 'status'],
-              hostids: host_id,
-              filter: { status: 0 },
-              sortfield: 'name',
-            },
-            id: 1,
-          }),
+          body: metricsBody,
         });
 
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response body: ${responseText.substring(0, 500)}`);
+
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Failed to fetch host metrics:', errorText);
+          console.error('Failed to fetch host metrics:', responseText);
           return new Response(JSON.stringify({ 
             success: false, 
-            error: `Failed to fetch metrics: ${response.status}` 
+            error: `Failed to fetch metrics: ${response.status}`,
+            data: []
           }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
-        const data = await response.json();
-        console.log(`Fetched ${data.result?.length || 0} metrics for host ${host_id}`);
+        try {
+          const data = JSON.parse(responseText);
+          
+          if (data.error) {
+            console.error('Zabbix API error:', data.error);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: `Zabbix error: ${data.error.message || JSON.stringify(data.error)}`,
+              data: []
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          data: data.result || [] 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+          console.log(`Fetched ${data.result?.length || 0} metrics for host ${host_id}`);
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            data: data.result || [] 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (parseErr) {
+          console.error('Failed to parse metrics response:', parseErr);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Failed to parse Zabbix response',
+            data: []
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       case 'host-alerts': {
@@ -644,49 +679,85 @@ serve(async (req) => {
           });
         }
 
-        const response = await fetch(`${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`, {
+        // Use correct endpoint: resources/zabbix-api
+        const alertsUrl = `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`;
+        const alertsBody = JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'problem.get',
+          params: {
+            output: 'extend',
+            hostids: host_id,
+            recent: true,
+            sortfield: ['eventid'],
+            sortorder: 'DESC',
+            selectAcknowledges: 'count',
+            selectTags: 'extend',
+          },
+          id: 1,
+        });
+
+        console.log(`Fetching alerts from: ${alertsUrl}`);
+        console.log(`Request body: ${alertsBody}`);
+
+        const response = await fetch(alertsUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${api_key}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'problem.get',
-            params: {
-              output: 'extend',
-              hostids: host_id,
-              recent: true,
-              sortfield: ['eventid'],
-              sortorder: 'DESC',
-              selectAcknowledges: 'count',
-              selectTags: 'extend',
-            },
-            id: 1,
-          }),
+          body: alertsBody,
         });
 
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response body: ${responseText.substring(0, 500)}`);
+
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Failed to fetch host alerts:', errorText);
+          console.error('Failed to fetch host alerts:', responseText);
           return new Response(JSON.stringify({ 
             success: false, 
-            error: `Failed to fetch alerts: ${response.status}` 
+            error: `Failed to fetch alerts: ${response.status}`,
+            data: []
           }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
-        const data = await response.json();
-        console.log(`Fetched ${data.result?.length || 0} alerts for host ${host_id}`);
+        try {
+          const data = JSON.parse(responseText);
+          
+          if (data.error) {
+            console.error('Zabbix API error:', data.error);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: `Zabbix error: ${data.error.message || JSON.stringify(data.error)}`,
+              data: []
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          data: data.result || [] 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+          console.log(`Fetched ${data.result?.length || 0} alerts for host ${host_id}`);
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            data: data.result || [] 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (parseErr) {
+          console.error('Failed to parse alerts response:', parseErr);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Failed to parse Zabbix response',
+            data: []
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       case 'metric-history': {
@@ -704,8 +775,12 @@ serve(async (req) => {
         const timeFrom = query.time_from || Math.floor(Date.now() / 1000) - 3600;
         const timeTill = query.time_till || Math.floor(Date.now() / 1000);
 
+        // Use correct endpoint: resources/zabbix-api
+        const historyApiUrl = `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`;
+
         // First get item ID from key
-        const itemResponse = await fetch(`${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`, {
+        console.log(`Fetching item ID for key: ${query.item_key}`);
+        const itemResponse = await fetch(historyApiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${api_key}`,
@@ -724,6 +799,7 @@ serve(async (req) => {
         });
 
         if (!itemResponse.ok) {
+          console.error('Failed to get item ID:', itemResponse.status);
           return new Response(JSON.stringify({ 
             success: false, 
             error: 'Failed to get item ID' 
@@ -733,7 +809,22 @@ serve(async (req) => {
           });
         }
 
-        const itemData = await itemResponse.json();
+        const itemText = await itemResponse.text();
+        console.log(`Item response: ${itemText.substring(0, 300)}`);
+        
+        let itemData;
+        try {
+          itemData = JSON.parse(itemText);
+        } catch {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Failed to parse item response' 
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
         const itemId = itemData.result?.[0]?.itemid;
 
         if (!itemId) {
@@ -747,7 +838,8 @@ serve(async (req) => {
         }
 
         // Get history
-        const historyResponse = await fetch(`${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`, {
+        console.log(`Fetching history for item ${itemId}`);
+        const historyResponse = await fetch(historyApiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${api_key}`,
@@ -769,6 +861,7 @@ serve(async (req) => {
         });
 
         if (!historyResponse.ok) {
+          console.error('Failed to get history:', historyResponse.status);
           return new Response(JSON.stringify({ 
             success: false, 
             error: 'Failed to get history' 
@@ -778,7 +871,22 @@ serve(async (req) => {
           });
         }
 
-        const historyData = await historyResponse.json();
+        const historyText = await historyResponse.text();
+        console.log(`History response: ${historyText.substring(0, 300)}`);
+        
+        let historyData;
+        try {
+          historyData = JSON.parse(historyText);
+        } catch {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Failed to parse history response' 
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
         console.log(`Fetched ${historyData.result?.length || 0} history points`);
 
         return new Response(JSON.stringify({ 
