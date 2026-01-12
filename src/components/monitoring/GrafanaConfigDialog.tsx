@@ -25,6 +25,7 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [connectionError, setConnectionError] = useState('');
   const [isLoadingDatasources, setIsLoadingDatasources] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState('');
 
   useEffect(() => {
     if (config) {
@@ -53,6 +54,53 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
     }
   }, [open]);
 
+  // Validate API Key format
+  const validateApiKey = (key: string): boolean => {
+    if (!key || key === '••••••••••••••••') return false;
+    if (!key.startsWith('glsa_')) {
+      setApiKeyError('API Key deve começar com "glsa_". Gere uma nova Service Account Token no Grafana.');
+      return false;
+    }
+    if (key.length < 20) {
+      setApiKeyError('API Key muito curta. Verifique se copiou o token completo.');
+      return false;
+    }
+    setApiKeyError('');
+    return true;
+  };
+
+  // Get error message details
+  const getErrorDetails = (error: string): { message: string; solution: string } => {
+    if (error.includes('401') || error.includes('Unauthorized') || error.includes('Invalid API key')) {
+      return {
+        message: 'API Key inválida ou expirada',
+        solution: 'Gere uma nova Service Account Token no Grafana (Administration → Service Accounts)'
+      };
+    }
+    if (error.includes('403') || error.includes('Forbidden')) {
+      return {
+        message: 'Sem permissão de acesso',
+        solution: 'Verifique se a Service Account tem role "Admin" ou "Editor"'
+      };
+    }
+    if (error.includes('404')) {
+      return {
+        message: 'Endpoint não encontrado',
+        solution: 'Verifique se a URL do Grafana está correta'
+      };
+    }
+    if (error.includes('ECONNREFUSED') || error.includes('Failed to fetch') || error.includes('NetworkError')) {
+      return {
+        message: 'Não foi possível conectar ao Grafana',
+        solution: 'Verifique se o Grafana está online e acessível'
+      };
+    }
+    return {
+      message: error,
+      solution: 'Verifique as configurações e tente novamente'
+    };
+  };
+
   const handleTestConnection = async () => {
     if (!grafanaUrl) {
       toast.error('Informe a URL do Grafana');
@@ -61,6 +109,11 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
     
     if (!apiKey || apiKey === '••••••••••••••••') {
       toast.error('Informe a API Key do Grafana');
+      return;
+    }
+
+    if (!validateApiKey(apiKey)) {
+      toast.error(apiKeyError || 'API Key inválida');
       return;
     }
 
@@ -77,8 +130,9 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
       handleFetchDatasources();
     } else {
       setConnectionStatus('error');
-      setConnectionError(result.error || 'Erro desconhecido');
-      toast.error(`Falha na conexão: ${result.error}`);
+      const errorDetails = getErrorDetails(result.error || 'Erro desconhecido');
+      setConnectionError(`${errorDetails.message}. ${errorDetails.solution}`);
+      toast.error(`Falha: ${errorDetails.message}`);
     }
   };
 
@@ -182,7 +236,7 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
           <div className="space-y-2">
             <Label htmlFor="api_key" className="flex items-center gap-2">
               <Key className="h-4 w-4" />
-              API Key
+              API Key (Service Account Token)
             </Label>
             <Input
               id="api_key"
@@ -191,12 +245,18 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
               onChange={(e) => {
                 setApiKey(e.target.value);
                 setConnectionStatus('idle');
+                setApiKeyError('');
               }}
               placeholder="glsa_xxxxxxxxxxxxxx"
+              className={apiKeyError ? 'border-red-500' : ''}
             />
-            <p className="text-xs text-muted-foreground">
-              Service Account Token com permissão de leitura
-            </p>
+            {apiKeyError ? (
+              <p className="text-xs text-red-500">{apiKeyError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Token deve começar com "glsa_" e ter role Admin
+              </p>
+            )}
           </div>
 
           {/* Test Connection Button */}
@@ -270,17 +330,27 @@ export function GrafanaConfigDialog({ open, onOpenChange }: GrafanaConfigDialogP
             )}
           </div>
 
-          {/* Help Link */}
-          <div className="pt-2 border-t">
+          {/* Help Links */}
+          <div className="pt-2 border-t space-y-2">
             <a 
-              href="https://grafana.com/docs/grafana/latest/administration/service-accounts/" 
+              href={grafanaUrl ? `${grafanaUrl}/admin/serviceaccounts` : 'https://grafana.com/docs/grafana/latest/administration/service-accounts/'} 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
-              Como criar uma Service Account no Grafana
+              {grafanaUrl ? 'Abrir Service Accounts no seu Grafana' : 'Como criar uma Service Account'}
             </a>
+            <div className="bg-muted rounded-lg p-3 text-xs space-y-1">
+              <p className="font-medium">Passos para criar token:</p>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Acesse Administration → Service Accounts</li>
+                <li>Clique em "Add service account"</li>
+                <li>Role: selecione <strong>Admin</strong></li>
+                <li>Clique em "Add service account token"</li>
+                <li>Copie o token gerado (glsa_...)</li>
+              </ol>
+            </div>
           </div>
         </div>
 

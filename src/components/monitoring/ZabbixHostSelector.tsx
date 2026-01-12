@@ -362,6 +362,53 @@ export function ZabbixHostSelector({
                   </AlertDescription>
                 </Alert>
 
+                {/* Step-by-step instructions for common errors */}
+                {diagnosis.grafana.status === 'error' && diagnosis.grafana.error?.includes('401') && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-medium mb-2">API Key do Grafana Inválida</p>
+                      <ol className="list-decimal list-inside text-sm space-y-1">
+                        <li>Acesse seu Grafana: <a href={config?.grafana_url ? `${config.grafana_url}/admin/serviceaccounts` : '#'} target="_blank" className="text-primary underline">Abrir Service Accounts</a></li>
+                        <li>Crie uma nova Service Account com role <strong>Admin</strong></li>
+                        <li>Gere um novo token e copie (começa com glsa_)</li>
+                        <li>Cole na configuração do Grafana neste sistema</li>
+                      </ol>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {diagnosis.zabbixApi.status === 'error' && diagnosis.zabbixApi.error?.includes('Not authorized') && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-medium mb-2">Zabbix Não Autorizado</p>
+                      <ol className="list-decimal list-inside text-sm space-y-1">
+                        <li>Acesse seu Grafana: <a href={config?.grafana_url ? `${config.grafana_url}/connections/datasources` : '#'} target="_blank" className="text-primary underline">Abrir Data Sources</a></li>
+                        <li>Clique no datasource Zabbix</li>
+                        <li>Verifique Username e Password do Zabbix</li>
+                        <li>Clique em "Save & Test"</li>
+                        <li>Deve aparecer "Zabbix API version: X.X"</li>
+                      </ol>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {diagnosis.datasource.status === 'error' && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-medium mb-2">Datasource Zabbix Não Encontrado</p>
+                      <ol className="list-decimal list-inside text-sm space-y-1">
+                        <li>Verifique se o plugin Zabbix está instalado no Grafana</li>
+                        <li>Acesse: <a href={config?.grafana_url ? `${config.grafana_url}/plugins/alexanderzobnin-zabbix-app` : '#'} target="_blank" className="text-primary underline">Plugin Zabbix</a></li>
+                        <li>Configure um novo datasource Zabbix</li>
+                        <li>Volte aqui e atualize a configuração</li>
+                      </ol>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Grafana Status */}
                 <div className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
