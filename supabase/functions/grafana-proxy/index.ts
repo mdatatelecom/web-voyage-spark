@@ -82,6 +82,230 @@ serve(async (req) => {
         });
       }
 
+      case 'diagnose': {
+        // Comprehensive Zabbix integration diagnosis
+        console.log('=== Starting Zabbix Integration Diagnosis ===');
+        const diagnosis = {
+          grafana: { status: 'unknown', version: null as string | null, error: null as string | null },
+          datasource: { status: 'unknown', info: null as any, error: null as string | null },
+          zabbixApi: { status: 'unknown', version: null as string | null, error: null as string | null },
+          hostTest: { status: 'unknown', count: null as number | null, sample: [] as any[], error: null as string | null },
+          endpoints: [] as any[],
+          recommendation: ''
+        };
+
+        // 1. Test Grafana connection
+        try {
+          console.log(`Testing Grafana at: ${grafana_url}`);
+          const healthRes = await fetch(`${grafana_url}/api/health`, {
+            headers: { 'Authorization': `Bearer ${api_key}` }
+          });
+          if (healthRes.ok) {
+            const healthData = await healthRes.json();
+            diagnosis.grafana = { status: 'ok', version: healthData.version || 'unknown', error: null };
+            console.log('Grafana OK:', JSON.stringify(healthData));
+          } else {
+            const errorText = await healthRes.text();
+            diagnosis.grafana = { status: 'error', version: null, error: `HTTP ${healthRes.status}: ${errorText.substring(0, 100)}` };
+            console.error('Grafana health failed:', errorText);
+          }
+        } catch (err) {
+          diagnosis.grafana = { status: 'error', version: null, error: (err as Error).message };
+          console.error('Grafana connection error:', err);
+        }
+
+        // 2. Get datasource info
+        try {
+          console.log(`Getting datasource info: ${datasource_uid}`);
+          const dsRes = await fetch(`${grafana_url}/api/datasources/uid/${datasource_uid}`, {
+            headers: { 'Authorization': `Bearer ${api_key}` }
+          });
+          if (dsRes.ok) {
+            const dsData = await dsRes.json();
+            diagnosis.datasource = { 
+              status: 'ok', 
+              info: {
+                name: dsData.name,
+                type: dsData.type,
+                url: dsData.url,
+                access: dsData.access,
+                basicAuth: dsData.basicAuth,
+                jsonData: dsData.jsonData ? Object.keys(dsData.jsonData) : []
+              }, 
+              error: null 
+            };
+            console.log('Datasource info:', JSON.stringify(dsData));
+          } else {
+            const errorText = await dsRes.text();
+            diagnosis.datasource = { status: 'error', info: null, error: `HTTP ${dsRes.status}: ${errorText.substring(0, 100)}` };
+            console.error('Datasource fetch failed:', errorText);
+          }
+        } catch (err) {
+          diagnosis.datasource = { status: 'error', info: null, error: (err as Error).message };
+          console.error('Datasource error:', err);
+        }
+
+        // 3. Test Zabbix API version via different endpoints
+        const endpoints = [
+          { 
+            name: 'proxy-jsonrpc', 
+            url: `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`,
+            contentType: 'application/json-rpc'
+          },
+          { 
+            name: 'proxy-json', 
+            url: `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`,
+            contentType: 'application/json'
+          },
+          { 
+            name: 'resources-zabbix-api', 
+            url: `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`,
+            contentType: 'application/json'
+          }
+        ];
+
+        for (const endpoint of endpoints) {
+          console.log(`\n--- Testing endpoint: ${endpoint.name} ---`);
+          console.log(`URL: ${endpoint.url}`);
+          
+          const testResult: any = { name: endpoint.name, url: endpoint.url, versionTest: null, hostTest: null };
+          
+          try {
+            // Test apiinfo.version
+            const versionBody = JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'apiinfo.version',
+              params: {},
+              id: 1
+            });
+            console.log(`Request body: ${versionBody}`);
+            
+            const versionRes = await fetch(endpoint.url, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${api_key}`,
+                'Content-Type': endpoint.contentType
+              },
+              body: versionBody
+            });
+            
+            const versionText = await versionRes.text();
+            console.log(`Response status: ${versionRes.status}`);
+            console.log(`Response body: ${versionText.substring(0, 500)}`);
+            
+            if (versionRes.ok && !versionText.startsWith('<!DOCTYPE')) {
+              try {
+                const versionData = JSON.parse(versionText);
+                testResult.versionTest = { 
+                  status: 'ok', 
+                  version: versionData.result || null,
+                  error: versionData.error || null
+                };
+                
+                if (versionData.result && !diagnosis.zabbixApi.version) {
+                  diagnosis.zabbixApi = { status: 'ok', version: versionData.result, error: null };
+                }
+              } catch (parseErr) {
+                const parseError = parseErr as Error;
+                testResult.versionTest = { status: 'parse-error', error: parseError.message, raw: versionText.substring(0, 200) };
+              }
+            } else {
+              testResult.versionTest = { status: 'error', httpStatus: versionRes.status, raw: versionText.substring(0, 200) };
+            }
+
+            // Test host.get
+            const hostBody = JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'host.get',
+              params: {
+                output: ['hostid', 'host', 'name', 'status'],
+                selectInterfaces: ['ip', 'dns', 'type'],
+                limit: 5
+              },
+              id: 2
+            });
+            console.log(`Host request body: ${hostBody}`);
+            
+            const hostRes = await fetch(endpoint.url, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${api_key}`,
+                'Content-Type': endpoint.contentType
+              },
+              body: hostBody
+            });
+            
+            const hostText = await hostRes.text();
+            console.log(`Host response status: ${hostRes.status}`);
+            console.log(`Host response body: ${hostText.substring(0, 500)}`);
+            
+            if (hostRes.ok && !hostText.startsWith('<!DOCTYPE')) {
+              try {
+                const hostData = JSON.parse(hostText);
+                if (hostData.result && Array.isArray(hostData.result)) {
+                  testResult.hostTest = { 
+                    status: 'ok', 
+                    count: hostData.result.length,
+                    sample: hostData.result.slice(0, 2)
+                  };
+                  
+                  if (hostData.result.length > 0 && !diagnosis.hostTest.count) {
+                    diagnosis.hostTest = { 
+                      status: 'ok', 
+                      count: hostData.result.length, 
+                      sample: hostData.result.slice(0, 2),
+                      error: null 
+                    };
+                  }
+                } else if (hostData.error) {
+                  testResult.hostTest = { status: 'zabbix-error', error: hostData.error };
+                  if (!diagnosis.zabbixApi.error) {
+                    diagnosis.zabbixApi.error = `Zabbix Error: ${JSON.stringify(hostData.error)}`;
+                    diagnosis.zabbixApi.status = 'error';
+                  }
+                } else {
+                  testResult.hostTest = { status: 'unexpected', response: hostData };
+                }
+              } catch (parseErr) {
+                const parseError = parseErr as Error;
+                testResult.hostTest = { status: 'parse-error', error: parseError.message, raw: hostText.substring(0, 200) };
+              }
+            } else {
+              testResult.hostTest = { status: 'error', httpStatus: hostRes.status, raw: hostText.substring(0, 200) };
+            }
+          } catch (err) {
+            const e = err as Error;
+            testResult.versionTest = { status: 'exception', error: e.message };
+            console.error(`Endpoint ${endpoint.name} error:`, e);
+          }
+          
+          diagnosis.endpoints.push(testResult);
+        }
+
+        // Generate recommendation
+        if (diagnosis.grafana.status !== 'ok') {
+          diagnosis.recommendation = 'Grafana não está acessível. Verifique a URL e a API Key.';
+        } else if (diagnosis.datasource.status !== 'ok') {
+          diagnosis.recommendation = 'Datasource Zabbix não encontrado. Verifique o UID do datasource.';
+        } else if (diagnosis.zabbixApi.error) {
+          diagnosis.recommendation = `Erro na API do Zabbix: ${diagnosis.zabbixApi.error}. Verifique as credenciais do Zabbix no datasource do Grafana.`;
+        } else if (diagnosis.hostTest.count === 0 || diagnosis.hostTest.status !== 'ok') {
+          diagnosis.recommendation = 'Nenhum host encontrado. Verifique se o usuário do Zabbix tem permissão para visualizar hosts.';
+        } else {
+          diagnosis.recommendation = `Conexão OK! ${diagnosis.hostTest.count} hosts encontrados.`;
+        }
+
+        console.log('=== Diagnosis Complete ===');
+        console.log(JSON.stringify(diagnosis, null, 2));
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          diagnosis 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'datasources': {
         // List all datasources
         const response = await fetch(`${grafana_url}/api/datasources`, {
@@ -127,138 +351,91 @@ serve(async (req) => {
         console.log('Fetching Zabbix hosts via Grafana plugin...');
         console.log(`Datasource UID: ${datasource_uid}`);
         
-        // Use Grafana's Zabbix plugin API endpoint
-        const zabbixApiUrl = `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`;
-        console.log(`Zabbix API URL: ${zabbixApiUrl}`);
-
-        const zabbixRequest = {
-          jsonrpc: '2.0',
-          method: 'host.get',
-          params: {
-            output: ['hostid', 'host', 'name', 'status', 'description'],
-            selectGroups: ['groupid', 'name'],
-            selectInterfaces: ['interfaceid', 'ip', 'dns', 'port', 'type'],
-            limit: 1000,
+        // Try multiple endpoints
+        const endpoints = [
+          { 
+            url: `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`,
+            contentType: 'application/json-rpc'
           },
-          id: 1,
-        };
-
-        console.log('Zabbix request:', JSON.stringify(zabbixRequest));
-
-        const response = await fetch(zabbixApiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${api_key}`,
-            'Content-Type': 'application/json-rpc',
+          { 
+            url: `${grafana_url}/api/datasources/proxy/uid/${datasource_uid}/api_jsonrpc.php`,
+            contentType: 'application/json'
           },
-          body: JSON.stringify(zabbixRequest),
-        });
+          { 
+            url: `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`,
+            contentType: 'application/json'
+          }
+        ];
 
-        const responseText = await response.text();
-        console.log('Zabbix response status:', response.status);
-        console.log('Zabbix response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
-        console.log('Zabbix response body (first 1000 chars):', responseText.substring(0, 1000));
-
-        if (!response.ok) {
-          console.error('Failed to fetch Zabbix hosts, status:', response.status);
-          
-          // Try alternative: use Grafana's resource API for Zabbix plugin
-          console.log('Trying Grafana resource API...');
-          const resourceUrl = `${grafana_url}/api/datasources/uid/${datasource_uid}/resources/zabbix-api`;
-          console.log(`Resource URL: ${resourceUrl}`);
-          
-          const resourceResponse = await fetch(resourceUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${api_key}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        for (const endpoint of endpoints) {
+          try {
+            console.log(`Trying endpoint: ${endpoint.url} with Content-Type: ${endpoint.contentType}`);
+            
+            const zabbixRequest = {
+              jsonrpc: '2.0',
               method: 'host.get',
               params: {
                 output: ['hostid', 'host', 'name', 'status', 'description'],
                 selectGroups: ['groupid', 'name'],
                 selectInterfaces: ['interfaceid', 'ip', 'dns', 'port', 'type'],
-              }
-            }),
-          });
+                limit: 1000,
+              },
+              id: 1,
+            };
 
-          const resourceText = await resourceResponse.text();
-          console.log('Resource response status:', resourceResponse.status);
-          console.log('Resource response body (first 1000 chars):', resourceText.substring(0, 1000));
+            console.log('Zabbix request:', JSON.stringify(zabbixRequest));
 
-          if (!resourceResponse.ok) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: `Failed to fetch hosts. Proxy: ${response.status}, Resource: ${resourceResponse.status}`,
-              details: {
-                proxyResponse: responseText.substring(0, 500),
-                resourceResponse: resourceText.substring(0, 500)
-              }
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            const response = await fetch(endpoint.url, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${api_key}`,
+                'Content-Type': endpoint.contentType,
+              },
+              body: JSON.stringify(zabbixRequest),
             });
-          }
 
-          try {
-            const resourceData = JSON.parse(resourceText);
-            const hosts = resourceData.result || resourceData || [];
-            console.log(`Fetched ${Array.isArray(hosts) ? hosts.length : 0} hosts via resource API`);
+            const responseText = await response.text();
+            console.log('Response status:', response.status);
+            console.log('Response body (first 500 chars):', responseText.substring(0, 500));
+
+            if (!response.ok || responseText.startsWith('<!DOCTYPE')) {
+              console.log('Endpoint failed, trying next...');
+              continue;
+            }
+
+            const data = JSON.parse(responseText);
             
+            if (data.error) {
+              console.error('Zabbix API error:', data.error);
+              continue;
+            }
+
+            const hosts = data.result || [];
+            console.log(`Successfully fetched ${hosts.length} hosts from Zabbix`);
+
             return new Response(JSON.stringify({ 
               success: true, 
-              data: Array.isArray(hosts) ? hosts : [] 
+              data: hosts 
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
-          } catch (e) {
-            console.error('Failed to parse resource response:', e);
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: 'Invalid response from Zabbix API' 
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
+          } catch (err) {
+            const e = err as Error;
+            console.error(`Endpoint failed with error: ${e.message}`);
+            continue;
           }
         }
 
-        // Parse the response
-        try {
-          const data = JSON.parse(responseText);
-          
-          // Check for Zabbix API error
-          if (data.error) {
-            console.error('Zabbix API error:', data.error);
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: `Zabbix API error: ${data.error.message || data.error.data || JSON.stringify(data.error)}` 
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-
-          const hosts = data.result || [];
-          console.log(`Successfully fetched ${hosts.length} hosts from Zabbix`);
-
-          return new Response(JSON.stringify({ 
-            success: true, 
-            data: hosts 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        } catch (e) {
-          console.error('Failed to parse Zabbix response:', e);
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'Invalid JSON response from Zabbix' 
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
+        // All endpoints failed
+        console.error('All endpoints failed to fetch hosts');
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: 'Failed to fetch hosts from Zabbix. Use diagnose action for details.',
+          data: []
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       case 'host-metrics': {
