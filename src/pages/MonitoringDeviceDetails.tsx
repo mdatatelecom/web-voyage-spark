@@ -1,21 +1,39 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { UptimeChart } from '@/components/monitoring/UptimeChart';
 import { DeviceDocumentation } from '@/components/monitoring/DeviceDocumentation';
 import { DeviceAlertConfigDialog } from '@/components/monitoring/DeviceAlertConfigDialog';
 import { ConfigComparisonDialog } from '@/components/monitoring/ConfigComparisonDialog';
 import { GrafanaMetricsPanel } from '@/components/monitoring/GrafanaMetricsPanel';
+import { DeviceMetricsCharts } from '@/components/monitoring/DeviceMetricsCharts';
+import { ExternalPanelDialog } from '@/components/monitoring/ExternalPanelDialog';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
+import { useMonitoredInterfaces } from '@/hooks/useMonitoredInterfaces';
+import { useMonitoredVlans } from '@/hooks/useMonitoredVlans';
 import { useUptimeHistory } from '@/hooks/useUptimeHistory';
 import { useDeviceStatus, useRefreshDeviceStatus } from '@/hooks/useDeviceStatus';
-import { ArrowLeft, RefreshCw, Server, FileText, Clock, Bell, GitCompare, BarChart3 } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useDeviceMonitoringStats } from '@/hooks/useDeviceMonitoringStats';
+import { 
+  ArrowLeft, 
+  RefreshCw, 
+  Server, 
+  FileText, 
+  Clock, 
+  Bell, 
+  GitCompare, 
+  BarChart3,
+  LineChart,
+  Network,
+  Layers,
+  PanelTop,
+} from 'lucide-react';
 
 export default function MonitoringDeviceDetails() {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -23,6 +41,7 @@ export default function MonitoringDeviceDetails() {
   
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [comparisonDialogOpen, setComparisonDialogOpen] = useState(false);
+  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
   
   const { devices, isLoading: devicesLoading } = useMonitoredDevices();
   const device = devices?.find((d) => d.id === deviceId) || null;
@@ -30,6 +49,11 @@ export default function MonitoringDeviceDetails() {
   const { data: history, isLoading: historyLoading } = useUptimeHistory(deviceId || null);
   const { data: status, isFetching: statusFetching } = useDeviceStatus(device);
   const { refreshDevice } = useRefreshDeviceStatus();
+
+  // Buscar interfaces e VLANs reais
+  const { interfaces } = useMonitoredInterfaces(deviceId || null);
+  const { vlans } = useMonitoredVlans(deviceId || null);
+  const { data: stats } = useDeviceMonitoringStats(deviceId || null);
 
   if (devicesLoading) {
     return (
@@ -82,6 +106,15 @@ export default function MonitoringDeviceDetails() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {device.external_panel_url && (
+              <Button
+                variant="outline"
+                onClick={() => setPanelDialogOpen(true)}
+              >
+                <PanelTop className="h-4 w-4 mr-2" />
+                Ver Painel
+              </Button>
+            )}
             <Button
               variant="outline"
               size="icon"
@@ -111,8 +144,11 @@ export default function MonitoringDeviceDetails() {
 
         {/* Info Card */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Informações do Dispositivo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Cliente</span>
                 <p className="font-medium">{device.customer_name || '-'}</p>
@@ -126,6 +162,20 @@ export default function MonitoringDeviceDetails() {
                 <p className="font-medium flex items-center gap-1">
                   <Clock className="h-4 w-4" />
                   {device.uptime_raw || '-'}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">VLANs</span>
+                <p className="font-medium flex items-center gap-1">
+                  <Layers className="h-4 w-4" />
+                  {stats?.vlanCount || 0}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Interfaces</span>
+                <p className="font-medium flex items-center gap-1">
+                  <Network className="h-4 w-4" />
+                  {stats?.interfaceCount || 0}
                 </p>
               </div>
               <div>
@@ -146,6 +196,10 @@ export default function MonitoringDeviceDetails() {
               <BarChart3 className="h-4 w-4" />
               Grafana/Zabbix
             </TabsTrigger>
+            <TabsTrigger value="charts" className="flex items-center gap-2">
+              <LineChart className="h-4 w-4" />
+              Gráficos
+            </TabsTrigger>
             <TabsTrigger value="documentation" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Documentação
@@ -160,11 +214,18 @@ export default function MonitoringDeviceDetails() {
             />
           </TabsContent>
 
+          <TabsContent value="charts">
+            <DeviceMetricsCharts
+              deviceId={deviceId || ''}
+              zabbixHostId={device.zabbix_host_id}
+            />
+          </TabsContent>
+
           <TabsContent value="documentation">
             <DeviceDocumentation
               device={device}
-              interfaces={[]}
-              vlans={[]}
+              interfaces={interfaces || []}
+              vlans={vlans || []}
             />
           </TabsContent>
         </Tabs>
@@ -181,6 +242,12 @@ export default function MonitoringDeviceDetails() {
           deviceName={device.hostname || device.device_id}
           open={comparisonDialogOpen}
           onOpenChange={setComparisonDialogOpen}
+        />
+        <ExternalPanelDialog
+          open={panelDialogOpen}
+          onOpenChange={setPanelDialogOpen}
+          url={device.external_panel_url}
+          deviceName={device.hostname || device.device_id}
         />
       </div>
     </AppLayout>

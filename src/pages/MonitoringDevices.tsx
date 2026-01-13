@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { DeviceDialog } from '@/components/monitoring/DeviceDialog';
+import { ExternalPanelDialog } from '@/components/monitoring/ExternalPanelDialog';
 import { useMonitoredDevices, MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
 import { useDeviceBatchSync } from '@/hooks/useDeviceBatchSync';
-import { Plus, Pencil, Trash2, Server, ExternalLink, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useAllDevicesStats } from '@/hooks/useDeviceMonitoringStats';
+import { Plus, Pencil, Trash2, Server, ExternalLink, RefreshCw, Network, Layers, PanelTop } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
@@ -23,6 +25,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export default function MonitoringDevices() {
   const navigate = useNavigate();
@@ -39,10 +47,16 @@ export default function MonitoringDevices() {
 
   const { isSyncing, lastSyncTime, syncAllDevices, startAutoSync, stopAutoSync } = useDeviceBatchSync();
 
+  // Buscar estatísticas de todos os dispositivos
+  const deviceIds = devices?.map((d) => d.id) || [];
+  const { data: deviceStats } = useAllDevicesStats(deviceIds);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<MonitoredDevice | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<MonitoredDevice | null>(null);
+  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
+  const [selectedDeviceForPanel, setSelectedDeviceForPanel] = useState<MonitoredDevice | null>(null);
 
   useEffect(() => {
     startAutoSync(60000);
@@ -79,6 +93,19 @@ export default function MonitoringDevices() {
       createDevice(data as CreateDeviceInput);
     }
     setDialogOpen(false);
+  };
+
+  const handleOpenPanel = (device: MonitoredDevice) => {
+    setSelectedDeviceForPanel(device);
+    setPanelDialogOpen(true);
+  };
+
+  const truncateUptime = (uptime: string | null) => {
+    if (!uptime) return '-';
+    if (uptime.length > 20) {
+      return uptime.substring(0, 20) + '...';
+    }
+    return uptime;
   };
 
   return (
@@ -135,48 +162,116 @@ export default function MonitoringDevices() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Hostname</TableHead>
-                    <TableHead>Device ID</TableHead>
+                    <TableHead>Fabricante</TableHead>
+                    <TableHead>Modelo</TableHead>
+                    <TableHead>IP</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Uptime</TableHead>
+                    <TableHead className="text-center">VLANs</TableHead>
+                    <TableHead className="text-center">Interfaces</TableHead>
+                    <TableHead className="text-center">Painel</TableHead>
                     <TableHead>Última Coleta</TableHead>
-                    <TableHead>Ativo</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {devices.map((device) => (
-                    <TableRow key={device.id}>
-                      <TableCell className="font-medium">{device.hostname || '-'}</TableCell>
-                      <TableCell className="font-mono text-sm">{device.device_id}</TableCell>
-                      <TableCell>{device.customer_name || '-'}</TableCell>
-                      <TableCell>
-                        <DeviceStatusBadge status={device.status} size="sm" />
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {device.last_seen
-                          ? formatDistanceToNow(new Date(device.last_seen), { addSuffix: true, locale: ptBR })
-                          : 'Nunca'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={device.is_active ? 'default' : 'secondary'}>
-                          {device.is_active ? 'Sim' : 'Não'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => navigate(`/monitoring/${device.id}`)}>
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(device)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(device)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {devices.map((device) => {
+                    const stats = deviceStats?.[device.id];
+                    return (
+                      <TableRow key={device.id}>
+                        <TableCell className="font-medium">{device.hostname || '-'}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {device.vendor || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {device.model || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                  {device.ip_address || '-'}
+                                </code>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{device.ip_address}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell>{device.customer_name || '-'}</TableCell>
+                        <TableCell>
+                          <DeviceStatusBadge status={device.status} size="sm" />
+                        </TableCell>
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-sm">
+                                  {truncateUptime(device.uptime_raw)}
+                                </span>
+                              </TooltipTrigger>
+                              {device.uptime_raw && device.uptime_raw.length > 20 && (
+                                <TooltipContent>
+                                  <p>{device.uptime_raw}</p>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="gap-1">
+                            <Layers className="h-3 w-3" />
+                            {stats?.vlanCount || 0}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="gap-1">
+                            <Network className="h-3 w-3" />
+                            {stats?.interfaceCount || 0}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {device.external_panel_url ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleOpenPanel(device)}
+                            >
+                              <PanelTop className="h-4 w-4 text-primary" />
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {device.last_seen
+                            ? formatDistanceToNow(new Date(device.last_seen), { addSuffix: true, locale: ptBR })
+                            : 'Nunca'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => navigate(`/monitoring/${device.id}`)}>
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(device)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(device)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -190,6 +285,13 @@ export default function MonitoringDevices() {
         device={editingDevice}
         onSave={handleSave}
         isLoading={isCreating || isUpdating}
+      />
+
+      <ExternalPanelDialog
+        open={panelDialogOpen}
+        onOpenChange={setPanelDialogOpen}
+        url={selectedDeviceForPanel?.external_panel_url}
+        deviceName={selectedDeviceForPanel?.hostname || selectedDeviceForPanel?.device_id || 'Dispositivo'}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
