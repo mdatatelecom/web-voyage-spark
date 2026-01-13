@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DeviceStatusBadge } from './DeviceStatusBadge';
-import { ExternalPanelDialog } from './ExternalPanelDialog';
 import { MonitoredDevice } from '@/hooks/useMonitoredDevices';
 import { useDeviceStatus } from '@/hooks/useDeviceStatus';
 import { Server, Clock, RefreshCw, ExternalLink, PanelTop } from 'lucide-react';
@@ -18,15 +16,13 @@ interface MonitoringCardProps {
 export function MonitoringCard({ device }: MonitoringCardProps) {
   const navigate = useNavigate();
   const { data: status, isLoading, refetch, isFetching } = useDeviceStatus(device);
-  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
 
   const lastSeen = device.last_seen
     ? formatDistanceToNow(new Date(device.last_seen), { addSuffix: true, locale: ptBR })
     : 'Nunca';
 
   return (
-    <>
-      <Card className="hover:shadow-lg transition-shadow">
+    <Card className="hover:shadow-lg transition-shadow">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
@@ -82,7 +78,7 @@ export function MonitoringCard({ device }: MonitoringCardProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setPanelDialogOpen(true)}
+                  onClick={() => window.open(device.external_panel_url!, '_blank', 'noopener,noreferrer')}
                   title="Ver Painel"
                 >
                   <PanelTop className="h-4 w-4" />
@@ -111,16 +107,8 @@ export function MonitoringCard({ device }: MonitoringCardProps) {
             <Badge variant="secondary" className="w-full justify-center">
               Monitoramento Desativado
             </Badge>
-          )}
+        )}
         </CardContent>
-      </Card>
-
-      <ExternalPanelDialog
-        open={panelDialogOpen}
-        onOpenChange={setPanelDialogOpen}
-        url={device.external_panel_url}
-        deviceName={device.hostname || device.device_id}
-      />
-    </>
+    </Card>
   );
 }
