@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Maximize2, Minimize2, X, AlertCircle } from 'lucide-react';
+import { ExternalLink, Maximize2, Minimize2, X, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ExternalPanelDialogProps {
@@ -24,6 +24,30 @@ export function ExternalPanelDialog({
 }: ExternalPanelDialogProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  // Reset states when dialog opens or URL changes
+  useEffect(() => {
+    if (open && url) {
+      setIsLoading(true);
+      setLoadFailed(false);
+      setHasError(false);
+
+      // Timeout to detect loading failure (5 seconds)
+      const timeout = setTimeout(() => {
+        setLoadFailed(true);
+        setIsLoading(false);
+      }, 5000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [open, url]);
+
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    setLoadFailed(false);
+  };
 
   if (!url) return null;
 
@@ -90,31 +114,45 @@ export function ExternalPanelDialog({
             isFullscreen ? 'h-[calc(100vh-60px)]' : 'h-[calc(80vh-80px)]'
           )}
         >
-          {hasError ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-              <AlertCircle className="h-12 w-12" />
+          {/* Loading spinner */}
+          {isLoading && !loadFailed && !hasError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="text-muted-foreground">Carregando painel...</span>
+            </div>
+          )}
+
+          {/* Error/Fallback message */}
+          {(hasError || loadFailed) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground bg-muted">
+              <AlertCircle className="h-12 w-12 text-yellow-500" />
               <p className="text-center">
-                Não foi possível carregar o painel.
+                <strong className="text-foreground">O painel não pôde ser carregado no popup.</strong>
                 <br />
                 <span className="text-sm">
-                  Verifique se a URL está correta e acessível.
+                  Isso pode ocorrer devido a configurações de segurança do servidor.
                 </span>
               </p>
-              <Button variant="outline" onClick={handleOpenNewTab}>
+              <Button onClick={handleOpenNewTab}>
                 <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir em nova aba
+                Abrir em Nova Janela
               </Button>
             </div>
-          ) : (
-            <iframe
-              src={url}
-              className="absolute inset-0 w-full h-full border-0"
-              title={`Painel ${deviceName}`}
-              onError={() => setHasError(true)}
-              allow="fullscreen"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-            />
           )}
+
+          {/* Iframe - always renders but hidden during loading/error */}
+          <iframe
+            src={url}
+            className={cn(
+              "absolute inset-0 w-full h-full border-0 transition-opacity",
+              (isLoading || hasError || loadFailed) && "opacity-0 pointer-events-none"
+            )}
+            title={`Painel ${deviceName}`}
+            onLoad={handleIframeLoad}
+            onError={() => setHasError(true)}
+            allow="fullscreen"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          />
         </div>
       </DialogContent>
     </Dialog>
