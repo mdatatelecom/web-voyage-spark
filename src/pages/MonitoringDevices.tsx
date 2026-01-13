@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DeviceStatusBadge } from '@/components/monitoring/DeviceStatusBadge';
 import { DeviceDialog } from '@/components/monitoring/DeviceDialog';
-import { ExternalPanelDialog } from '@/components/monitoring/ExternalPanelDialog';
 import { useMonitoredDevices, MonitoredDevice, CreateDeviceInput } from '@/hooks/useMonitoredDevices';
 import { useDeviceBatchSync } from '@/hooks/useDeviceBatchSync';
 import { useAllDevicesStats } from '@/hooks/useDeviceMonitoringStats';
@@ -55,8 +54,6 @@ export default function MonitoringDevices() {
   const [editingDevice, setEditingDevice] = useState<MonitoredDevice | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<MonitoredDevice | null>(null);
-  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
-  const [selectedDeviceForPanel, setSelectedDeviceForPanel] = useState<MonitoredDevice | null>(null);
 
   useEffect(() => {
     startAutoSync(60000);
@@ -93,11 +90,6 @@ export default function MonitoringDevices() {
       createDevice(data as CreateDeviceInput);
     }
     setDialogOpen(false);
-  };
-
-  const handleOpenPanel = (device: MonitoredDevice) => {
-    setSelectedDeviceForPanel(device);
-    setPanelDialogOpen(true);
   };
 
   const truncateUptime = (uptime: string | null) => {
@@ -243,7 +235,7 @@ export default function MonitoringDevices() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => handleOpenPanel(device)}
+                              onClick={() => window.open(device.external_panel_url!, '_blank', 'noopener,noreferrer')}
                             >
                               <PanelTop className="h-4 w-4 text-primary" />
                             </Button>
@@ -285,13 +277,6 @@ export default function MonitoringDevices() {
         device={editingDevice}
         onSave={handleSave}
         isLoading={isCreating || isUpdating}
-      />
-
-      <ExternalPanelDialog
-        open={panelDialogOpen}
-        onOpenChange={setPanelDialogOpen}
-        url={selectedDeviceForPanel?.external_panel_url}
-        deviceName={selectedDeviceForPanel?.hostname || selectedDeviceForPanel?.device_id || 'Dispositivo'}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

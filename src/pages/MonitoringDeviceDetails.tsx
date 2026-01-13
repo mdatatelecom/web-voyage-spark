@@ -13,7 +13,6 @@ import { DeviceAlertConfigDialog } from '@/components/monitoring/DeviceAlertConf
 import { ConfigComparisonDialog } from '@/components/monitoring/ConfigComparisonDialog';
 import { GrafanaMetricsPanel } from '@/components/monitoring/GrafanaMetricsPanel';
 import { DeviceMetricsCharts } from '@/components/monitoring/DeviceMetricsCharts';
-import { ExternalPanelDialog } from '@/components/monitoring/ExternalPanelDialog';
 import { useMonitoredDevices } from '@/hooks/useMonitoredDevices';
 import { useMonitoredInterfaces } from '@/hooks/useMonitoredInterfaces';
 import { useMonitoredVlans } from '@/hooks/useMonitoredVlans';
@@ -41,7 +40,6 @@ export default function MonitoringDeviceDetails() {
   
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [comparisonDialogOpen, setComparisonDialogOpen] = useState(false);
-  const [panelDialogOpen, setPanelDialogOpen] = useState(false);
   
   const { devices, isLoading: devicesLoading } = useMonitoredDevices();
   const device = devices?.find((d) => d.id === deviceId) || null;
@@ -109,7 +107,7 @@ export default function MonitoringDeviceDetails() {
             {device.external_panel_url && (
               <Button
                 variant="outline"
-                onClick={() => setPanelDialogOpen(true)}
+                onClick={() => window.open(device.external_panel_url!, '_blank', 'noopener,noreferrer')}
               >
                 <PanelTop className="h-4 w-4 mr-2" />
                 Ver Painel
@@ -242,12 +240,6 @@ export default function MonitoringDeviceDetails() {
           deviceName={device.hostname || device.device_id}
           open={comparisonDialogOpen}
           onOpenChange={setComparisonDialogOpen}
-        />
-        <ExternalPanelDialog
-          open={panelDialogOpen}
-          onOpenChange={setPanelDialogOpen}
-          url={device.external_panel_url}
-          deviceName={device.hostname || device.device_id}
         />
       </div>
     </AppLayout>
