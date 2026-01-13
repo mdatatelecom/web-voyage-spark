@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.grafana-proxy]
 verify_jwt = true
+
+[functions.sync-all-devices]
+verify_jwt = false
