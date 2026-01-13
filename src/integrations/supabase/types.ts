@@ -1936,6 +1936,42 @@ export type Database = {
           },
         ]
       }
+      sync_logs: {
+        Row: {
+          completed_at: string | null
+          details: Json | null
+          devices_failed: number | null
+          devices_synced: number | null
+          error_message: string | null
+          id: string
+          started_at: string | null
+          success: boolean | null
+          triggered_by: string
+        }
+        Insert: {
+          completed_at?: string | null
+          details?: Json | null
+          devices_failed?: number | null
+          devices_synced?: number | null
+          error_message?: string | null
+          id?: string
+          started_at?: string | null
+          success?: boolean | null
+          triggered_by?: string
+        }
+        Update: {
+          completed_at?: string | null
+          details?: Json | null
+          devices_failed?: number | null
+          devices_synced?: number | null
+          error_message?: string | null
+          id?: string
+          started_at?: string | null
+          success?: boolean | null
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       system_knowledge: {
         Row: {
           category: string
@@ -2474,6 +2510,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_old_monitoring_data: { Args: never; Returns: undefined }
       generate_connection_code: { Args: never; Returns: string }
       has_role: {
         Args: {
