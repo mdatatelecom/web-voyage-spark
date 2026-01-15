@@ -166,9 +166,9 @@ serve(async (req) => {
     const agentAvailable = host.available === '1' || host.available === 1;
     const snmpAvailable = host.snmp_available === '1' || host.snmp_available === 1;
     
-    // If we're monitored and status is unknown (0), treat as online (common for SNMP devices)
-    const hasKnownAvailability = host.available !== '0' && host.available !== 0;
-    const isOnline = isMonitored && (agentAvailable || snmpAvailable || !hasKnownAvailability);
+    // If we successfully fetched data and the host is monitored, consider it online
+    // This is more reliable than the available flags which may not be set correctly
+    const isOnline = isMonitored; // If we can query data, the device is reachable
     
     const interfaces = host.interfaces || [];
     const mainInterface = interfaces.find((i: any) => i.main === '1') || interfaces[0];
@@ -176,7 +176,43 @@ serve(async (req) => {
 
     console.log(`[sync-zabbix-data] Host status - monitored: ${isMonitored}, agent: ${agentAvailable}, snmp: ${snmpAvailable}, online: ${isOnline}, IP: ${ip}`);
 
-    // 2. Get network interfaces (items with net.if.*)
+    // 2. Get interface names (ifDescr) to map interface indices to real names
+    const ifNamesResponse = await fetch(zabbixApiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'item.get',
+        params: {
+          output: ['itemid', 'name', 'key_', 'lastvalue'],
+          hostids: zabbixHostId,
+          search: { key_: 'ifDescr' },
+          filter: { status: 0 },
+          limit: 200,
+        },
+        id: 2,
+      }),
+    });
+
+    // Build mapping of interface index to name
+    const interfaceNameMap = new Map<string, string>();
+    if (ifNamesResponse.ok) {
+      const ifNamesData = await ifNamesResponse.json();
+      const ifNameItems = ifNamesData.result || [];
+      for (const item of ifNameItems) {
+        // key_ format: ifDescr.10 -> index 10, value is the name
+        const match = item.key_.match(/ifDescr\.(\d+)/);
+        if (match && item.lastvalue) {
+          interfaceNameMap.set(match[1], item.lastvalue);
+        }
+      }
+      console.log(`[sync-zabbix-data] Found ${interfaceNameMap.size} interface names`);
+    }
+
+    // 3. Get network interfaces (items with net.if.* or ifHC*)
     const interfacesResponse = await fetch(zabbixApiUrl, {
       method: 'POST',
       headers: {
@@ -189,11 +225,11 @@ serve(async (req) => {
         params: {
           output: ['itemid', 'name', 'key_', 'lastvalue', 'units', 'lastclock'],
           hostids: zabbixHostId,
-          search: { key_: 'net.if' },
+          search: { key_: 'if' }, // Match ifHCInOctets, ifOperStatus, etc.
           filter: { status: 0 },
           limit: 500,
         },
-        id: 2,
+        id: 3,
       }),
     });
 
@@ -281,30 +317,53 @@ serve(async (req) => {
     const interfaceMap = new Map<string, any>();
     
     for (const item of networkItems) {
-      // Extract interface name from key like net.if.in[eth0] or net.if.out[ether1]
-      const match = item.key_.match(/net\.if\.[^[]+\[([^\]]+)/);
-      if (match) {
-        const ifName = match[1].split(',')[0]; // Get interface name
-        if (!interfaceMap.has(ifName)) {
-          interfaceMap.set(ifName, {
-            interface_name: ifName,
-            rx_bytes: null,
-            tx_bytes: null,
-            status: 'up',
-            speed: null,
-          });
-        }
-        
-        const ifData = interfaceMap.get(ifName);
-        if (item.key_.includes('.in[') || item.key_.includes('.in.bytes')) {
-          ifData.rx_bytes = parseInt(item.lastvalue) || 0;
-        } else if (item.key_.includes('.out[') || item.key_.includes('.out.bytes')) {
-          ifData.tx_bytes = parseInt(item.lastvalue) || 0;
-        } else if (item.key_.includes('.status') || item.key_.includes('.operstate')) {
-          ifData.status = item.lastvalue === '1' || item.lastvalue === 'up' ? 'up' : 'down';
-        } else if (item.key_.includes('.speed')) {
-          ifData.speed = item.lastvalue;
-        }
+      // Extract interface index from key like ifHCInOctets.10 or net.if.in[eth0]
+      let ifIndex: string | null = null;
+      let ifName: string | null = null;
+      
+      // Try ifHCInOctets.X / ifHCOutOctets.X format
+      const snmpMatch = item.key_.match(/if(?:HC)?(?:In|Out)Octets\.(\d+)/);
+      if (snmpMatch) {
+        ifIndex = snmpMatch[1];
+        // Get the real name from the map, fallback to a readable format
+        ifName = interfaceNameMap.get(ifIndex!) || `Interface ${ifIndex}`;
+      }
+      
+      // Try ifOperStatus.X format for status
+      const statusMatch = item.key_.match(/ifOperStatus\.(\d+)/);
+      if (statusMatch) {
+        ifIndex = statusMatch[1];
+        ifName = interfaceNameMap.get(ifIndex!) || `Interface ${ifIndex}`;
+      }
+      
+      // Try net.if.in[eth0] format
+      const netMatch = item.key_.match(/net\.if\.[^[]+\[([^\]]+)/);
+      if (netMatch) {
+        ifName = netMatch[1].split(',')[0];
+      }
+      
+      if (!ifName) continue;
+      
+      if (!interfaceMap.has(ifName)) {
+        interfaceMap.set(ifName, {
+          interface_name: ifName,
+          rx_bytes: null,
+          tx_bytes: null,
+          status: 'up',
+          speed: null,
+        });
+      }
+      
+      const ifData = interfaceMap.get(ifName);
+      if (item.key_.includes('InOctets') || item.key_.includes('.in[')) {
+        ifData.rx_bytes = parseInt(item.lastvalue) || 0;
+      } else if (item.key_.includes('OutOctets') || item.key_.includes('.out[')) {
+        ifData.tx_bytes = parseInt(item.lastvalue) || 0;
+      } else if (item.key_.includes('OperStatus') || item.key_.includes('.status')) {
+        // ifOperStatus: 1=up, 2=down, 3=testing, etc.
+        ifData.status = item.lastvalue === '1' || item.lastvalue === 'up' ? 'up' : 'down';
+      } else if (item.key_.includes('.speed') || item.key_.includes('Speed')) {
+        ifData.speed = item.lastvalue;
       }
     }
 
