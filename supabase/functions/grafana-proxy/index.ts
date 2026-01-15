@@ -156,6 +156,44 @@ serve(async (req) => {
           const interfaces = host.interfaces || [];
           const ip = interfaces.find((i: any) => i.ip)?.ip || 'N/A';
 
+          // Save uptime history and update device status
+          try {
+            // Find the device by zabbix_host_id
+            const { data: deviceData } = await supabase
+              .from('monitored_devices')
+              .select('id, device_id')
+              .or(`zabbix_host_id.eq.${hostId},grafana_host_id.eq.${hostId}`)
+              .limit(1)
+              .maybeSingle();
+
+            if (deviceData) {
+              // Update device status
+              await supabase
+                .from('monitored_devices')
+                .update({
+                  status: isOnline ? 'online' : 'offline',
+                  last_seen: isOnline ? new Date().toISOString() : undefined,
+                  hostname: host.name || host.host,
+                  ip_address: ip !== 'N/A' ? ip : undefined,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', deviceData.id);
+
+              // Insert uptime history
+              await supabase
+                .from('device_uptime_history')
+                .insert({
+                  device_uuid: deviceData.id,
+                  is_online: isOnline,
+                  collected_at: new Date().toISOString(),
+                });
+
+              console.log(`Updated device ${deviceData.device_id} status and saved uptime history`);
+            }
+          } catch (dbError) {
+            console.error('Failed to update device status:', dbError);
+          }
+
           return new Response(JSON.stringify({ 
             success: true, 
             is_online: isOnline,

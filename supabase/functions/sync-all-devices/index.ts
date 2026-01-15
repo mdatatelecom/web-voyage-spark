@@ -79,10 +79,29 @@ Deno.serve(async (req) => {
         try {
           console.log(`[sync-all-devices] Syncing device: ${device.hostname || device.device_id}`);
 
-          // Skip devices that use Grafana/Zabbix data source (they don't need SNMP collection)
+          // For Grafana/Zabbix devices, use sync-zabbix-data function
           if (device.data_source_type === 'grafana' || device.data_source_type === 'zabbix') {
-            console.log(`[sync-all-devices] Device ${device.device_id} uses ${device.data_source_type}, skipping SNMP collection`);
-            results.push({ device_id: device.device_id, success: true });
+            console.log(`[sync-all-devices] Device ${device.device_id} uses ${device.data_source_type}, calling sync-zabbix-data`);
+            
+            const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-zabbix-data', {
+              body: { device_id: device.device_id }
+            });
+
+            if (syncError) {
+              console.error(`[sync-all-devices] Error syncing Zabbix device ${device.device_id}:`, syncError);
+              results.push({ 
+                device_id: device.device_id, 
+                success: false, 
+                error: syncError.message 
+              });
+            } else {
+              console.log(`[sync-all-devices] Zabbix sync result for ${device.device_id}:`, syncResult);
+              results.push({ 
+                device_id: device.device_id, 
+                success: syncResult?.success || false,
+                error: syncResult?.error
+              });
+            }
             return;
           }
 
