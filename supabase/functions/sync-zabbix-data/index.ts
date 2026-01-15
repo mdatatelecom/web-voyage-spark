@@ -176,7 +176,7 @@ serve(async (req) => {
 
     console.log(`[sync-zabbix-data] Host status - monitored: ${isMonitored}, agent: ${agentAvailable}, snmp: ${snmpAvailable}, online: ${isOnline}, IP: ${ip}`);
 
-    // 2. Get interface names (ifDescr) to map interface indices to real names
+    // 2. Get interface names (ifDescr or ifName) to map interface indices to real names
     const ifNamesResponse = await fetch(zabbixApiUrl, {
       method: 'POST',
       headers: {
@@ -189,7 +189,7 @@ serve(async (req) => {
         params: {
           output: ['itemid', 'name', 'key_', 'lastvalue'],
           hostids: zabbixHostId,
-          search: { key_: 'ifDescr' },
+          search: { key_: 'ifName' }, // Try ifName first
           filter: { status: 0 },
           limit: 200,
         },
@@ -203,13 +203,48 @@ serve(async (req) => {
       const ifNamesData = await ifNamesResponse.json();
       const ifNameItems = ifNamesData.result || [];
       for (const item of ifNameItems) {
-        // key_ format: ifDescr.10 -> index 10, value is the name
-        const match = item.key_.match(/ifDescr\.(\d+)/);
+        // key_ format: ifName.10 -> index 10, value is the name
+        const match = item.key_.match(/ifName\.(\d+)/);
         if (match && item.lastvalue) {
           interfaceNameMap.set(match[1], item.lastvalue);
         }
       }
-      console.log(`[sync-zabbix-data] Found ${interfaceNameMap.size} interface names`);
+      console.log(`[sync-zabbix-data] Found ${interfaceNameMap.size} interface names from ifName`);
+    }
+
+    // If no ifName items found, try ifDescr
+    if (interfaceNameMap.size === 0) {
+      const ifDescrResponse = await fetch(zabbixApiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'item.get',
+          params: {
+            output: ['itemid', 'name', 'key_', 'lastvalue'],
+            hostids: zabbixHostId,
+            search: { key_: 'ifDescr' },
+            filter: { status: 0 },
+            limit: 200,
+          },
+          id: 2,
+        }),
+      });
+
+      if (ifDescrResponse.ok) {
+        const ifDescrData = await ifDescrResponse.json();
+        const ifDescrItems = ifDescrData.result || [];
+        for (const item of ifDescrItems) {
+          const match = item.key_.match(/ifDescr\.(\d+)/);
+          if (match && item.lastvalue) {
+            interfaceNameMap.set(match[1], item.lastvalue);
+          }
+        }
+        console.log(`[sync-zabbix-data] Found ${interfaceNameMap.size} interface names from ifDescr`);
+      }
     }
 
     // 3. Get network interfaces (items with net.if.* or ifHC*)
@@ -316,6 +351,14 @@ serve(async (req) => {
     // 6. Process and save network interfaces
     const interfaceMap = new Map<string, any>();
     
+    // Helper function to extract interface name from item name like "Interface ether1: Bits received"
+    const extractNameFromItemName = (itemName: string): string | null => {
+      // Match patterns like "Interface ether1:" or "Interface GigabitEthernet0/0/1:"
+      const match = itemName.match(/Interface\s+([^:]+):/i);
+      if (match) return match[1].trim();
+      return null;
+    };
+    
     for (const item of networkItems) {
       // Extract interface index from key like ifHCInOctets.10 or net.if.in[eth0]
       let ifIndex: string | null = null;
@@ -325,15 +368,19 @@ serve(async (req) => {
       const snmpMatch = item.key_.match(/if(?:HC)?(?:In|Out)Octets\.(\d+)/);
       if (snmpMatch) {
         ifIndex = snmpMatch[1];
-        // Get the real name from the map, fallback to a readable format
-        ifName = interfaceNameMap.get(ifIndex!) || `Interface ${ifIndex}`;
+        // Priority: 1) from name map, 2) extract from item.name, 3) fallback
+        ifName = interfaceNameMap.get(ifIndex!) 
+              || extractNameFromItemName(item.name) 
+              || `Interface ${ifIndex}`;
       }
       
       // Try ifOperStatus.X format for status
       const statusMatch = item.key_.match(/ifOperStatus\.(\d+)/);
       if (statusMatch) {
         ifIndex = statusMatch[1];
-        ifName = interfaceNameMap.get(ifIndex!) || `Interface ${ifIndex}`;
+        ifName = interfaceNameMap.get(ifIndex!) 
+              || extractNameFromItemName(item.name)
+              || `Interface ${ifIndex}`;
       }
       
       // Try net.if.in[eth0] format
