@@ -45,17 +45,5 @@ verify_jwt = true
 [functions.hls-proxy]
 verify_jwt = false
 
-[functions.monitor-proxy]
-verify_jwt = true
-
-[functions.check-device-status]
-verify_jwt = false
-
-[functions.grafana-proxy]
-verify_jwt = true
-
-[functions.sync-all-devices]
-verify_jwt = false
-
-[functions.sync-zabbix-data]
+[functions.zabbix-webhook]
 verify_jwt = false
