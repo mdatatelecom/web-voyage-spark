@@ -1,0 +1,11 @@
+-- Remover tabelas de monitoramento vazias
+DROP TABLE IF EXISTS snmp_metrics CASCADE;
+DROP TABLE IF EXISTS sync_logs CASCADE;
+DROP TABLE IF EXISTS device_uptime_history CASCADE;
+DROP TABLE IF EXISTS device_config_snapshots CASCADE;
+DROP TABLE IF EXISTS device_offline_alerts CASCADE;
+DROP TABLE IF EXISTS monitored_interfaces CASCADE;
+DROP TABLE IF EXISTS monitored_vlans CASCADE;
+DROP TABLE IF EXISTS zabbix_hosts_cache CASCADE;
+DROP TABLE IF EXISTS monitored_devices CASCADE;
+DROP TABLE IF EXISTS grafana_config CASCADE;
