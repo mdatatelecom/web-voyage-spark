@@ -91,6 +91,7 @@ export type Database = {
           current_value: number | null
           id: string
           message: string
+          metadata: Json | null
           related_entity_id: string | null
           related_entity_type: string | null
           resolved_at: string | null
@@ -108,6 +109,7 @@ export type Database = {
           current_value?: number | null
           id?: string
           message: string
+          metadata?: Json | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           resolved_at?: string | null
@@ -125,6 +127,7 @@ export type Database = {
           current_value?: number | null
           id?: string
           message?: string
+          metadata?: Json | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           resolved_at?: string | null
