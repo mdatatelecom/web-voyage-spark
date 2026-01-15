@@ -132,16 +132,6 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       ],
     },
     {
-      id: 'monitoring',
-      label: 'Monitoramento',
-      icon: Activity,
-      visible: (isAdmin || isTechnician) && !isNetworkViewer,
-      items: [
-        { label: 'Dashboard', icon: Activity, path: '/monitoring', visible: true },
-        { label: 'Dispositivos', icon: Server, path: '/monitoring/devices', visible: true },
-      ],
-    },
-    {
       id: 'operations',
       label: 'Operações',
       icon: Ticket,
