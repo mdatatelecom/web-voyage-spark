@@ -150,13 +150,22 @@ serve(async (req) => {
 
           // Determine online status
           // available: 0=unknown, 1=available, 2=unavailable
-          // snmp_available: same
-          // status: 0=monitored, 1=unmonitored
-          const isOnline = host.available === '1' || host.snmp_available === '1';
+          // snmp_available: 0=unknown, 1=available, 2=unavailable
+          // status: 0=monitored (active), 1=unmonitored (disabled)
+          const isMonitored = host.status === '0' || host.status === 0;
+          const agentAvailable = host.available === '1' || host.available === 1;
+          const snmpAvailable = host.snmp_available === '1' || host.snmp_available === 1;
+          
+          // Device is online if being monitored AND at least one interface is available
+          // If available is 0 (unknown) and we're monitored, consider online (common for SNMP-only hosts)
+          const hasKnownAvailability = host.available !== '0' && host.available !== 0;
+          const isOnline = isMonitored && (agentAvailable || snmpAvailable || !hasKnownAvailability);
+          
           const interfaces = host.interfaces || [];
-          const ip = interfaces.find((i: any) => i.ip)?.ip || 'N/A';
+          const mainInterface = interfaces.find((i: any) => i.main === '1') || interfaces[0];
+          const ip = mainInterface?.ip || interfaces.find((i: any) => i.ip)?.ip || 'N/A';
 
-          // Save uptime history and update device status
+          // ALWAYS save uptime history and update device status
           try {
             // Find the device by zabbix_host_id
             const { data: deviceData } = await supabase
@@ -167,19 +176,19 @@ serve(async (req) => {
               .maybeSingle();
 
             if (deviceData) {
-              // Update device status
+              // ALWAYS update last_seen - it represents last check, not last online
               await supabase
                 .from('monitored_devices')
                 .update({
                   status: isOnline ? 'online' : 'offline',
-                  last_seen: isOnline ? new Date().toISOString() : undefined,
+                  last_seen: new Date().toISOString(), // Always update - this is when we checked
                   hostname: host.name || host.host,
                   ip_address: ip !== 'N/A' ? ip : undefined,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', deviceData.id);
 
-              // Insert uptime history
+              // Insert uptime history with correct online status
               await supabase
                 .from('device_uptime_history')
                 .insert({
@@ -188,7 +197,7 @@ serve(async (req) => {
                   collected_at: new Date().toISOString(),
                 });
 
-              console.log(`Updated device ${deviceData.device_id} status and saved uptime history`);
+              console.log(`Updated device ${deviceData.device_id}: status=${isOnline ? 'online' : 'offline'}, monitored=${isMonitored}, agent=${agentAvailable}, snmp=${snmpAvailable}`);
             }
           } catch (dbError) {
             console.error('Failed to update device status:', dbError);

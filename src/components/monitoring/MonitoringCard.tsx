@@ -8,6 +8,7 @@ import { Server, Clock, RefreshCw, ExternalLink, PanelTop } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { formatUptimeSeconds } from '@/lib/utils';
 
 interface MonitoringCardProps {
   device: MonitoredDevice;
@@ -65,7 +66,7 @@ export function MonitoringCard({ device }: MonitoringCardProps) {
           {device.uptime_raw && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
-              <span>Uptime: {device.uptime_raw}</span>
+              <span>Uptime: {formatUptimeSeconds(device.uptime_raw)}</span>
             </div>
           )}
 

@@ -33,6 +33,7 @@ import {
   Layers,
   PanelTop,
 } from 'lucide-react';
+import { formatUptimeSeconds } from '@/lib/utils';
 
 export default function MonitoringDeviceDetails() {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -159,7 +160,7 @@ export default function MonitoringDeviceDetails() {
                 <span className="text-muted-foreground">Uptime</span>
                 <p className="font-medium flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  {device.uptime_raw || '-'}
+                  {formatUptimeSeconds(device.uptime_raw)}
                 </p>
               </div>
               <div>

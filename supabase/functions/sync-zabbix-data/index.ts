@@ -158,13 +158,23 @@ serve(async (req) => {
       throw new Error('Host not found in Zabbix');
     }
 
-    // Determine online status
-    const isOnline = host.available === '1' || host.snmp_available === '1';
+    // Determine online status more accurately
+    // status: 0=monitored (active), 1=unmonitored (disabled)
+    // available: 0=unknown, 1=available, 2=unavailable
+    // snmp_available: 0=unknown, 1=available, 2=unavailable
+    const isMonitored = host.status === '0' || host.status === 0;
+    const agentAvailable = host.available === '1' || host.available === 1;
+    const snmpAvailable = host.snmp_available === '1' || host.snmp_available === 1;
+    
+    // If we're monitored and status is unknown (0), treat as online (common for SNMP devices)
+    const hasKnownAvailability = host.available !== '0' && host.available !== 0;
+    const isOnline = isMonitored && (agentAvailable || snmpAvailable || !hasKnownAvailability);
+    
     const interfaces = host.interfaces || [];
     const mainInterface = interfaces.find((i: any) => i.main === '1') || interfaces[0];
     const ip = mainInterface?.ip || 'N/A';
 
-    console.log(`[sync-zabbix-data] Host status - online: ${isOnline}, IP: ${ip}`);
+    console.log(`[sync-zabbix-data] Host status - monitored: ${isMonitored}, agent: ${agentAvailable}, snmp: ${snmpAvailable}, online: ${isOnline}, IP: ${ip}`);
 
     // 2. Get network interfaces (items with net.if.*)
     const interfacesResponse = await fetch(zabbixApiUrl, {
@@ -232,9 +242,10 @@ serve(async (req) => {
     }
 
     // 4. Update device info in database
+    // ALWAYS update last_seen - it represents last sync attempt, not last online time
     const updateData: any = {
       status: isOnline ? 'online' : 'offline',
-      last_seen: isOnline ? new Date().toISOString() : device.last_seen,
+      last_seen: new Date().toISOString(), // Always update - indicates last check
       hostname: host.name || host.host || device.hostname,
       ip_address: ip !== 'N/A' ? ip : device.ip_address,
       uptime_raw: uptimeRaw || device.uptime_raw,
