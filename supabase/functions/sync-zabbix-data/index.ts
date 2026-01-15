@@ -351,42 +351,37 @@ serve(async (req) => {
     // 6. Process and save network interfaces
     const interfaceMap = new Map<string, any>();
     
-    // Helper function to extract interface name from item name like "Interface ether1: Bits received"
+    // Helper function to extract interface name from item name like "Interface ether1(): Bits received"
     const extractNameFromItemName = (itemName: string): string | null => {
-      // Match patterns like "Interface ether1:" or "Interface GigabitEthernet0/0/1:"
-      const match = itemName.match(/Interface\s+([^:]+):/i);
-      if (match) return match[1].trim();
+      // Match patterns like "Interface ether1():" or "Interface vlan2001-LINK-76-TELECOM():"
+      const match = itemName.match(/Interface\s+([^(]+)/i);
+      if (match) {
+        const name = match[1].trim();
+        // Remove trailing colon if present
+        return name.replace(/:$/, '').trim();
+      }
       return null;
     };
     
     for (const item of networkItems) {
-      // Extract interface index from key like ifHCInOctets.10 or net.if.in[eth0]
-      let ifIndex: string | null = null;
       let ifName: string | null = null;
       
-      // Try ifHCInOctets.X / ifHCOutOctets.X format
-      const snmpMatch = item.key_.match(/if(?:HC)?(?:In|Out)Octets\.(\d+)/);
-      if (snmpMatch) {
-        ifIndex = snmpMatch[1];
-        // Priority: 1) from name map, 2) extract from item.name, 3) fallback
-        ifName = interfaceNameMap.get(ifIndex!) 
-              || extractNameFromItemName(item.name) 
-              || `Interface ${ifIndex}`;
-      }
+      // First try to extract from item.name which has the real interface name
+      ifName = extractNameFromItemName(item.name);
       
-      // Try ifOperStatus.X format for status
-      const statusMatch = item.key_.match(/ifOperStatus\.(\d+)/);
-      if (statusMatch) {
-        ifIndex = statusMatch[1];
-        ifName = interfaceNameMap.get(ifIndex!) 
-              || extractNameFromItemName(item.name)
-              || `Interface ${ifIndex}`;
-      }
-      
-      // Try net.if.in[eth0] format
-      const netMatch = item.key_.match(/net\.if\.[^[]+\[([^\]]+)/);
-      if (netMatch) {
-        ifName = netMatch[1].split(',')[0];
+      // If no name from item.name, try extracting from key
+      if (!ifName) {
+        // Try net.if.in[ifHCInOctets.10] or net.if.out[ifHCOutOctets.10] format
+        const netSnmpMatch = item.key_.match(/net\.if\.(?:in|out)\[(?:if|snmp).*?\.(\d+)\]/);
+        if (netSnmpMatch) {
+          ifName = interfaceNameMap.get(netSnmpMatch[1]) || `Interface ${netSnmpMatch[1]}`;
+        }
+        
+        // Try ifHCInOctets.X format directly
+        const snmpMatch = item.key_.match(/if(?:HC)?(?:In|Out)Octets\.(\d+)/);
+        if (snmpMatch) {
+          ifName = interfaceNameMap.get(snmpMatch[1]) || `Interface ${snmpMatch[1]}`;
+        }
       }
       
       if (!ifName) continue;
