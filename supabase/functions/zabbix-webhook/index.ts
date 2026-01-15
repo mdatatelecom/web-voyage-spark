@@ -17,16 +17,8 @@ const mapZabbixSeverity = (severity: number | string): AlertSeverity => {
   return 'info';
 };
 
-// Mapear tipo de alerta
-type AlertType = 'capacity_warning' | 'capacity_critical' | 'deadline_warning' | 'maintenance_required' | 'custom';
-
-const mapZabbixAlertType = (trigger: string): AlertType => {
-  const t = trigger.toLowerCase();
-  if (t.includes('capacity') || t.includes('disk') || t.includes('memory')) return 'capacity_warning';
-  if (t.includes('critical') || t.includes('down') || t.includes('offline')) return 'capacity_critical';
-  if (t.includes('maintenance')) return 'maintenance_required';
-  return 'custom';
-};
+// Usar sempre 'zabbix_alert' como tipo
+const getAlertType = (): string => 'zabbix_alert';
 
 interface ZabbixPayload {
   host?: string;
@@ -99,7 +91,7 @@ serve(async (req) => {
 
     // Converter severidade para o formato do sistema
     const alertSeverity = mapZabbixSeverity(severity);
-    const alertType = mapZabbixAlertType(trigger);
+    const alertType = getAlertType();
 
     // Criar título formatado
     const title = `[${host}] ${trigger}`;

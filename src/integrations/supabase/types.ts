@@ -2536,6 +2536,7 @@ export type Database = {
         | "connection_faulty"
         | "connection_stale_testing"
         | "equipment_no_ip"
+        | "zabbix_alert"
       cable_type:
         | "utp_cat5e"
         | "utp_cat6"
@@ -2768,6 +2769,7 @@ export const Constants = {
         "connection_faulty",
         "connection_stale_testing",
         "equipment_no_ip",
+        "zabbix_alert",
       ],
       cable_type: [
         "utp_cat5e",
