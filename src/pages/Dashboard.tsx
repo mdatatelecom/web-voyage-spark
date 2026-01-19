@@ -26,6 +26,7 @@ import { TicketTrendChart } from '@/components/tickets/TicketTrendChart';
 import { CriticalAlertsWidget } from '@/components/dashboard/CriticalAlertsWidget';
 import { MetricsWidget } from '@/components/dashboard/MetricsWidget';
 import { QuickAccessWidget } from '@/components/dashboard/QuickAccessWidget';
+import { ZabbixMonitoringWidget } from '@/components/dashboard/ZabbixMonitoringWidget';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -201,14 +202,27 @@ export default function Dashboard() {
           </div>
           
           {/* Widget de Alertas Críticos */}
-          <div className="lg:col-span-2">
-            <div className="mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Alertas do Sistema
-              </h3>
+          <div className="lg:col-span-2 space-y-6">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Alertas do Sistema
+                </h3>
+              </div>
+              <CriticalAlertsWidget />
             </div>
-            <CriticalAlertsWidget />
+            
+            {/* Widget de Monitoramento Zabbix */}
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Monitoramento Externo
+                </h3>
+              </div>
+              <ZabbixMonitoringWidget />
+            </div>
           </div>
         </section>
 

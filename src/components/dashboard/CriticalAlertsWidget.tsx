@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, AlertTriangle, Bell, ChevronRight, Zap } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bell, ChevronRight, Zap, Radar } from 'lucide-react';
 import { useAlerts } from '@/hooks/useAlerts';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,8 +19,10 @@ export function CriticalAlertsWidget() {
 
   const criticalAlerts = alerts?.filter(a => a.severity === 'critical') || [];
   const warningAlerts = alerts?.filter(a => a.severity === 'warning') || [];
+  const zabbixAlerts = alerts?.filter(a => a.type === 'zabbix_alert') || [];
   const criticalCount = criticalAlerts.length;
   const warningCount = warningAlerts.length;
+  const zabbixCount = zabbixAlerts.length;
 
   // Real-time subscription
   useEffect(() => {
@@ -118,6 +120,15 @@ export function CriticalAlertsWidget() {
                 {warningCount} aviso{warningCount > 1 ? 's' : ''}
               </Badge>
             )}
+            {zabbixCount > 0 && (
+              <Badge 
+                variant="outline" 
+                className="border-purple-500 text-purple-600 dark:text-purple-400 flex items-center gap-1"
+              >
+                <Radar className="h-3 w-3" />
+                {zabbixCount} Zabbix
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -135,7 +146,9 @@ export function CriticalAlertsWidget() {
             onClick={() => handleNavigateToEntity(alert)}
           >
             <div className="flex items-start gap-3">
-              {alert.severity === 'critical' ? (
+              {alert.type === 'zabbix_alert' ? (
+                <Radar className="h-5 w-5 text-purple-500 mt-0.5 shrink-0" />
+              ) : alert.severity === 'critical' ? (
                 <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
               ) : (
                 <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
