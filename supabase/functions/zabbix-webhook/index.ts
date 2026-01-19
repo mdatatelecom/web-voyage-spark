@@ -265,6 +265,57 @@ serve(async (req) => {
       }
     }
 
+    // Try to correlate with equipment by IP or hostname
+    let relatedEntityId: string | null = null;
+    let relatedEntityType = 'zabbix_host';
+
+    if (ip || host) {
+      // First try by IP
+      if (ip) {
+        const { data: equipmentByIp } = await supabase
+          .from('equipment')
+          .select('id')
+          .eq('ip_address', ip)
+          .single();
+        
+        if (equipmentByIp) {
+          relatedEntityId = equipmentByIp.id;
+          relatedEntityType = 'equipment';
+          console.log('Found equipment by IP:', ip, '->', relatedEntityId);
+        }
+      }
+      
+      // If not found by IP, try by hostname
+      if (!relatedEntityId && host && host !== 'Unknown Host') {
+        const { data: equipmentByHostname } = await supabase
+          .from('equipment')
+          .select('id')
+          .eq('hostname', host)
+          .single();
+        
+        if (equipmentByHostname) {
+          relatedEntityId = equipmentByHostname.id;
+          relatedEntityType = 'equipment';
+          console.log('Found equipment by hostname:', host, '->', relatedEntityId);
+        }
+      }
+
+      // Try by zabbix_host_id if equipment was previously linked
+      if (!relatedEntityId && host && host !== 'Unknown Host') {
+        const { data: equipmentByZabbixId } = await supabase
+          .from('equipment')
+          .select('id')
+          .eq('zabbix_host_id', host)
+          .single();
+        
+        if (equipmentByZabbixId) {
+          relatedEntityId = equipmentByZabbixId.id;
+          relatedEntityType = 'equipment';
+          console.log('Found equipment by zabbix_host_id:', host, '->', relatedEntityId);
+        }
+      }
+    }
+
     // Verificar se já existe alerta ativo para mesmo host/trigger (evitar duplicatas)
     const { data: existingActive } = await supabase
       .from('alerts')
@@ -287,6 +338,8 @@ serve(async (req) => {
         status: 'active',
         title: title.substring(0, 255),
         message: detailedMessage.substring(0, 1000),
+        related_entity_id: relatedEntityId,
+        related_entity_type: relatedEntityType,
         metadata: {
           source: 'zabbix',
           host,
@@ -300,7 +353,6 @@ serve(async (req) => {
           original_timestamp: timestamp,
           raw_payload: payload,
         },
-        related_entity_type: 'zabbix_host',
       })
       .select()
       .single();

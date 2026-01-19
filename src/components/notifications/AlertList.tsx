@@ -1,4 +1,4 @@
-import { useAlerts } from '@/hooks/useAlerts';
+import { useAlerts, AlertType } from '@/hooks/useAlerts';
 import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 interface AlertListProps {
   compact?: boolean;
   status?: 'active' | 'acknowledged' | 'resolved';
+  type?: AlertType;
 }
 
 const getSeverityIcon = (severity: string, type: string) => {
@@ -78,9 +79,10 @@ const getAlertTypeLabel = (type: string) => {
   }
 };
 
-export const AlertList = ({ compact = false, status = 'active' }: AlertListProps) => {
+export const AlertList = ({ compact = false, status = 'active', type }: AlertListProps) => {
   const { alerts, isLoading, acknowledgeAlert, resolveAlert } = useAlerts({
     status: status,
+    type: type,
   });
   const navigate = useNavigate();
 
