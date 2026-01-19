@@ -364,32 +364,97 @@ serve(async (req) => {
 
     console.log('Alert created successfully:', alertData.id, '- Severity:', alertSeverity);
 
-    // Enviar notificações se severidade for alta (critical)
-    if (alertSeverity === 'critical') {
-      console.log('Critical alert - sending notifications...');
+    // Buscar configurações específicas do Zabbix para notificações
+    const { data: zabbixSettings } = await supabase
+      .from('alert_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['zabbix_enabled', 'zabbix_whatsapp_enabled', 'zabbix_min_severity']);
+
+    const zabbixEnabled = zabbixSettings?.find(s => s.setting_key === 'zabbix_enabled')?.setting_value ?? 1;
+    const zabbixWhatsappEnabled = zabbixSettings?.find(s => s.setting_key === 'zabbix_whatsapp_enabled')?.setting_value ?? 1;
+    const zabbixMinSeverity = zabbixSettings?.find(s => s.setting_key === 'zabbix_min_severity')?.setting_value ?? 2;
+
+    // Mapeamento de severidade para nível numérico
+    const severityLevel: Record<string, number> = {
+      'info': 1,
+      'warning': 2,
+      'critical': 3
+    };
+
+    const alertLevel = severityLevel[alertSeverity] || 1;
+    const shouldSendWhatsApp = zabbixEnabled && zabbixWhatsappEnabled && alertLevel >= zabbixMinSeverity;
+
+    console.log('Notification check:', { 
+      zabbixEnabled, 
+      zabbixWhatsappEnabled, 
+      zabbixMinSeverity, 
+      alertLevel, 
+      alertSeverity,
+      shouldSendWhatsApp 
+    });
+
+    // Emojis por severidade
+    const severityEmoji: Record<string, string> = {
+      'info': 'ℹ️',
+      'warning': '⚠️',
+      'critical': '🚨'
+    };
+    const emoji = severityEmoji[alertSeverity] || '📢';
+
+    // Enviar notificação WhatsApp se configurado
+    if (shouldSendWhatsApp) {
+      console.log('Sending WhatsApp notification...');
       
-      // Buscar configurações de WhatsApp
+      // Buscar configurações de WhatsApp (chave correta: whatsapp_settings)
       const { data: whatsappSettings } = await supabase
         .from('system_settings')
         .select('setting_value')
-        .eq('setting_key', 'whatsapp')
+        .eq('setting_key', 'whatsapp_settings')
         .single();
 
-      if (whatsappSettings?.setting_value?.enabled) {
-        try {
-          await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              message: `🚨 *ALERTA CRÍTICO ZABBIX*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Severidade:* ${severity}\n*Mensagem:* ${message}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`,
-              notification_type: 'zabbix_alert',
-            },
-          });
-          console.log('WhatsApp notification sent');
-        } catch (e) {
-          console.error('Error sending WhatsApp:', e);
-        }
-      }
+      console.log('WhatsApp settings:', JSON.stringify(whatsappSettings?.setting_value, null, 2));
 
-      // Enviar email
+      if (whatsappSettings?.setting_value?.isEnabled) {
+        const settings = whatsappSettings.setting_value;
+        const targetType = settings.targetType || 'individual';
+        
+        const notificationMessage = `${emoji} *ALERTA ZABBIX (${alertSeverity.toUpperCase()})*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Severidade:* ${severity}\n*Mensagem:* ${message}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`;
+
+        try {
+          if (targetType === 'group' && settings.selectedGroupId) {
+            // Enviar para grupo configurado
+            console.log('Sending to group:', settings.selectedGroupId);
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send-group',
+                groupId: settings.selectedGroupId,
+                message: notificationMessage,
+                notification_type: 'zabbix_alert',
+              },
+            });
+            console.log('WhatsApp group notification sent to:', settings.selectedGroupId);
+          } else {
+            // Enviar para número individual (buscar admins)
+            console.log('Sending individual notification...');
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                action: 'send',
+                message: notificationMessage,
+                notification_type: 'zabbix_alert',
+              },
+            });
+            console.log('WhatsApp individual notification sent');
+          }
+        } catch (e) {
+          console.error('Error sending WhatsApp notification:', e);
+        }
+      } else {
+        console.log('WhatsApp not enabled in settings');
+      }
+    }
+
+    // Enviar email apenas para alertas críticos
+    if (alertSeverity === 'critical') {
       try {
         await supabase.functions.invoke('send-alert-email', {
           body: {
