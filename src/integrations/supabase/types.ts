@@ -334,6 +334,7 @@ export type Database = {
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at: string
           weight_kg: number | null
+          zabbix_host_id: string | null
         }
         Insert: {
           airflow?: string | null
@@ -359,6 +360,7 @@ export type Database = {
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string
           weight_kg?: number | null
+          zabbix_host_id?: string | null
         }
         Update: {
           airflow?: string | null
@@ -384,6 +386,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string
           weight_kg?: number | null
+          zabbix_host_id?: string | null
         }
         Relationships: [
           {

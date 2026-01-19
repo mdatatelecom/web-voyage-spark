@@ -18,7 +18,10 @@ type AlertSettingKey =
   | 'ticket_deadline_warning_hours'
   | 'ticket_deadline_critical_hours'
   | 'ticket_auto_escalation_enabled'
-  | 'ticket_deadline_whatsapp_enabled';
+  | 'ticket_deadline_whatsapp_enabled'
+  | 'zabbix_enabled'
+  | 'zabbix_whatsapp_enabled'
+  | 'zabbix_min_severity';
 
 interface AlertSetting {
   id: string;
@@ -80,6 +83,9 @@ export const useAlertSettings = () => {
         { key: 'ticket_deadline_critical_hours', value: 4 },
         { key: 'ticket_auto_escalation_enabled', value: 1 },
         { key: 'ticket_deadline_whatsapp_enabled', value: 1 },
+        { key: 'zabbix_enabled', value: 1 },
+        { key: 'zabbix_whatsapp_enabled', value: 1 },
+        { key: 'zabbix_min_severity', value: 2 },
       ];
 
       for (const { key, value } of defaults) {

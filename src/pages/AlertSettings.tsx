@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle, Clock, Radar, ExternalLink } from 'lucide-react';
 import { useAlertSettings } from '@/hooks/useAlertSettings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
@@ -44,6 +45,13 @@ export default function AlertSettings() {
   const [ticketAutoEscalationEnabled, setTicketAutoEscalationEnabled] = useState(true);
   const [ticketDeadlineWhatsappEnabled, setTicketDeadlineWhatsappEnabled] = useState(true);
 
+  // Zabbix settings
+  const [zabbixEnabled, setZabbixEnabled] = useState(true);
+  const [zabbixWhatsappEnabled, setZabbixWhatsappEnabled] = useState(true);
+  const [zabbixMinSeverity, setZabbixMinSeverity] = useState(2);
+  const [zabbixBaseUrl, setZabbixBaseUrl] = useState('');
+  const [loadingZabbixUrl, setLoadingZabbixUrl] = useState(true);
+
   useEffect(() => {
     if (settings) {
       setRackWarning(getSetting('rack_warning_threshold')?.setting_value || 80);
@@ -65,8 +73,32 @@ export default function AlertSettings() {
       setTicketDeadlineCriticalHours(getSetting('ticket_deadline_critical_hours')?.setting_value || 4);
       setTicketAutoEscalationEnabled((getSetting('ticket_auto_escalation_enabled')?.setting_value ?? 1) === 1);
       setTicketDeadlineWhatsappEnabled((getSetting('ticket_deadline_whatsapp_enabled')?.setting_value ?? 1) === 1);
+
+      // Zabbix settings
+      setZabbixEnabled((getSetting('zabbix_enabled')?.setting_value ?? 1) === 1);
+      setZabbixWhatsappEnabled((getSetting('zabbix_whatsapp_enabled')?.setting_value ?? 1) === 1);
+      setZabbixMinSeverity(getSetting('zabbix_min_severity')?.setting_value || 2);
     }
   }, [settings, getSetting]);
+
+  // Load Zabbix base URL from system_settings
+  useEffect(() => {
+    const loadZabbixUrl = async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'zabbix_base_url')
+        .single();
+
+      if (data?.setting_value) {
+        const url = typeof data.setting_value === 'string' ? data.setting_value.replace(/^"|"$/g, '') : '';
+        setZabbixBaseUrl(url);
+      }
+      setLoadingZabbixUrl(false);
+    };
+
+    loadZabbixUrl();
+  }, []);
 
   // Load notification settings for resolved alerts toggle
   useEffect(() => {
@@ -124,7 +156,7 @@ export default function AlertSettings() {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateSetting({ key: 'rack_warning_threshold', value: rackWarning });
     updateSetting({ key: 'rack_critical_threshold', value: rackCritical });
     updateSetting({ key: 'port_warning_threshold', value: portWarning });
@@ -144,6 +176,23 @@ export default function AlertSettings() {
     updateSetting({ key: 'ticket_deadline_critical_hours', value: ticketDeadlineCriticalHours });
     updateSetting({ key: 'ticket_auto_escalation_enabled', value: ticketAutoEscalationEnabled ? 1 : 0 });
     updateSetting({ key: 'ticket_deadline_whatsapp_enabled', value: ticketDeadlineWhatsappEnabled ? 1 : 0 });
+
+    // Zabbix settings
+    updateSetting({ key: 'zabbix_enabled', value: zabbixEnabled ? 1 : 0 });
+    updateSetting({ key: 'zabbix_whatsapp_enabled', value: zabbixWhatsappEnabled ? 1 : 0 });
+    updateSetting({ key: 'zabbix_min_severity', value: zabbixMinSeverity });
+
+    // Save Zabbix base URL to system_settings
+    const { error } = await supabase
+      .from('system_settings')
+      .upsert({
+        setting_key: 'zabbix_base_url',
+        setting_value: JSON.stringify(zabbixBaseUrl),
+      }, { onConflict: 'setting_key' });
+
+    if (error) {
+      toast.error('Erro ao salvar URL do Zabbix');
+    }
   };
 
   const handleReset = () => {
@@ -489,6 +538,144 @@ export default function AlertSettings() {
                   <li>Conexão defeituosa é corrigida (status = active)</li>
                   <li>Conexão em testing é ativada ou removida</li>
                   <li>Equipamento recebe endereço IP</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
+
+        {/* Zabbix Integration Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Radar className="w-5 h-5" />
+            Integração Zabbix
+          </h2>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Radar className="w-5 h-5" />
+                  Configurações Gerais
+                </CardTitle>
+                <CardDescription>
+                  Habilite e configure a integração com o Zabbix
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="zabbix-enabled">Integração habilitada</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Receber alertas do Zabbix via webhook
+                    </p>
+                  </div>
+                  <Switch
+                    id="zabbix-enabled"
+                    checked={zabbixEnabled}
+                    onCheckedChange={setZabbixEnabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="zabbix-url">URL base do Zabbix</Label>
+                  <Input
+                    id="zabbix-url"
+                    type="url"
+                    placeholder="https://zabbix.empresa.com"
+                    value={zabbixBaseUrl}
+                    onChange={(e) => setZabbixBaseUrl(e.target.value)}
+                    disabled={loadingZabbixUrl}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usado para criar links diretos para hosts no Zabbix
+                  </p>
+                </div>
+                {zabbixBaseUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(zabbixBaseUrl, '_blank')}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Testar URL
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Notificações WhatsApp
+                </CardTitle>
+                <CardDescription>
+                  Configure notificações WhatsApp para alertas Zabbix
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="zabbix-whatsapp">Notificar via WhatsApp</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar alertas Zabbix para o grupo de WhatsApp
+                    </p>
+                  </div>
+                  <Switch
+                    id="zabbix-whatsapp"
+                    checked={zabbixWhatsappEnabled}
+                    onCheckedChange={setZabbixWhatsappEnabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Severidade mínima para notificar</Label>
+                  <Select
+                    value={String(zabbixMinSeverity)}
+                    onValueChange={(v) => setZabbixMinSeverity(Number(v))}
+                    disabled={!zabbixWhatsappEnabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Info (todas)</SelectItem>
+                      <SelectItem value="2">Warning (aviso e crítico)</SelectItem>
+                      <SelectItem value="3">Critical (apenas crítico)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Apenas alertas com severidade igual ou maior serão notificados
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuração do Webhook</CardTitle>
+              <CardDescription>
+                Configure o Zabbix para enviar alertas para esta URL
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-xs font-mono break-all">
+                  https://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/zabbix-webhook
+                </p>
+              </div>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p className="font-medium">Parâmetros aceitos:</p>
+                <ul className="list-disc list-inside text-xs space-y-1">
+                  <li><code className="bg-muted px-1 rounded">host</code> ou <code className="bg-muted px-1 rounded">hostname</code> - Nome do host</li>
+                  <li><code className="bg-muted px-1 rounded">trigger</code> ou <code className="bg-muted px-1 rounded">trigger_name</code> - Nome do trigger</li>
+                  <li><code className="bg-muted px-1 rounded">severity</code> - Severidade (texto ou número)</li>
+                  <li><code className="bg-muted px-1 rounded">status</code> - Status (PROBLEM, OK)</li>
+                  <li><code className="bg-muted px-1 rounded">eventid</code> - ID do evento</li>
+                  <li><code className="bg-muted px-1 rounded">ip</code> - IP do host</li>
+                  <li><code className="bg-muted px-1 rounded">message</code> - Mensagem detalhada</li>
                 </ul>
               </div>
             </CardContent>
