@@ -21,7 +21,7 @@ import { OrphanImagesCleanup } from '@/components/equipment/OrphanImagesCleanup'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen, Play, Settings } from 'lucide-react';
+import { Edit, Plus, MoreHorizontal, Trash2, MapPin, Camera, ExternalLink, ZoomIn, FolderOpen, Play, Settings, Radar, AlertCircle, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { CameraLiveDialog } from '@/components/equipment/CameraLiveDialog';
 import { CameraAccessConfigDialog } from '@/components/equipment/CameraAccessConfigDialog';
@@ -33,6 +33,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEquipment } from '@/hooks/useEquipment';
 import { PORT_TYPES, PORT_TYPE_CATEGORIES, getEquipmentFieldConfig, EQUIPMENT_STATUS_OPTIONS, AIRFLOW_OPTIONS } from '@/constants/equipmentTypes';
+import { useAlertsByEntity } from '@/hooks/useAlerts';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { ZabbixAlertsSection } from '@/components/equipment/ZabbixAlertsSection';
 
 // Parse equipment notes safely
 const parseEquipmentNotes = (notes: string | null): Record<string, any> => {
@@ -465,6 +469,9 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
                 powerPerPort={poePowerData.powerPerPort}
               />
             )}
+
+            {/* Zabbix Alerts Section */}
+            <ZabbixAlertsSection equipmentId={id!} />
           </Card>
 
           <div className="md:col-span-3 space-y-4">
