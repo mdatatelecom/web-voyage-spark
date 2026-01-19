@@ -243,6 +243,62 @@ serve(async (req) => {
           console.log(`Resolved ${existingAlerts.length} alerts:`, alertIds);
         }
         
+        // Enviar notificação WhatsApp de recuperação
+        try {
+          // Buscar configurações específicas do Zabbix
+          const { data: zabbixSettings } = await supabase
+            .from('alert_settings')
+            .select('setting_key, setting_value')
+            .in('setting_key', ['zabbix_enabled', 'zabbix_whatsapp_enabled', 'zabbix_recovery_notification']);
+
+          const zabbixEnabled = zabbixSettings?.find(s => s.setting_key === 'zabbix_enabled')?.setting_value ?? 1;
+          const zabbixWhatsappEnabled = zabbixSettings?.find(s => s.setting_key === 'zabbix_whatsapp_enabled')?.setting_value ?? 1;
+          const zabbixRecoveryNotification = zabbixSettings?.find(s => s.setting_key === 'zabbix_recovery_notification')?.setting_value ?? 1;
+
+          const shouldSendRecovery = zabbixEnabled && zabbixWhatsappEnabled && zabbixRecoveryNotification;
+          console.log('Recovery notification check:', { zabbixEnabled, zabbixWhatsappEnabled, zabbixRecoveryNotification, shouldSendRecovery });
+
+          if (shouldSendRecovery) {
+            const { data: whatsappSettings } = await supabase
+              .from('system_settings')
+              .select('setting_value')
+              .eq('setting_key', 'whatsapp_settings')
+              .single();
+
+            if (whatsappSettings?.setting_value?.isEnabled) {
+              const settings = whatsappSettings.setting_value;
+              const targetType = settings.targetType || 'individual';
+              
+              const recoveryMessage = `✅ *ALERTA ZABBIX RESOLVIDO*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Resolvido em:* ${new Date().toLocaleString('pt-BR')}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`;
+
+              if (targetType === 'group' && settings.selectedGroupId) {
+                console.log('Sending recovery notification to group:', settings.selectedGroupId);
+                await supabase.functions.invoke('send-whatsapp', {
+                  body: {
+                    action: 'send-group',
+                    groupId: settings.selectedGroupId,
+                    message: recoveryMessage,
+                    notification_type: 'zabbix_alert',
+                  },
+                });
+                console.log('WhatsApp recovery notification sent to group');
+              } else {
+                console.log('Sending individual recovery notification...');
+                await supabase.functions.invoke('send-whatsapp', {
+                  body: {
+                    action: 'send',
+                    message: recoveryMessage,
+                    notification_type: 'zabbix_alert',
+                  },
+                });
+                console.log('WhatsApp individual recovery notification sent');
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error sending recovery WhatsApp notification:', e);
+        }
+        
         return new Response(
           JSON.stringify({ 
             success: true, 

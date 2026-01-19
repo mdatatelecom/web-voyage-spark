@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings } = await req.json();
+    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
@@ -958,8 +958,8 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // Determine message type
-      const messageType = ticketId ? 'notification' : 'manual';
+      // Determine message type - use notification_type if provided, otherwise infer
+      const messageType = notification_type || (ticketId ? 'notification' : 'manual');
 
       try {
         const response = await fetch(
@@ -1165,12 +1165,12 @@ serve(async (req) => {
             }
           }
           
-          // Log failed message
+          // Log failed message - use notification_type if provided
           await supabase.from('whatsapp_notifications').insert({
             ticket_id: ticketId || null,
             phone_number: groupId,
             message_content: message,
-            message_type: 'group_notification',
+            message_type: notification_type || 'group_notification',
             status: 'error',
             error_message: errorMsg,
             sent_at: null,
@@ -1186,12 +1186,12 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully to group:', groupId, 'Data:', data);
 
-        // Log successful message
+        // Log successful message - use notification_type if provided
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
           phone_number: groupId,
           message_content: message,
-          message_type: 'group_notification',
+          message_type: notification_type || 'group_notification',
           status: 'sent',
           error_message: null,
           sent_at: new Date().toISOString(),
@@ -1206,12 +1206,12 @@ serve(async (req) => {
         console.error('Send-group fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
         
-        // Log failed message
+        // Log failed message - use notification_type if provided
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
           phone_number: groupId,
           message_content: message,
-          message_type: 'group_notification',
+          message_type: notification_type || 'group_notification',
           status: 'error',
           error_message: `Erro ao enviar: ${errorMessage}`,
           sent_at: null,

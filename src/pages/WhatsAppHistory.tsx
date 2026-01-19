@@ -25,7 +25,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  TrendingUp
+  TrendingUp,
+  Radar
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -202,6 +203,10 @@ const WhatsAppHistory = () => {
         return <TestTube className="h-4 w-4 text-purple-500" />;
       case 'alert':
         return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+      case 'zabbix_alert':
+        return <Radar className="h-4 w-4 text-green-500" />;
+      case 'group_notification':
+        return <Users className="h-4 w-4 text-blue-500" />;
       default:
         return <MessageCircle className="h-4 w-4 text-muted-foreground" />;
     }
@@ -217,6 +222,10 @@ const WhatsAppHistory = () => {
         return 'Alerta';
       case 'manual':
         return 'Manual';
+      case 'zabbix_alert':
+        return 'Zabbix';
+      case 'group_notification':
+        return 'Grupo';
       default:
         return type;
     }
@@ -391,6 +400,8 @@ const WhatsAppHistory = () => {
                       <SelectItem value="test">Teste</SelectItem>
                       <SelectItem value="alert">Alerta</SelectItem>
                       <SelectItem value="manual">Manual</SelectItem>
+                      <SelectItem value="zabbix_alert">Zabbix</SelectItem>
+                      <SelectItem value="group_notification">Grupo</SelectItem>
                     </SelectContent>
                   </Select>
 
