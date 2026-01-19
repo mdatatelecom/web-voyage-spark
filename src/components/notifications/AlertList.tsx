@@ -1,5 +1,5 @@
 import { useAlerts } from '@/hooks/useAlerts';
-import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,11 @@ const getSeverityIcon = (severity: string, type: string) => {
       return <Clock className="h-4 w-4 text-yellow-500" />;
     case 'equipment_no_ip':
       return <Network className="h-4 w-4 text-blue-500" />;
+    case 'zabbix_alert':
+      return <Radar className={cn("h-4 w-4", 
+        severity === 'critical' ? 'text-destructive' : 
+        severity === 'warning' ? 'text-yellow-500' : 'text-blue-500'
+      )} />;
   }
 
   // Default severity-based icons
@@ -66,6 +71,8 @@ const getAlertTypeLabel = (type: string) => {
       return 'Testing Prolongado';
     case 'equipment_no_ip':
       return 'Sem IP';
+    case 'zabbix_alert':
+      return 'Zabbix';
     default:
       return type;
   }
@@ -104,6 +111,9 @@ export const AlertList = ({ compact = false, status = 'active' }: AlertListProps
       navigate(`/equipment/${alert.related_entity_id}`);
     } else if (alert.related_entity_type === 'connection') {
       navigate(`/connections/${alert.related_entity_id}`);
+    } else if (alert.related_entity_type === 'zabbix_host' && alert.metadata?.ip) {
+      // Navegar para equipamentos filtrando por IP do Zabbix
+      navigate(`/equipment?ip=${encodeURIComponent(alert.metadata.ip)}`);
     }
   };
 
