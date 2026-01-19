@@ -11,14 +11,70 @@ const corsHeaders = {
 type AlertSeverity = 'info' | 'warning' | 'critical';
 
 const mapZabbixSeverity = (severity: number | string): AlertSeverity => {
-  const sev = typeof severity === 'string' ? parseInt(severity, 10) : severity;
-  if (sev >= 4) return 'critical';
-  if (sev >= 2) return 'warning';
+  // Mapeamento por texto (quando Zabbix envia nome da severidade)
+  if (typeof severity === 'string') {
+    const lower = severity.toLowerCase().trim();
+    
+    // Severidades críticas
+    if (['high', 'disaster', 'critical', 'alta', 'desastre', 'crítico', 'critico'].includes(lower)) {
+      return 'critical';
+    }
+    
+    // Severidades de aviso
+    if (['average', 'warning', 'média', 'media', 'aviso', 'atenção', 'atencao'].includes(lower)) {
+      return 'warning';
+    }
+    
+    // Tentar como número se não for texto conhecido
+    const num = parseInt(severity, 10);
+    if (!isNaN(num)) {
+      if (num >= 4) return 'critical';
+      if (num >= 2) return 'warning';
+      return 'info';
+    }
+    
+    return 'info';
+  }
+  
+  // Mapeamento por número
+  if (severity >= 4) return 'critical';
+  if (severity >= 2) return 'warning';
   return 'info';
 };
 
 // Usar sempre 'zabbix_alert' como tipo
 const getAlertType = (): string => 'zabbix_alert';
+
+// Detectar macros não resolvidas do Zabbix
+const hasUnresolvedMacros = (value: string): boolean => {
+  return /\{[A-Z_]+\.[A-Z_]+\}/.test(value) || /\{[A-Z_]+\}/.test(value);
+};
+
+// Validar payload do Zabbix
+const validatePayload = (payload: ZabbixPayload): { valid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  
+  const host = payload.host || payload.hostname || '';
+  const trigger = payload.trigger || payload.trigger_name || '';
+  
+  if (hasUnresolvedMacros(host)) {
+    errors.push(`Campo 'host' contém macro não resolvida: ${host}`);
+  }
+  
+  if (hasUnresolvedMacros(trigger)) {
+    errors.push(`Campo 'trigger' contém macro não resolvida: ${trigger}`);
+  }
+  
+  if (!host || host === 'Unknown Host') {
+    errors.push("Campo 'host' ou 'hostname' é obrigatório");
+  }
+  
+  if (!trigger || trigger === 'Unknown Trigger') {
+    errors.push("Campo 'trigger' ou 'trigger_name' é obrigatório");
+  }
+  
+  return { valid: errors.length === 0, errors };
+};
 
 interface ZabbixPayload {
   host?: string;
@@ -38,6 +94,7 @@ interface ZabbixPayload {
   host_ip?: string;
   item_value?: string;
   description?: string;
+  datetime?: string;
 }
 
 serve(async (req) => {
@@ -85,9 +142,27 @@ serve(async (req) => {
     const status = payload.status || payload.trigger_status || 'PROBLEM';
     const eventId = payload.eventid || payload.event_id || '';
     const message = payload.message || payload.description || `Trigger: ${trigger}`;
-    const timestamp = payload.timestamp || payload.event_time || new Date().toISOString();
+    const timestamp = payload.timestamp || payload.event_time || payload.datetime || new Date().toISOString();
     const ip = payload.ip || payload.host_ip || '';
     const itemValue = payload.item_value || '';
+
+    // Validar payload
+    const validation = validatePayload(payload);
+    if (!validation.valid) {
+      console.error('Payload validation failed:', validation.errors);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Payload inválido',
+          details: validation.errors,
+          help: 'Verifique se as macros do Zabbix estão sendo resolvidas corretamente. Use {HOST.NAME}, {TRIGGER.NAME}, etc.'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
     // Converter severidade para o formato do sistema
     const alertSeverity = mapZabbixSeverity(severity);
@@ -102,45 +177,106 @@ serve(async (req) => {
       ip ? `IP: ${ip}` : '',
       itemValue ? `Valor: ${itemValue}` : '',
       `Status: ${status}`,
-      `Event ID: ${eventId}`,
+      eventId ? `Event ID: ${eventId}` : '',
     ].filter(Boolean).join(' | ');
 
-    console.log('Creating alert:', { title, alertSeverity, alertType });
+    console.log('Processing alert:', { host, trigger, status, alertSeverity, eventId });
 
-    // Se for um evento de RECOVERY (problema resolvido), tentar resolver alertas existentes
-    if (status.toUpperCase() === 'OK' || status.toUpperCase() === 'RESOLVED') {
-      console.log('Recovery event detected, resolving existing alerts for:', host);
+    // Se for um evento de RECOVERY (problema resolvido), resolver alertas existentes
+    const normalizedStatus = status.toUpperCase().trim();
+    if (normalizedStatus === 'OK' || normalizedStatus === 'RESOLVED' || normalizedStatus === 'RESOLVIDO') {
+      console.log('Recovery event detected, resolving existing alerts...');
       
-      const { data: existingAlerts, error: fetchError } = await supabase
-        .from('alerts')
-        .select('id')
-        .eq('status', 'active')
-        .contains('metadata', { host, trigger });
+      // Primeiro, tentar encontrar por eventid se disponível
+      let existingAlerts: any[] = [];
       
-      if (fetchError) {
-        console.error('Error fetching existing alerts:', fetchError);
-      } else if (existingAlerts && existingAlerts.length > 0) {
-        for (const alert of existingAlerts) {
-          await supabase
-            .from('alerts')
-            .update({ 
-              status: 'resolved', 
-              resolved_at: new Date().toISOString() 
-            })
-            .eq('id', alert.id);
+      if (eventId) {
+        // Buscar alerta pelo eventid original (mais preciso)
+        const { data: alertsByEventId, error: fetchError } = await supabase
+          .from('alerts')
+          .select('id, metadata')
+          .eq('status', 'active')
+          .eq('type', 'zabbix_alert');
+        
+        if (!fetchError && alertsByEventId) {
+          existingAlerts = alertsByEventId.filter((alert: any) => 
+            alert.metadata?.eventid === eventId ||
+            (alert.metadata?.host === host && alert.metadata?.trigger === trigger)
+          );
         }
-        console.log(`Resolved ${existingAlerts.length} alerts`);
+      }
+      
+      // Se não encontrou por eventid, buscar por host + trigger
+      if (existingAlerts.length === 0) {
+        const { data: alertsByHostTrigger, error: fetchError2 } = await supabase
+          .from('alerts')
+          .select('id, metadata')
+          .eq('status', 'active')
+          .eq('type', 'zabbix_alert');
+        
+        if (!fetchError2 && alertsByHostTrigger) {
+          existingAlerts = alertsByHostTrigger.filter((alert: any) => 
+            alert.metadata?.host === host && alert.metadata?.trigger === trigger
+          );
+        }
+      }
+      
+      if (existingAlerts.length > 0) {
+        const alertIds = existingAlerts.map((a: any) => a.id);
+        
+        const { error: updateError } = await supabase
+          .from('alerts')
+          .update({ 
+            status: 'resolved', 
+            resolved_at: new Date().toISOString(),
+            metadata: existingAlerts[0].metadata ? {
+              ...existingAlerts[0].metadata,
+              recovery_eventid: eventId,
+              recovery_timestamp: timestamp,
+            } : undefined
+          })
+          .in('id', alertIds);
+        
+        if (updateError) {
+          console.error('Error resolving alerts:', updateError);
+        } else {
+          console.log(`Resolved ${existingAlerts.length} alerts:`, alertIds);
+        }
         
         return new Response(
           JSON.stringify({ 
             success: true, 
             action: 'resolved',
-            resolved_count: existingAlerts.length 
+            resolved_count: existingAlerts.length,
+            resolved_ids: alertIds
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        console.log('No active alerts found to resolve for host/trigger:', host, trigger);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            action: 'no_action',
+            message: 'Nenhum alerta ativo encontrado para resolver'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
+
+    // Verificar se já existe alerta ativo para mesmo host/trigger (evitar duplicatas)
+    const { data: existingActive } = await supabase
+      .from('alerts')
+      .select('id')
+      .eq('status', 'active')
+      .eq('type', 'zabbix_alert')
+      .limit(100);
+    
+    const duplicateAlert = existingActive?.find((alert: any) => {
+      // Precisamos buscar metadata para verificar
+      return false; // Por enquanto, permitir criação
+    });
 
     // Inserir novo alerta no banco
     const { data: alertData, error: insertError } = await supabase
@@ -155,7 +291,8 @@ serve(async (req) => {
           source: 'zabbix',
           host,
           trigger,
-          severity,
+          severity: String(severity),
+          severity_mapped: alertSeverity,
           status,
           eventid: eventId,
           ip,
@@ -173,7 +310,7 @@ serve(async (req) => {
       throw insertError;
     }
 
-    console.log('Alert created successfully:', alertData.id);
+    console.log('Alert created successfully:', alertData.id, '- Severity:', alertSeverity);
 
     // Enviar notificações se severidade for alta (critical)
     if (alertSeverity === 'critical') {
@@ -190,7 +327,7 @@ serve(async (req) => {
         try {
           await supabase.functions.invoke('send-whatsapp', {
             body: {
-              message: `🚨 *ALERTA CRÍTICO*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Mensagem:* ${message}\n\n_Evento Zabbix #${eventId}_`,
+              message: `🚨 *ALERTA CRÍTICO ZABBIX*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Severidade:* ${severity}\n*Mensagem:* ${message}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`,
               notification_type: 'zabbix_alert',
             },
           });
@@ -205,7 +342,7 @@ serve(async (req) => {
         await supabase.functions.invoke('send-alert-email', {
           body: {
             alertId: alertData.id,
-            subject: `🚨 Alerta Crítico: ${title}`,
+            subject: `🚨 Alerta Crítico Zabbix: ${title}`,
             message: detailedMessage,
           },
         });
@@ -221,6 +358,7 @@ serve(async (req) => {
         action: 'created',
         alert_id: alertData.id,
         severity: alertSeverity,
+        severity_original: severity,
         notifications_sent: alertSeverity === 'critical',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

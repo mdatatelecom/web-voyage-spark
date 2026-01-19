@@ -11,7 +11,8 @@ type AlertType =
   | 'camera_unassigned'
   | 'connection_faulty'
   | 'connection_stale_testing'
-  | 'equipment_no_ip';
+  | 'equipment_no_ip'
+  | 'zabbix_alert';
 
 type AlertSeverity = 'info' | 'warning' | 'critical';
 type AlertStatus = 'active' | 'acknowledged' | 'resolved';
