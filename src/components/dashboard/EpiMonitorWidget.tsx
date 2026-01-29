@@ -1,18 +1,22 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { HardHat, AlertCircle, AlertTriangle, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { HardHat, AlertCircle, AlertTriangle, ChevronRight, CheckCircle2, Eye } from 'lucide-react';
 import { useAlerts } from '@/hooks/useAlerts';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { EpiImageDialog } from '@/components/alerts/EpiImageDialog';
 
 export function EpiMonitorWidget() {
   const navigate = useNavigate();
   const { alerts } = useAlerts({ status: 'active', type: 'epi_alert' });
-
+  
   const epiAlerts = alerts || [];
+  const [selectedAlert, setSelectedAlert] = useState<typeof epiAlerts[number] | null>(null);
+
   const criticalCount = epiAlerts.filter(a => a.severity === 'critical').length;
   const warningCount = epiAlerts.filter(a => a.severity === 'warning').length;
 
@@ -93,31 +97,72 @@ export function EpiMonitorWidget() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {epiAlerts.slice(0, 3).map((alert) => (
-          <div
-            key={alert.id}
-            className={cn(
-              "flex items-center justify-between p-3 rounded-lg border border-l-4 bg-background transition-all duration-300 cursor-pointer hover:bg-accent/50",
-              getSeverityBorder(alert.severity)
-            )}
-            onClick={() => navigate('/alerts?type=epi')}
-          >
-            <div className="flex items-start gap-3">
-              {getSeverityIcon(alert.severity)}
-              <div className="space-y-1">
-                <p className="font-medium text-sm leading-tight">{alert.title}</p>
-                <p className="text-xs text-muted-foreground line-clamp-1">{alert.message}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(alert.created_at!), { 
-                    addSuffix: true, 
-                    locale: ptBR 
-                  })}
-                </p>
+        {epiAlerts.slice(0, 3).map((alert) => {
+          const imageUrl = (alert.metadata as any)?.image_url;
+          
+          return (
+            <div
+              key={alert.id}
+              className={cn(
+                "flex items-center justify-between p-3 rounded-lg border border-l-4 bg-background transition-all duration-300",
+                getSeverityBorder(alert.severity)
+              )}
+            >
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                {/* Miniatura da imagem */}
+                {imageUrl ? (
+                  <div 
+                    className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAlert(alert);
+                    }}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt="Screenshot EPI"
+                      className="w-14 h-10 object-cover rounded border shadow-sm"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  getSeverityIcon(alert.severity)
+                )}
+                
+                <div className="space-y-1 flex-1 min-w-0">
+                  <p className="font-medium text-sm leading-tight truncate">{alert.title}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{alert.message}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(alert.created_at!), { 
+                        addSuffix: true, 
+                        locale: ptBR 
+                      })}
+                    </p>
+                    {imageUrl && (
+                      <button
+                        className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedAlert(alert);
+                        }}
+                      >
+                        <Eye className="h-3 w-3" />
+                        Ver
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
+              <ChevronRight 
+                className="h-4 w-4 text-muted-foreground shrink-0 cursor-pointer hover:text-foreground" 
+                onClick={() => navigate('/alerts?type=epi')}
+              />
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          </div>
-        ))}
+          );
+        })}
 
         <Button
           variant="outline"
@@ -128,6 +173,20 @@ export function EpiMonitorWidget() {
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </CardContent>
+      
+      {/* Dialog para visualizar imagem EPI */}
+      <EpiImageDialog
+        alert={selectedAlert ? {
+          id: selectedAlert.id,
+          title: selectedAlert.title,
+          message: selectedAlert.message,
+          severity: selectedAlert.severity,
+          created_at: selectedAlert.created_at,
+          metadata: selectedAlert.metadata as any,
+        } : null}
+        open={!!selectedAlert}
+        onOpenChange={(open) => !open && setSelectedAlert(null)}
+      />
     </Card>
   );
 }

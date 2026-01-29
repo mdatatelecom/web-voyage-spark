@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useAlerts, AlertType } from '@/hooks/useAlerts';
-import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar, HardHat } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar, HardHat, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { EpiImageDialog } from '@/components/alerts/EpiImageDialog';
 
 interface AlertListProps {
   compact?: boolean;
@@ -92,6 +94,7 @@ export const AlertList = ({ compact = false, status = 'active', type }: AlertLis
     type: type,
   });
   const navigate = useNavigate();
+  const [selectedEpiAlert, setSelectedEpiAlert] = useState<typeof alerts[number] | null>(null);
 
   if (isLoading) {
     return <div className="p-4 text-center text-muted-foreground">Carregando...</div>;
@@ -126,63 +129,114 @@ export const AlertList = ({ compact = false, status = 'active', type }: AlertLis
     }
   };
 
+  // Verificar se alerta EPI tem imagem
+  const hasEpiImage = (alert: typeof alerts[number]) => {
+    return alert.type === 'epi_alert' && (alert.metadata as any)?.image_url;
+  };
+
   return (
-    <div className="divide-y">
-      {displayAlerts.map((alert) => (
-        <div
-          key={alert.id}
-          className={cn(
-            'p-4 border-l-4 hover:bg-muted/50 transition-colors',
-            getSeverityColor(alert.severity)
-          )}
-        >
-          <div className="flex items-start gap-3">
-            <div className="mt-1">{getSeverityIcon(alert.severity, alert.type)}</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">
-                  {getAlertTypeLabel(alert.type)}
-                </span>
-              </div>
-              <h4 className="font-medium text-sm">{alert.title}</h4>
-              <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
-              {alert.current_value !== null && alert.threshold_value !== null && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Atual: {Math.round(alert.current_value)}{alert.type === 'connection_stale_testing' ? ' dias' : '%'} | Limite: {alert.threshold_value}{alert.type === 'connection_stale_testing' ? ' dias' : '%'}
-                </p>
+    <>
+      <div className="divide-y">
+        {displayAlerts.map((alert) => (
+          <div
+            key={alert.id}
+            className={cn(
+              'p-4 border-l-4 hover:bg-muted/50 transition-colors',
+              getSeverityColor(alert.severity)
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-1">{getSeverityIcon(alert.severity, alert.type)}</div>
+              
+              {/* Miniatura da imagem EPI */}
+              {hasEpiImage(alert) && (
+                <div 
+                  className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setSelectedEpiAlert(alert)}
+                >
+                  <img
+                    src={(alert.metadata as any).image_url}
+                    alt="Screenshot EPI"
+                    className="w-20 h-14 object-cover rounded border shadow-sm"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
               )}
-              <div className="flex gap-2 mt-2">
-                {alert.related_entity_id && alert.related_entity_type && (
+              
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">
+                    {getAlertTypeLabel(alert.type)}
+                  </span>
+                </div>
+                <h4 className="font-medium text-sm">{alert.title}</h4>
+                <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
+                {alert.current_value !== null && alert.threshold_value !== null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Atual: {Math.round(alert.current_value)}{alert.type === 'connection_stale_testing' ? ' dias' : '%'} | Limite: {alert.threshold_value}{alert.type === 'connection_stale_testing' ? ' dias' : '%'}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {/* Botão Ver Imagem para alertas EPI com imagem */}
+                  {hasEpiImage(alert) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                      onClick={() => setSelectedEpiAlert(alert)}
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Ver
+                    </Button>
+                  )}
+                  {alert.related_entity_id && alert.related_entity_type && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => handleNavigateToEntity(alert)}
+                    >
+                      Ver Detalhes
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => handleNavigateToEntity(alert)}
+                    onClick={() => acknowledgeAlert(alert.id)}
                   >
-                    Ver Detalhes
+                    Marcar como Lido
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => acknowledgeAlert(alert.id)}
-                >
-                  Marcar como Lido
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-green-600 hover:text-green-700"
-                  onClick={() => resolveAlert(alert.id)}
-                >
-                  Resolver
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-green-600 hover:text-green-700"
+                    onClick={() => resolveAlert(alert.id)}
+                  >
+                    Resolver
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      
+      {/* Dialog para visualizar imagem EPI */}
+      <EpiImageDialog
+        alert={selectedEpiAlert ? {
+          id: selectedEpiAlert.id,
+          title: selectedEpiAlert.title,
+          message: selectedEpiAlert.message,
+          severity: selectedEpiAlert.severity,
+          created_at: selectedEpiAlert.created_at,
+          metadata: selectedEpiAlert.metadata as any,
+        } : null}
+        open={!!selectedEpiAlert}
+        onOpenChange={(open) => !open && setSelectedEpiAlert(null)}
+      />
+    </>
   );
 };
