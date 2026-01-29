@@ -1,132 +1,133 @@
 
 
-## Plano: Widget EPI Monitor no Dashboard + Filtro EPI na Página de Alertas
+## Plano: Suporte a Imagens no Webhook EPI + Botão Ver Imagem
 
 ### Resumo
 
-Adicionar um novo widget no Dashboard para mostrar alertas do EPI Monitor em destaque, e incluir opção de filtro "EPI" na página de Alertas.
+Adicionar suporte para receber imagens (base64 ou URL) no webhook do EPI Monitor, armazená-las no storage, e exibí-las nos alertas com um botão "Ver".
 
 ---
 
 ### Alterações Propostas
 
-#### 1. Criar Widget EPI Monitor para o Dashboard
+#### 1. Atualizar Interface e Processamento no Webhook
 
-**Novo arquivo:** `src/components/dashboard/EpiMonitorWidget.tsx`
+**Arquivo:** `supabase/functions/zabbix-webhook/index.ts`
 
-Componente visual similar ao `ZabbixMonitoringWidget`, com:
-- Ícone de identificação: `HardHat` ou `Shield` do Lucide
-- Cores temáticas: laranja/âmbar (diferente do roxo do Zabbix)
-- Exibição dos últimos 3 alertas EPI ativos
-- Contadores de alertas críticos e avisos
-- Botão "Ver Todos os Alertas EPI" direcionando para `/alerts?type=epi`
-- Estado vazio quando não há alertas EPI
-
-Estrutura visual:
-```text
-┌─────────────────────────────────────────────┐
-│ 🦺 Monitoramento EPI          [2 críticos]  │
-├─────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────┐ │
-│ │ ⚠ EPI próximo do vencimento             │ │
-│ │   Capacete - João Silva - Manutenção    │ │
-│ │   há 2 minutos                     [>]  │ │
-│ └─────────────────────────────────────────┘ │
-│ ┌─────────────────────────────────────────┐ │
-│ │ ⚠ Risco detectado                       │ │
-│ │   Sem óculos de proteção - Câmera 5     │ │
-│ │   há 5 minutos                     [>]  │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│   [ Ver Todos os Alertas EPI (5) ]          │
-└─────────────────────────────────────────────┘
-```
-
-#### 2. Integrar Widget no Dashboard
-
-**Arquivo:** `src/pages/Dashboard.tsx`
-
-Adicionar o widget EPI na seção de "Alertas do Sistema", logo após o `ZabbixMonitoringWidget`:
-
-```text
-{/* Widget de Monitoramento EPI */}
-<div>
-  <div className="mb-3 flex items-center gap-2">
-    <Activity className="h-4 w-4 text-muted-foreground" />
-    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-      Segurança do Trabalho
-    </h3>
-  </div>
-  <EpiMonitorWidget />
-</div>
-```
-
-#### 3. Atualizar Hook useAlerts
-
-**Arquivo:** `src/hooks/useAlerts.ts`
-
-Adicionar `epi_alert` à tipagem `AlertType`:
+Expandir a interface `EpiPayload` para incluir os novos campos:
 
 ```typescript
-export type AlertType = 
-  | 'rack_capacity' 
-  | 'port_capacity' 
-  | 'equipment_failure' 
-  | 'poe_capacity'
-  | 'nvr_full'
-  | 'camera_unassigned'
-  | 'connection_faulty'
-  | 'connection_stale_testing'
-  | 'equipment_no_ip'
-  | 'zabbix_alert'
-  | 'epi_alert';  // NOVO
+interface EpiPayload {
+  test?: boolean;
+  source?: string;
+  message?: string;
+  timestamp?: string;
+  alert_type?: string;
+  equipment_name?: string;
+  employee_name?: string;
+  severity?: string;
+  due_date?: string;
+  department?: string;
+  // Novos campos
+  camera?: string;
+  risk?: string;
+  image?: string;        // URL direta da imagem
+  image_base64?: string; // Imagem em base64 (alternativa)
+}
 ```
 
-#### 4. Adicionar Filtro EPI na Página de Alertas
+Adicionar lógica para processar imagens:
 
-**Arquivo:** `src/pages/Alerts.tsx`
-
-Atualizar o tipo de filtro e adicionar opção EPI:
-
-```typescript
-type AlertTypeFilter = 'all' | 'capacity' | 'audit' | 'zabbix' | 'epi';
-
-// No getTypeFilterValue():
-case 'epi':
-  return 'epi_alert';
-
-// No getTypeFilterLabel():
-case 'epi':
-  return 'EPI Monitor';
-```
-
-Adicionar item no Select de filtro:
 ```text
-<SelectItem value="epi">
-  <span className="flex items-center gap-2">
-    <HardHat className="w-4 h-4" />
-    EPI Monitor
-  </span>
-</SelectItem>
+1. Se `image_base64` presente:
+   - Decodificar base64
+   - Fazer upload para bucket 'public' em 'epi-alerts/{timestamp}-{uuid}.jpg'
+   - Obter URL pública
+   
+2. Se `image` presente (URL):
+   - Usar diretamente como image_url
+   
+3. Salvar `image_url` no metadata do alerta
 ```
 
-#### 5. Atualizar AlertList para Suportar Tipo EPI
+#### 2. Criar Componente de Visualização de Imagem EPI
+
+**Novo arquivo:** `src/components/alerts/EpiImageDialog.tsx`
+
+Dialog modal para exibir a imagem do alerta EPI:
+
+```text
+┌──────────────────────────────────────────────┐
+│ [X]        Screenshot EPI Alert              │
+├──────────────────────────────────────────────┤
+│                                              │
+│   ┌────────────────────────────────────┐     │
+│   │                                    │     │
+│   │         [IMAGEM DO ALERTA]         │     │
+│   │                                    │     │
+│   └────────────────────────────────────┘     │
+│                                              │
+│   Câmera: Camera 2                           │
+│   Risco: SEM CAPACETE                        │
+│   Data: 29/01/2026 16:53                     │
+│                                              │
+│            [ Baixar Imagem ]                 │
+└──────────────────────────────────────────────┘
+```
+
+#### 3. Adicionar Botão "Ver" no AlertList
 
 **Arquivo:** `src/components/notifications/AlertList.tsx`
 
-Adicionar ícone e label para alertas EPI:
+Adicionar botão "Ver" que aparece apenas para alertas EPI com imagem:
 
 ```typescript
-// Em getSeverityIcon():
-case 'epi_alert':
-  return <HardHat className={cn("h-4 w-4", 
-    severity === 'critical' ? 'text-destructive' : 
-    severity === 'warning' ? 'text-amber-500' : 'text-blue-500'
-  )} />;
+// Verificar se alerta tem imagem
+const hasImage = alert.type === 'epi_alert' && 
+                 alert.metadata?.image_url;
 
-// Em getAlertTypeLabel():
-case 'epi_alert':
-  return 'EPI Monitor';
+// Adicionar botão Ver
+{hasImage && (
+  <Button
+    variant="ghost"
+    size="sm"
+    className="h-7 text-xs text-amber-600 hover:text-amber-700"
+    onClick={() => setSelectedAlert(alert)}
+  >
+    <Eye className="h-3 w-3 mr-1" />
+    Ver
+  </Button>
+)}
+```
+
+Também exibir miniatura da imagem inline:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ 🦺 EPI Monitor                                          │
+│ [EPI] SEM CAPACETE detectado na Camera 2                │
+│ Alerta de segurança: SEM CAPACETE detectado...          │
+│                                                         │
+│ ┌──────────┐                                            │
+│ │ [thumb]  │  [Ver] [Marcar como Lido] [Resolver]       │
+│ └──────────┘                                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 4. Atualizar EpiMonitorWidget com Miniatura
+
+**Arquivo:** `src/components/dashboard/EpiMonitorWidget.tsx`
+
+Adicionar miniatura da imagem no widget quando disponível:
+
+```typescript
+{alert.metadata?.image_url && (
+  <img 
+    src={alert.metadata.image_url} 
+    alt="Screenshot EPI" 
+    className="w-16 h-12 object-cover rounded border"
+  />
+)}
 ```
 
 ---
@@ -135,23 +136,59 @@ case 'epi_alert':
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/dashboard/EpiMonitorWidget.tsx` | Criar | Widget de alertas EPI para o Dashboard |
-| `src/pages/Dashboard.tsx` | Modificar | Importar e adicionar EpiMonitorWidget |
-| `src/hooks/useAlerts.ts` | Modificar | Adicionar `epi_alert` ao tipo AlertType |
-| `src/pages/Alerts.tsx` | Modificar | Adicionar filtro "EPI" no dropdown |
-| `src/components/notifications/AlertList.tsx` | Modificar | Adicionar ícone e label para epi_alert |
+| `supabase/functions/zabbix-webhook/index.ts` | Modificar | Adicionar campos à interface EpiPayload e lógica de upload de imagem |
+| `src/components/alerts/EpiImageDialog.tsx` | Criar | Dialog para visualizar imagem do alerta EPI em tela cheia |
+| `src/components/notifications/AlertList.tsx` | Modificar | Adicionar botão "Ver", miniatura e integração com EpiImageDialog |
+| `src/components/dashboard/EpiMonitorWidget.tsx` | Modificar | Adicionar miniatura da imagem quando disponível |
+
+---
+
+### Fluxo de Dados
+
+```text
+EPI Monitor → Webhook → Upload Storage → Salvar URL no Metadata
+                                              ↓
+                                    AlertList/Widget
+                                              ↓
+                                    Botão "Ver" → Dialog com Imagem
+```
+
+### Formato do Payload Esperado
+
+O webhook aceitará dois formatos de imagem:
+
+**Opção 1 - URL direta:**
+```json
+{
+  "timestamp": "2026-01-29 16:53:23",
+  "camera": "Camera 2",
+  "risk": "SEM CAPACETE",
+  "message": "Alerta de segurança: SEM CAPACETE detectado",
+  "image": "https://exemplo.com/screenshot.jpg"
+}
+```
+
+**Opção 2 - Base64:**
+```json
+{
+  "timestamp": "2026-01-29 16:53:23",
+  "camera": "Camera 2",
+  "risk": "SEM CAPACETE",
+  "message": "Alerta de segurança detectado",
+  "image_base64": "data:image/jpeg;base64,/9j/4AAQ..."
+}
+```
 
 ---
 
 ### Resultado Visual Esperado
 
-**Dashboard:**
-- Novo widget "Segurança do Trabalho" com alertas EPI em destaque
-- Cores âmbar/laranja para diferenciar do Zabbix (roxo)
-- Atualização em tempo real via subscription existente
+**Na Lista de Alertas:**
+- Miniatura da imagem ao lado do alerta EPI
+- Botão "Ver" com ícone de olho (Eye)
+- Ao clicar, abre dialog com imagem em tamanho maior
 
-**Página de Alertas:**
-- Novo filtro "EPI Monitor" no dropdown de tipos
-- Ícone de capacete (HardHat) identificando o tipo
-- Funcionamento consistente com outros filtros existentes
+**No Dashboard Widget:**
+- Miniatura pequena ao lado de cada alerta com imagem
+- Indicador visual quando alerta possui screenshot
 
