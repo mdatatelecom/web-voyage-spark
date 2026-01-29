@@ -29,7 +29,7 @@ export interface WhatsAppHistoryFilters {
   status?: 'all' | 'sent' | 'error' | 'pending';
   phoneSearch?: string;
   ticketId?: string;
-  messageType?: 'all' | 'notification' | 'test' | 'alert' | 'manual' | 'zabbix_alert' | 'group_notification';
+  messageType?: 'all' | 'notification' | 'test' | 'alert' | 'manual' | 'zabbix_alert' | 'group_notification' | 'epi_alert';
   page?: number;
   pageSize?: number;
 }
