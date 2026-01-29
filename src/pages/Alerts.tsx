@@ -1,22 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Radar, Server, Clipboard, ListFilter } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Settings, Radar, Server, Clipboard, ListFilter, HardHat } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAlerts, AlertType } from '@/hooks/useAlerts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { AlertList } from '@/components/notifications/AlertList';
 
-type AlertTypeFilter = 'all' | 'capacity' | 'audit' | 'zabbix';
+type AlertTypeFilter = 'all' | 'capacity' | 'audit' | 'zabbix' | 'epi';
 
 export default function Alerts() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAdmin } = useUserRole();
   const [activeTab, setActiveTab] = useState('active');
   const [typeFilter, setTypeFilter] = useState<AlertTypeFilter>('all');
+  
+  // Sync filter from URL query param
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+    if (typeParam === 'zabbix' || typeParam === 'epi' || typeParam === 'capacity' || typeParam === 'audit') {
+      setTypeFilter(typeParam);
+    }
+  }, [searchParams]);
   
   // Map type filter to actual alert types
   const getTypeFilterValue = (): AlertType | undefined => {
@@ -27,6 +36,8 @@ export default function Alerts() {
         return 'camera_unassigned';
       case 'zabbix':
         return 'zabbix_alert';
+      case 'epi':
+        return 'epi_alert';
       default:
         return undefined;
     }
@@ -46,6 +57,8 @@ export default function Alerts() {
         return 'Auditoria';
       case 'zabbix':
         return 'Zabbix';
+      case 'epi':
+        return 'EPI Monitor';
       default:
         return 'Todos os tipos';
     }
@@ -101,6 +114,12 @@ export default function Alerts() {
                 <span className="flex items-center gap-2">
                   <Radar className="w-4 h-4" />
                   Zabbix
+                </span>
+              </SelectItem>
+              <SelectItem value="epi">
+                <span className="flex items-center gap-2">
+                  <HardHat className="w-4 h-4" />
+                  EPI Monitor
                 </span>
               </SelectItem>
             </SelectContent>

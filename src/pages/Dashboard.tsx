@@ -27,6 +27,7 @@ import { CriticalAlertsWidget } from '@/components/dashboard/CriticalAlertsWidge
 import { MetricsWidget } from '@/components/dashboard/MetricsWidget';
 import { QuickAccessWidget } from '@/components/dashboard/QuickAccessWidget';
 import { ZabbixMonitoringWidget } from '@/components/dashboard/ZabbixMonitoringWidget';
+import { EpiMonitorWidget } from '@/components/dashboard/EpiMonitorWidget';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -222,6 +223,17 @@ export default function Dashboard() {
                 </h3>
               </div>
               <ZabbixMonitoringWidget />
+            </div>
+            
+            {/* Widget de Segurança do Trabalho (EPI Monitor) */}
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Segurança do Trabalho
+                </h3>
+              </div>
+              <EpiMonitorWidget />
             </div>
           </div>
         </section>

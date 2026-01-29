@@ -1,5 +1,5 @@
 import { useAlerts, AlertType } from '@/hooks/useAlerts';
-import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar, HardHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,11 @@ const getSeverityIcon = (severity: string, type: string) => {
       return <Radar className={cn("h-4 w-4", 
         severity === 'critical' ? 'text-destructive' : 
         severity === 'warning' ? 'text-yellow-500' : 'text-blue-500'
+      )} />;
+    case 'epi_alert':
+      return <HardHat className={cn("h-4 w-4", 
+        severity === 'critical' ? 'text-destructive' : 
+        severity === 'warning' ? 'text-amber-500' : 'text-blue-500'
       )} />;
   }
 
@@ -74,6 +79,8 @@ const getAlertTypeLabel = (type: string) => {
       return 'Sem IP';
     case 'zabbix_alert':
       return 'Zabbix';
+    case 'epi_alert':
+      return 'EPI Monitor';
     default:
       return type;
   }
