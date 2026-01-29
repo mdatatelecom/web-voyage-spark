@@ -118,11 +118,18 @@ interface EpiPayload {
   severity?: string;
   due_date?: string;
   department?: string;
-  // Campos de imagem
+  // Campos de imagem - nomes padrão
   camera?: string;
   risk?: string;
   image?: string;        // URL direta da imagem
   image_base64?: string; // Imagem em base64 (alternativa)
+  // Campos alternativos de imagem (compatibilidade)
+  screenshot?: string;
+  foto?: string;
+  anexo?: string;
+  imagem?: string;
+  screenshot_base64?: string;
+  foto_base64?: string;
 }
 
 // Função para fazer upload de imagem base64 para o storage
@@ -236,6 +243,7 @@ serve(async (req) => {
     // ========== PROCESSAR PAYLOAD DO EPI MONITOR ==========
     if (isEpiMonitorPayload(payload)) {
       console.log('EPI Monitor payload detected');
+      console.log('All payload fields:', Object.keys(payload));
       const epiPayload = payload as EpiPayload;
 
       // Se é apenas teste, retornar sucesso
@@ -291,17 +299,36 @@ serve(async (req) => {
       // Gerar ID temporário para upload de imagem
       const tempAlertId = crypto.randomUUID();
       
-      // Processar imagem (URL direta ou base64)
+      // Processar imagem (URL direta ou base64) - suportar campos alternativos
       let imageUrl: string | null = null;
       
-      if (epiPayload.image) {
+      // Buscar imagem em vários campos possíveis (URL direta)
+      const imageField = epiPayload.image || 
+                         epiPayload.screenshot || 
+                         epiPayload.foto || 
+                         epiPayload.anexo || 
+                         epiPayload.imagem;
+      
+      // Buscar imagem em campos base64
+      const base64Field = epiPayload.image_base64 || 
+                          epiPayload.screenshot_base64 || 
+                          epiPayload.foto_base64;
+      
+      console.log('Image fields check:', { 
+        hasImage: !!imageField, 
+        hasBase64: !!base64Field,
+        imageFieldValue: imageField ? 'URL received' : 'null',
+        base64FieldValue: base64Field ? 'Base64 received' : 'null'
+      });
+      
+      if (imageField) {
         // Imagem via URL direta
-        imageUrl = epiPayload.image;
+        imageUrl = imageField;
         console.log('EPI image URL received:', imageUrl);
-      } else if (epiPayload.image_base64) {
+      } else if (base64Field) {
         // Imagem em base64 - fazer upload para o storage
         console.log('EPI image base64 received, uploading to storage...');
-        imageUrl = await uploadEpiImage(supabase, epiPayload.image_base64, tempAlertId);
+        imageUrl = await uploadEpiImage(supabase, base64Field, tempAlertId);
       }
 
       // Preparar metadata do alerta (sem incluir o base64 bruto)
