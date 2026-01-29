@@ -12,7 +12,8 @@ export type AlertType =
   | 'connection_faulty'
   | 'connection_stale_testing'
   | 'equipment_no_ip'
-  | 'zabbix_alert';
+  | 'zabbix_alert'
+  | 'epi_alert';
 
 type AlertSeverity = 'info' | 'warning' | 'critical';
 type AlertStatus = 'active' | 'acknowledged' | 'resolved';
