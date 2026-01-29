@@ -302,32 +302,53 @@ serve(async (req) => {
       // Processar imagem (URL direta ou base64) - suportar campos alternativos
       let imageUrl: string | null = null;
       
-      // Buscar imagem em vários campos possíveis (URL direta)
+      // Buscar imagem em vários campos possíveis (URL direta ou base64)
       const imageField = epiPayload.image || 
                          epiPayload.screenshot || 
                          epiPayload.foto || 
                          epiPayload.anexo || 
                          epiPayload.imagem;
       
-      // Buscar imagem em campos base64
+      // Buscar imagem em campos base64 explícitos
       const base64Field = epiPayload.image_base64 || 
                           epiPayload.screenshot_base64 || 
                           epiPayload.foto_base64;
       
+      // Função para detectar se é base64 (não é URL)
+      const isBase64 = (str: string): boolean => {
+        if (!str) return false;
+        // Se começa com http, é URL
+        if (str.startsWith('http://') || str.startsWith('https://')) return false;
+        // Se começa com data:image, é base64 com prefixo
+        if (str.startsWith('data:image')) return true;
+        // Se começa com /9j/ (JPEG) ou iVBOR (PNG), é base64 puro
+        if (str.startsWith('/9j/') || str.startsWith('iVBOR')) return true;
+        // Tentar validar como base64 (pelo menos 100 caracteres e só caracteres válidos)
+        if (str.length > 100 && /^[A-Za-z0-9+/=]+$/.test(str.substring(0, 100))) return true;
+        return false;
+      };
+      
       console.log('Image fields check:', { 
         hasImage: !!imageField, 
         hasBase64: !!base64Field,
-        imageFieldValue: imageField ? 'URL received' : 'null',
-        base64FieldValue: base64Field ? 'Base64 received' : 'null'
+        imageFieldIsBase64: imageField ? isBase64(imageField) : false,
+        imageFieldPreview: imageField ? imageField.substring(0, 50) + '...' : 'null',
+        base64FieldValue: base64Field ? 'Base64 explicit received' : 'null'
       });
       
       if (imageField) {
-        // Imagem via URL direta
-        imageUrl = imageField;
-        console.log('EPI image URL received:', imageUrl);
+        if (isBase64(imageField)) {
+          // Campo image contém base64 - fazer upload para storage
+          console.log('EPI image field contains base64, uploading to storage...');
+          imageUrl = await uploadEpiImage(supabase, imageField, tempAlertId);
+        } else {
+          // Campo image contém URL direta
+          imageUrl = imageField;
+          console.log('EPI image URL received:', imageUrl);
+        }
       } else if (base64Field) {
-        // Imagem em base64 - fazer upload para o storage
-        console.log('EPI image base64 received, uploading to storage...');
+        // Campo base64 explícito - fazer upload para o storage
+        console.log('EPI image base64 field received, uploading to storage...');
         imageUrl = await uploadEpiImage(supabase, base64Field, tempAlertId);
       }
 
