@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAlerts, AlertType } from '@/hooks/useAlerts';
-import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar, HardHat, Eye } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Video, Camera, Cable, Clock, Network, Radar, HardHat, Eye, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -134,6 +134,11 @@ export const AlertList = ({ compact = false, status = 'active', type }: AlertLis
     return alert.type === 'epi_alert' && (alert.metadata as any)?.image_url;
   };
 
+  // Verificar se é alerta EPI sem imagem
+  const isEpiWithoutImage = (alert: typeof alerts[number]) => {
+    return alert.type === 'epi_alert' && !(alert.metadata as any)?.image_url;
+  };
+
   return (
     <>
       <div className="divide-y">
@@ -162,6 +167,16 @@ export const AlertList = ({ compact = false, status = 'active', type }: AlertLis
                       e.currentTarget.style.display = 'none';
                     }}
                   />
+                </div>
+              )}
+              
+              {/* Placeholder para alertas EPI sem imagem */}
+              {isEpiWithoutImage(alert) && (
+                <div className="shrink-0 flex items-center justify-center w-20 h-14 bg-muted/50 rounded border border-dashed border-muted-foreground/30">
+                  <div className="text-center">
+                    <ImageOff className="h-4 w-4 text-muted-foreground mx-auto" />
+                    <span className="text-[10px] text-muted-foreground">Sem imagem</span>
+                  </div>
                 </div>
               )}
               
