@@ -118,7 +118,75 @@ interface EpiPayload {
   severity?: string;
   due_date?: string;
   department?: string;
+  // Campos de imagem
+  camera?: string;
+  risk?: string;
+  image?: string;        // URL direta da imagem
+  image_base64?: string; // Imagem em base64 (alternativa)
 }
+
+// Função para fazer upload de imagem base64 para o storage
+const uploadEpiImage = async (
+  supabase: any, 
+  base64Data: string, 
+  alertId: string
+): Promise<string | null> => {
+  try {
+    // Remover prefixo data:image/...;base64, se presente
+    let cleanBase64 = base64Data;
+    if (base64Data.includes(',')) {
+      cleanBase64 = base64Data.split(',')[1];
+    }
+    
+    // Decodificar base64 para Uint8Array
+    const binaryString = atob(cleanBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Determinar extensão baseado no prefixo (padrão: jpg)
+    let extension = 'jpg';
+    let contentType = 'image/jpeg';
+    if (base64Data.includes('data:image/png')) {
+      extension = 'png';
+      contentType = 'image/png';
+    } else if (base64Data.includes('data:image/gif')) {
+      extension = 'gif';
+      contentType = 'image/gif';
+    } else if (base64Data.includes('data:image/webp')) {
+      extension = 'webp';
+      contentType = 'image/webp';
+    }
+    
+    const timestamp = Date.now();
+    const fileName = `epi-alerts/${timestamp}-${alertId}.${extension}`;
+    
+    // Upload para o bucket 'public'
+    const { data, error } = await supabase.storage
+      .from('public')
+      .upload(fileName, bytes, {
+        contentType,
+        upsert: true,
+      });
+    
+    if (error) {
+      console.error('Error uploading EPI image:', error);
+      return null;
+    }
+    
+    // Obter URL pública
+    const { data: urlData } = supabase.storage
+      .from('public')
+      .getPublicUrl(fileName);
+    
+    console.log('EPI image uploaded successfully:', urlData.publicUrl);
+    return urlData.publicUrl;
+  } catch (e) {
+    console.error('Error processing EPI image:', e);
+    return null;
+  }
+};
 
 // Detectar se é payload do EPI Monitor
 const isEpiMonitorPayload = (payload: any): boolean => {
@@ -204,14 +272,55 @@ serve(async (req) => {
 
       // Processar alerta real do EPI
       const epiSeverity = mapEpiSeverity(epiPayload.severity);
-      const title = `[EPI] ${epiPayload.alert_type || epiPayload.message || 'Alerta EPI Monitor'}`;
+      
+      // Construir título baseado no risco ou tipo de alerta
+      const riskInfo = epiPayload.risk || epiPayload.alert_type || epiPayload.message;
+      const cameraInfo = epiPayload.camera ? ` na ${epiPayload.camera}` : '';
+      const title = `[EPI] ${riskInfo}${cameraInfo}`;
+      
       const detailedMessage = [
         epiPayload.message,
+        epiPayload.risk ? `Risco: ${epiPayload.risk}` : '',
+        epiPayload.camera ? `Câmera: ${epiPayload.camera}` : '',
         epiPayload.equipment_name ? `EPI: ${epiPayload.equipment_name}` : '',
         epiPayload.employee_name ? `Funcionário: ${epiPayload.employee_name}` : '',
         epiPayload.department ? `Departamento: ${epiPayload.department}` : '',
         epiPayload.due_date ? `Vencimento: ${epiPayload.due_date}` : '',
       ].filter(Boolean).join(' | ');
+
+      // Gerar ID temporário para upload de imagem
+      const tempAlertId = crypto.randomUUID();
+      
+      // Processar imagem (URL direta ou base64)
+      let imageUrl: string | null = null;
+      
+      if (epiPayload.image) {
+        // Imagem via URL direta
+        imageUrl = epiPayload.image;
+        console.log('EPI image URL received:', imageUrl);
+      } else if (epiPayload.image_base64) {
+        // Imagem em base64 - fazer upload para o storage
+        console.log('EPI image base64 received, uploading to storage...');
+        imageUrl = await uploadEpiImage(supabase, epiPayload.image_base64, tempAlertId);
+      }
+
+      // Preparar metadata do alerta (sem incluir o base64 bruto)
+      const alertMetadata: Record<string, unknown> = {
+        source: 'epi_monitor',
+        camera: epiPayload.camera,
+        risk: epiPayload.risk,
+        employee_name: epiPayload.employee_name,
+        department: epiPayload.department,
+        equipment_name: epiPayload.equipment_name,
+        due_date: epiPayload.due_date,
+        alert_type: epiPayload.alert_type,
+        timestamp: epiPayload.timestamp,
+      };
+      
+      // Adicionar image_url se disponível
+      if (imageUrl) {
+        alertMetadata.image_url = imageUrl;
+      }
 
       // Inserir alerta no banco
       const { data: alertData, error: insertError } = await supabase
@@ -222,10 +331,7 @@ serve(async (req) => {
           status: 'active',
           title: title.substring(0, 255),
           message: detailedMessage.substring(0, 1000),
-          metadata: {
-            source: 'epi_monitor',
-            ...epiPayload
-          }
+          metadata: alertMetadata
         })
         .select()
         .single();
@@ -235,7 +341,7 @@ serve(async (req) => {
         throw insertError;
       }
 
-      console.log('EPI Alert created successfully:', alertData.id, '- Severity:', epiSeverity);
+      console.log('EPI Alert created successfully:', alertData.id, '- Severity:', epiSeverity, '- Has image:', !!imageUrl);
 
       // Verificar configurações de notificação
       const epiWhatsappEnabled = epiSettings?.find(s => s.setting_key === 'epi_whatsapp_enabled')?.setting_value ?? 1;
