@@ -1,194 +1,157 @@
 
-## Plano: Adaptar Webhook para Aceitar Integração EPI Monitor
 
-### Contexto
+## Plano: Widget EPI Monitor no Dashboard + Filtro EPI na Página de Alertas
 
-O **EPI Monitor** (Monitoramento de EPIs/Equipamentos de Proteção Individual) está tentando enviar alertas para o endpoint `/functions/v1/zabbix-webhook`, mas o formato do payload é diferente do Zabbix tradicional.
+### Resumo
 
-### Opções de Implementação
-
-#### Opção 1: Criar Webhook Dedicado para EPI (Recomendado)
-Criar uma edge function separada `epi-webhook` específica para o EPI Monitor.
-
-#### Opção 2: Adaptar Webhook Existente
-Modificar o `zabbix-webhook` para aceitar ambos os formatos (Zabbix e EPI).
-
-**Recomendação:** Opção 2 - Adaptar o webhook existente para manter centralizada a recepção de alertas externos.
+Adicionar um novo widget no Dashboard para mostrar alertas do EPI Monitor em destaque, e incluir opção de filtro "EPI" na página de Alertas.
 
 ---
 
 ### Alterações Propostas
 
-**Arquivo:** `supabase/functions/zabbix-webhook/index.ts`
+#### 1. Criar Widget EPI Monitor para o Dashboard
 
-#### 1. Detectar Origem do Payload
+**Novo arquivo:** `src/components/dashboard/EpiMonitorWidget.tsx`
 
-Adicionar lógica para identificar se o payload vem do Zabbix ou do EPI Monitor:
+Componente visual similar ao `ZabbixMonitoringWidget`, com:
+- Ícone de identificação: `HardHat` ou `Shield` do Lucide
+- Cores temáticas: laranja/âmbar (diferente do roxo do Zabbix)
+- Exibição dos últimos 3 alertas EPI ativos
+- Contadores de alertas críticos e avisos
+- Botão "Ver Todos os Alertas EPI" direcionando para `/alerts?type=epi`
+- Estado vazio quando não há alertas EPI
+
+Estrutura visual:
+```text
+┌─────────────────────────────────────────────┐
+│ 🦺 Monitoramento EPI          [2 críticos]  │
+├─────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────┐ │
+│ │ ⚠ EPI próximo do vencimento             │ │
+│ │   Capacete - João Silva - Manutenção    │ │
+│ │   há 2 minutos                     [>]  │ │
+│ └─────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────┐ │
+│ │ ⚠ Risco detectado                       │ │
+│ │   Sem óculos de proteção - Câmera 5     │ │
+│ │   há 5 minutos                     [>]  │ │
+│ └─────────────────────────────────────────┘ │
+│                                             │
+│   [ Ver Todos os Alertas EPI (5) ]          │
+└─────────────────────────────────────────────┘
+```
+
+#### 2. Integrar Widget no Dashboard
+
+**Arquivo:** `src/pages/Dashboard.tsx`
+
+Adicionar o widget EPI na seção de "Alertas do Sistema", logo após o `ZabbixMonitoringWidget`:
 
 ```text
-// Detectar origem do payload
-const isEpiPayload = payload.test !== undefined || 
-                     payload.source === 'epi_monitor' ||
-                     (!payload.host && !payload.hostname && !payload.trigger && !payload.trigger_name);
+{/* Widget de Monitoramento EPI */}
+<div>
+  <div className="mb-3 flex items-center gap-2">
+    <Activity className="h-4 w-4 text-muted-foreground" />
+    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      Segurança do Trabalho
+    </h3>
+  </div>
+  <EpiMonitorWidget />
+</div>
 ```
 
-#### 2. Interface para Payload EPI
+#### 3. Atualizar Hook useAlerts
 
-Definir interface para aceitar campos do EPI Monitor:
+**Arquivo:** `src/hooks/useAlerts.ts`
 
+Adicionar `epi_alert` à tipagem `AlertType`:
+
+```typescript
+export type AlertType = 
+  | 'rack_capacity' 
+  | 'port_capacity' 
+  | 'equipment_failure' 
+  | 'poe_capacity'
+  | 'nvr_full'
+  | 'camera_unassigned'
+  | 'connection_faulty'
+  | 'connection_stale_testing'
+  | 'equipment_no_ip'
+  | 'zabbix_alert'
+  | 'epi_alert';  // NOVO
+```
+
+#### 4. Adicionar Filtro EPI na Página de Alertas
+
+**Arquivo:** `src/pages/Alerts.tsx`
+
+Atualizar o tipo de filtro e adicionar opção EPI:
+
+```typescript
+type AlertTypeFilter = 'all' | 'capacity' | 'audit' | 'zabbix' | 'epi';
+
+// No getTypeFilterValue():
+case 'epi':
+  return 'epi_alert';
+
+// No getTypeFilterLabel():
+case 'epi':
+  return 'EPI Monitor';
+```
+
+Adicionar item no Select de filtro:
 ```text
-interface EpiPayload {
-  test?: boolean;
-  source?: string;
-  message?: string;
-  timestamp?: string;
-  alert_type?: string;       // tipo de alerta (vencimento, pendência, etc)
-  equipment_name?: string;   // nome do EPI
-  employee_name?: string;    // nome do funcionário
-  severity?: string;         // severidade (info, warning, critical)
-  due_date?: string;         // data de vencimento
-  department?: string;       // departamento
-}
+<SelectItem value="epi">
+  <span className="flex items-center gap-2">
+    <HardHat className="w-4 h-4" />
+    EPI Monitor
+  </span>
+</SelectItem>
 ```
 
-#### 3. Processar Payloads EPI
+#### 5. Atualizar AlertList para Suportar Tipo EPI
 
-Adicionar bloco para processar alertas do EPI Monitor antes da validação Zabbix:
+**Arquivo:** `src/components/notifications/AlertList.tsx`
 
-```text
-if (isEpiPayload) {
-  // Se é apenas teste, retornar sucesso
-  if (payload.test) {
-    console.log('EPI Monitor test payload received successfully');
-    return Response.json({ 
-      success: true, 
-      message: 'Conexão com EPI Monitor estabelecida com sucesso',
-      received_at: new Date().toISOString()
-    });
-  }
+Adicionar ícone e label para alertas EPI:
 
-  // Processar alerta real do EPI
-  const epiSeverity = mapEpiSeverity(payload.severity);
-  const title = `[EPI] ${payload.alert_type || payload.message || 'Alerta EPI Monitor'}`;
-  const detailedMessage = [
-    payload.message,
-    payload.equipment_name ? `EPI: ${payload.equipment_name}` : '',
-    payload.employee_name ? `Funcionário: ${payload.employee_name}` : '',
-    payload.department ? `Departamento: ${payload.department}` : '',
-    payload.due_date ? `Vencimento: ${payload.due_date}` : '',
-  ].filter(Boolean).join(' | ');
+```typescript
+// Em getSeverityIcon():
+case 'epi_alert':
+  return <HardHat className={cn("h-4 w-4", 
+    severity === 'critical' ? 'text-destructive' : 
+    severity === 'warning' ? 'text-amber-500' : 'text-blue-500'
+  )} />;
 
-  // Inserir alerta no banco
-  const { data: alertData, error } = await supabase
-    .from('alerts')
-    .insert({
-      type: 'epi_alert',
-      severity: epiSeverity,
-      status: 'active',
-      title,
-      message: detailedMessage,
-      metadata: {
-        source: 'epi_monitor',
-        ...payload
-      }
-    })
-    .select()
-    .single();
-
-  // Enviar notificação WhatsApp se configurado
-  // ... lógica similar à do Zabbix
-}
-```
-
-#### 4. Adicionar Tipo de Alerta EPI
-
-Atualizar o ENUM `alert_type` ou usar o valor 'epi_alert' diretamente.
-
----
-
-### Fluxo de Processamento
-
-```text
-Requisição recebida
-       ↓
-Detectar origem (Zabbix ou EPI?)
-       ↓
-    ┌─────────────────┬─────────────────┐
-    │ EPI Monitor     │ Zabbix          │
-    ↓                 ↓                 
-É teste?          Validar campos
-    ↓                 ↓
-Sim → Retornar OK  Criar alerta + 
-                   WhatsApp
-    ↓
-Não → Criar alerta
-      + WhatsApp
+// Em getAlertTypeLabel():
+case 'epi_alert':
+  return 'EPI Monitor';
 ```
 
 ---
 
-### Campos Esperados do EPI Monitor
+### Arquivos a Serem Modificados/Criados
 
-Para alertas reais (não teste), o EPI Monitor deve enviar:
-
-| Campo | Obrigatório | Descrição |
-|-------|-------------|-----------|
-| `source` | Sim | `"epi_monitor"` para identificar origem |
-| `message` | Sim | Descrição do alerta |
-| `alert_type` | Não | Tipo: `vencimento`, `pendencia`, `irregularidade` |
-| `severity` | Não | `info`, `warning`, `critical` (default: warning) |
-| `equipment_name` | Não | Nome do EPI |
-| `employee_name` | Não | Nome do funcionário |
-| `department` | Não | Departamento |
-| `due_date` | Não | Data de vencimento (ISO 8601) |
-| `timestamp` | Não | Timestamp do evento |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/components/dashboard/EpiMonitorWidget.tsx` | Criar | Widget de alertas EPI para o Dashboard |
+| `src/pages/Dashboard.tsx` | Modificar | Importar e adicionar EpiMonitorWidget |
+| `src/hooks/useAlerts.ts` | Modificar | Adicionar `epi_alert` ao tipo AlertType |
+| `src/pages/Alerts.tsx` | Modificar | Adicionar filtro "EPI" no dropdown |
+| `src/components/notifications/AlertList.tsx` | Modificar | Adicionar ícone e label para epi_alert |
 
 ---
 
-### Exemplo de Payload EPI Monitor (Real)
+### Resultado Visual Esperado
 
-```json
-{
-  "source": "epi_monitor",
-  "alert_type": "vencimento",
-  "message": "EPI próximo do vencimento",
-  "severity": "warning",
-  "equipment_name": "Capacete de Segurança",
-  "employee_name": "João Silva",
-  "department": "Manutenção",
-  "due_date": "2026-02-15",
-  "timestamp": "2026-01-29T19:20:00Z"
-}
-```
+**Dashboard:**
+- Novo widget "Segurança do Trabalho" com alertas EPI em destaque
+- Cores âmbar/laranja para diferenciar do Zabbix (roxo)
+- Atualização em tempo real via subscription existente
 
----
+**Página de Alertas:**
+- Novo filtro "EPI Monitor" no dropdown de tipos
+- Ícone de capacete (HardHat) identificando o tipo
+- Funcionamento consistente com outros filtros existentes
 
-### Configurações de Notificação
-
-Adicionar novas configurações em `alert_settings`:
-
-| Chave | Valor Padrão | Descrição |
-|-------|--------------|-----------|
-| `epi_enabled` | 1 | Habilitar integração EPI Monitor |
-| `epi_whatsapp_enabled` | 1 | Enviar notificações WhatsApp para alertas EPI |
-| `epi_min_severity` | 2 | Severidade mínima para notificar (1=info, 2=warning, 3=critical) |
-
----
-
-### Resumo das Alterações
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/zabbix-webhook/index.ts` | Detectar e processar payloads do EPI Monitor |
-| Migração SQL | Adicionar configurações `epi_*` em `alert_settings` |
-
----
-
-### Resultado Esperado
-
-Após implementação:
-- Payloads de teste do EPI Monitor retornarão sucesso imediato
-- Alertas reais do EPI Monitor serão criados na tabela `alerts` com tipo `epi_alert`
-- Notificações WhatsApp serão enviadas respeitando configurações
-- Alertas EPI aparecerão no Dashboard e páginas de alerta
-- Histórico WhatsApp mostrará notificações do tipo EPI
