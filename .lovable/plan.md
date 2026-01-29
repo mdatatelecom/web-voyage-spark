@@ -1,60 +1,88 @@
 
 
-## Plano: Indicador Visual para Alertas EPI sem Imagem
+## Plano: Testar Exibição de Imagens no Webhook EPI
 
-### Resumo
+### Diagnóstico
 
-Adicionar um indicador visual discreto nos alertas EPI que não possuem screenshot anexado, informando o usuário que a captura não estava disponível.
+A análise dos logs e banco de dados confirma:
+
+| Verificação | Resultado |
+|-------------|-----------|
+| Webhook processando payloads | ✅ Funcionando |
+| Campo `image` no payload | ❌ Sempre `null` |
+| Campo `image_base64` no payload | ❌ Não enviado |
+| `image_url` no metadata do alerta | ❌ Não existe |
+| Placeholder "Sem imagem" | ✅ Exibindo corretamente |
+
+**Conclusão**: O problema é que o **EPI Monitor não está enviando imagens** nos payloads. O código está pronto, mas sem dados.
 
 ---
 
-### Situação Atual
+### Opções de Ação
 
-Os logs confirmam:
-- Webhook está funcionando corretamente
-- Sistema identifica presença/ausência de imagem (`Has image: false`)
-- EPI Monitor atualmente envia `"image": null`
-- Alertas EPI sem imagem aparecem sem nenhum indicador visual
+#### Opção 1: Testar o Webhook com Imagem Real (Recomendado)
+
+Enviar um payload de teste para o webhook com uma imagem para verificar se todo o fluxo funciona:
+
+**Payload de teste com URL:**
+```json
+{
+  "timestamp": "2026-01-29 17:30:00",
+  "camera": "Camera Teste",
+  "risk": "TESTE COM IMAGEM",
+  "message": "Teste de alerta EPI com screenshot",
+  "image": "https://picsum.photos/640/480"
+}
+```
+
+**Payload de teste com Base64:**
+```json
+{
+  "timestamp": "2026-01-29 17:30:00",
+  "camera": "Camera Teste",
+  "risk": "TESTE BASE64",
+  "message": "Teste de alerta EPI com imagem base64",
+  "image_base64": "data:image/jpeg;base64,/9j/4AAQ..."
+}
+```
+
+#### Opção 2: Verificar Configuração do EPI Monitor
+
+Verificar se o sistema EPI Monitor:
+- Tem opção para enviar screenshots
+- Está configurado para incluir imagens nos alertas
+- Usa nome de campo diferente (ex: `screenshot`, `foto`, `anexo`)
+
+#### Opção 3: Adicionar Suporte a Campos Alternativos
+
+Expandir o webhook para aceitar outros nomes de campo que o EPI Monitor possa usar:
+- `screenshot`
+- `foto`
+- `anexo`
+- `imagem`
 
 ---
 
-### Alteração Proposta
+### Proposta de Implementação
 
-**Arquivo:** `src/components/notifications/AlertList.tsx`
+1. **Adicionar suporte a campos alternativos de imagem no webhook**:
+   ```typescript
+   // Buscar imagem em vários campos possíveis
+   const imageField = epiPayload.image || 
+                      epiPayload.screenshot || 
+                      epiPayload.foto || 
+                      epiPayload.anexo || 
+                      epiPayload.imagem;
+   
+   const base64Field = epiPayload.image_base64 || 
+                       epiPayload.screenshot_base64 || 
+                       epiPayload.foto_base64;
+   ```
 
-Adicionar um badge/indicador para alertas EPI quando não há imagem:
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 🦺 [EPI Monitor]                                                │
-│ [EPI] SEM CAPACETE detectado na Camera 2                        │
-│ Alerta de segurança: SEM CAPACETE detectado...                  │
-│                                                                 │
-│ ┌──────────────┐                                                │
-│ │ 📷 Sem       │  [Marcar como Lido] [Resolver]                 │
-│ │   imagem     │                                                │
-│ └──────────────┘                                                │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-Lógica a ser adicionada:
-
-```typescript
-// Verificar se é alerta EPI sem imagem
-const isEpiWithoutImage = (alert) => {
-  return alert.type === 'epi_alert' && !(alert.metadata as any)?.image_url;
-};
-
-// No JSX, após a verificação de hasEpiImage:
-{isEpiWithoutImage(alert) && (
-  <div className="shrink-0 flex items-center justify-center w-20 h-14 bg-muted/50 rounded border border-dashed">
-    <div className="text-center">
-      <ImageOff className="h-4 w-4 text-muted-foreground mx-auto" />
-      <span className="text-[10px] text-muted-foreground">Sem imagem</span>
-    </div>
-  </div>
-)}
-```
+2. **Adicionar logging detalhado** para identificar todos os campos recebidos:
+   ```typescript
+   console.log('All payload fields:', Object.keys(epiPayload));
+   ```
 
 ---
 
@@ -62,25 +90,23 @@ const isEpiWithoutImage = (alert) => {
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/notifications/AlertList.tsx` | Modificar | Adicionar placeholder visual para alertas EPI sem screenshot |
+| `supabase/functions/zabbix-webhook/index.ts` | Modificar | Adicionar suporte a campos alternativos de imagem e logging detalhado |
 
 ---
 
-### Resultado Visual Esperado
+### Formato do Payload Aceito Após Alteração
 
-**Com imagem:**
-- Miniatura clicável + botão "Ver"
+O webhook passará a aceitar imagens em qualquer um destes campos:
 
-**Sem imagem:**
-- Placeholder com ícone `ImageOff` e texto "Sem imagem"
-- Borda tracejada e fundo discreto
-- Mantém alinhamento visual consistente
+**Para URL direta:**
+- `image`
+- `screenshot`
+- `foto`
+- `anexo`
+- `imagem`
 
----
-
-### Benefícios
-
-1. **Feedback claro** - usuário sabe que a imagem não está disponível (não é um erro de carregamento)
-2. **Consistência visual** - todos os alertas EPI mantêm o mesmo layout
-3. **Diagnóstico** - ajuda a identificar se o EPI Monitor está enviando imagens ou não
+**Para Base64:**
+- `image_base64`
+- `screenshot_base64`
+- `foto_base64`
 
