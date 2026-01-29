@@ -207,6 +207,8 @@ const WhatsAppHistory = () => {
         return <Radar className="h-4 w-4 text-green-500" />;
       case 'group_notification':
         return <Users className="h-4 w-4 text-blue-500" />;
+      case 'epi_alert':
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
       default:
         return <MessageCircle className="h-4 w-4 text-muted-foreground" />;
     }
@@ -226,6 +228,8 @@ const WhatsAppHistory = () => {
         return 'Zabbix';
       case 'group_notification':
         return 'Grupo';
+      case 'epi_alert':
+        return 'EPI';
       default:
         return type;
     }
@@ -401,6 +405,7 @@ const WhatsAppHistory = () => {
                       <SelectItem value="alert">Alerta</SelectItem>
                       <SelectItem value="manual">Manual</SelectItem>
                       <SelectItem value="zabbix_alert">Zabbix</SelectItem>
+                      <SelectItem value="epi_alert">EPI</SelectItem>
                       <SelectItem value="group_notification">Grupo</SelectItem>
                     </SelectContent>
                   </Select>

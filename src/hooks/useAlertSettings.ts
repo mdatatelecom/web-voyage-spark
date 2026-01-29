@@ -21,7 +21,10 @@ type AlertSettingKey =
   | 'ticket_deadline_whatsapp_enabled'
   | 'zabbix_enabled'
   | 'zabbix_whatsapp_enabled'
-  | 'zabbix_min_severity';
+  | 'zabbix_min_severity'
+  | 'epi_enabled'
+  | 'epi_whatsapp_enabled'
+  | 'epi_min_severity';
 
 interface AlertSetting {
   id: string;
@@ -86,6 +89,9 @@ export const useAlertSettings = () => {
         { key: 'zabbix_enabled', value: 1 },
         { key: 'zabbix_whatsapp_enabled', value: 1 },
         { key: 'zabbix_min_severity', value: 2 },
+        { key: 'epi_enabled', value: 1 },
+        { key: 'epi_whatsapp_enabled', value: 1 },
+        { key: 'epi_min_severity', value: 2 },
       ];
 
       for (const { key, value } of defaults) {

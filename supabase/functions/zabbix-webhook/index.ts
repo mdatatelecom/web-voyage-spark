@@ -42,6 +42,15 @@ const mapZabbixSeverity = (severity: number | string): AlertSeverity => {
   return 'info';
 };
 
+// Mapear severidade do EPI Monitor
+const mapEpiSeverity = (severity?: string): AlertSeverity => {
+  if (!severity) return 'warning';
+  const lower = severity.toLowerCase().trim();
+  if (['critical', 'critico', 'crítico', 'high', 'alta'].includes(lower)) return 'critical';
+  if (['warning', 'aviso', 'medium', 'média', 'media'].includes(lower)) return 'warning';
+  return 'info';
+};
+
 // Usar sempre 'zabbix_alert' como tipo
 const getAlertType = (): string => 'zabbix_alert';
 
@@ -97,6 +106,27 @@ interface ZabbixPayload {
   datetime?: string;
 }
 
+// Interface para payload do EPI Monitor
+interface EpiPayload {
+  test?: boolean;
+  source?: string;
+  message?: string;
+  timestamp?: string;
+  alert_type?: string;
+  equipment_name?: string;
+  employee_name?: string;
+  severity?: string;
+  due_date?: string;
+  department?: string;
+}
+
+// Detectar se é payload do EPI Monitor
+const isEpiMonitorPayload = (payload: any): boolean => {
+  return payload.test !== undefined || 
+         payload.source === 'epi_monitor' ||
+         (!payload.host && !payload.hostname && !payload.trigger && !payload.trigger_name && (payload.message || payload.equipment_name));
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -135,6 +165,151 @@ serve(async (req) => {
 
     console.log('Parsed payload:', JSON.stringify(payload, null, 2));
 
+    // ========== PROCESSAR PAYLOAD DO EPI MONITOR ==========
+    if (isEpiMonitorPayload(payload)) {
+      console.log('EPI Monitor payload detected');
+      const epiPayload = payload as EpiPayload;
+
+      // Se é apenas teste, retornar sucesso
+      if (epiPayload.test) {
+        console.log('EPI Monitor test payload received successfully');
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Conexão com EPI Monitor estabelecida com sucesso',
+            received_at: new Date().toISOString()
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verificar se EPI está habilitado
+      const { data: epiSettings } = await supabase
+        .from('alert_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['epi_enabled', 'epi_whatsapp_enabled', 'epi_min_severity']);
+
+      const epiEnabled = epiSettings?.find(s => s.setting_key === 'epi_enabled')?.setting_value ?? 1;
+      
+      if (!epiEnabled) {
+        console.log('EPI Monitor integration is disabled');
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Integração EPI Monitor está desabilitada'
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Processar alerta real do EPI
+      const epiSeverity = mapEpiSeverity(epiPayload.severity);
+      const title = `[EPI] ${epiPayload.alert_type || epiPayload.message || 'Alerta EPI Monitor'}`;
+      const detailedMessage = [
+        epiPayload.message,
+        epiPayload.equipment_name ? `EPI: ${epiPayload.equipment_name}` : '',
+        epiPayload.employee_name ? `Funcionário: ${epiPayload.employee_name}` : '',
+        epiPayload.department ? `Departamento: ${epiPayload.department}` : '',
+        epiPayload.due_date ? `Vencimento: ${epiPayload.due_date}` : '',
+      ].filter(Boolean).join(' | ');
+
+      // Inserir alerta no banco
+      const { data: alertData, error: insertError } = await supabase
+        .from('alerts')
+        .insert({
+          type: 'epi_alert',
+          severity: epiSeverity,
+          status: 'active',
+          title: title.substring(0, 255),
+          message: detailedMessage.substring(0, 1000),
+          metadata: {
+            source: 'epi_monitor',
+            ...epiPayload
+          }
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error inserting EPI alert:', insertError);
+        throw insertError;
+      }
+
+      console.log('EPI Alert created successfully:', alertData.id, '- Severity:', epiSeverity);
+
+      // Verificar configurações de notificação
+      const epiWhatsappEnabled = epiSettings?.find(s => s.setting_key === 'epi_whatsapp_enabled')?.setting_value ?? 1;
+      const epiMinSeverity = epiSettings?.find(s => s.setting_key === 'epi_min_severity')?.setting_value ?? 2;
+
+      const severityLevel: Record<string, number> = { 'info': 1, 'warning': 2, 'critical': 3 };
+      const alertLevel = severityLevel[epiSeverity] || 1;
+      const shouldSendWhatsApp = epiEnabled && epiWhatsappEnabled && alertLevel >= epiMinSeverity;
+
+      console.log('EPI Notification check:', { epiEnabled, epiWhatsappEnabled, epiMinSeverity, alertLevel, shouldSendWhatsApp });
+
+      // Emojis por severidade
+      const severityEmoji: Record<string, string> = { 'info': 'ℹ️', 'warning': '⚠️', 'critical': '🚨' };
+      const emoji = severityEmoji[epiSeverity] || '🦺';
+
+      // Enviar notificação WhatsApp se configurado
+      if (shouldSendWhatsApp) {
+        console.log('Sending EPI WhatsApp notification...');
+        
+        const { data: whatsappSettings } = await supabase
+          .from('system_settings')
+          .select('setting_value')
+          .eq('setting_key', 'whatsapp_settings')
+          .single();
+
+        if (whatsappSettings?.setting_value?.isEnabled) {
+          const settings = whatsappSettings.setting_value;
+          const targetType = settings.targetType || 'individual';
+          
+          const notificationMessage = `${emoji} *ALERTA EPI MONITOR (${epiSeverity.toUpperCase()})*\n\n*Tipo:* ${epiPayload.alert_type || 'Alerta'}\n*Mensagem:* ${epiPayload.message || '-'}\n${epiPayload.equipment_name ? `*EPI:* ${epiPayload.equipment_name}\n` : ''}${epiPayload.employee_name ? `*Funcionário:* ${epiPayload.employee_name}\n` : ''}${epiPayload.department ? `*Departamento:* ${epiPayload.department}\n` : ''}${epiPayload.due_date ? `*Vencimento:* ${epiPayload.due_date}\n` : ''}\n_${new Date().toLocaleString('pt-BR')}_`;
+
+          try {
+            if (targetType === 'group' && settings.selectedGroupId) {
+              console.log('Sending EPI notification to group:', settings.selectedGroupId);
+              await supabase.functions.invoke('send-whatsapp', {
+                body: {
+                  action: 'send-group',
+                  groupId: settings.selectedGroupId,
+                  message: notificationMessage,
+                  notification_type: 'epi_alert',
+                },
+              });
+              console.log('WhatsApp EPI notification sent to group');
+            } else {
+              console.log('Sending individual EPI notification...');
+              await supabase.functions.invoke('send-whatsapp', {
+                body: {
+                  action: 'send',
+                  message: notificationMessage,
+                  notification_type: 'epi_alert',
+                },
+              });
+              console.log('WhatsApp individual EPI notification sent');
+            }
+          } catch (e) {
+            console.error('Error sending EPI WhatsApp notification:', e);
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          action: 'created',
+          alert_id: alertData.id,
+          alert_type: 'epi_alert',
+          severity: epiSeverity,
+          notifications_sent: shouldSendWhatsApp,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========== PROCESSAR PAYLOAD DO ZABBIX (CÓDIGO ORIGINAL) ==========
     // Extrair campos do payload (Zabbix pode usar diferentes nomes)
     const host = payload.host || payload.hostname || 'Unknown Host';
     const trigger = payload.trigger || payload.trigger_name || 'Unknown Trigger';
