@@ -1,138 +1,127 @@
 
 
-## Plano: Redesign Profissional do Dashboard
+## Plano: Menu Monitoramento com Submenus Dinâmicos
 
-### Análise do Layout Atual
+### Situação Atual
 
-O dashboard atual possui boa estrutura, mas pode ser otimizado para:
-- Melhor hierarquia visual
-- Agrupamento lógico de informações
-- Melhor aproveitamento do espaço
-- Layout mais compacto e profissional
-
----
-
-### Problemas Identificados
-
-| Problema | Descrição |
-|----------|-----------|
-| Seções repetitivas | 3 widgets de monitoramento separados com labels repetidas |
-| Filtros ocupam muito espaço | Card de filtros pode ser colapsível |
-| Widgets de alerta desalinhados | Zabbix e EPI deveriam estar lado a lado |
-| Falta de priorização | Métricas importantes não estão destacadas |
-| Espaço desperdiçado | Quick Access e gráficos podem ser mais compactos |
+Atualmente, o menu "Monitoramento" tem apenas um item fixo "Painéis" que abre uma página com abas internas. Isso não é ideal porque:
+- Os painéis não aparecem diretamente no menu
+- Precisa clicar em "Painéis" e depois escolher qual ver
+- A configuração está dentro de uma aba, não em um submenu separado
 
 ---
 
 ### Nova Estrutura Proposta
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ HEADER (manter como está - já está profissional)                                │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ ┌───────────────────────────────────────────────────────────────────────────┐   │
-│ │ Hero Section: "Painel de Controle" + Data/hora atual                      │   │
-│ └───────────────────────────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ SEÇÃO 1: MÉTRICAS RÁPIDAS (grid 5 colunas)                                      │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                │
-│ │Locais    │ │Racks     │ │Equips    │ │Conexões  │ │Portas    │                │
-│ │  42      │ │  128     │ │  1,847   │ │  2,391   │ │  3,420   │                │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘                │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ SEÇÃO 2: MONITORAMENTO E ALERTAS (grid 3 colunas iguais)                        │
-│ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                     │
-│ │ Alertas Sistema │ │ Zabbix Monitor  │ │ Segurança EPI   │                     │
-│ │ (críticos +     │ │ (alertas de     │ │ (alertas de     │                     │
-│ │  warnings)      │ │  monitoramento) │ │  trabalho)      │                     │
-│ └─────────────────┘ └─────────────────┘ └─────────────────┘                     │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ SEÇÃO 3: ACESSO RÁPIDO (compacto - 2 linhas de 5 botões cada)                   │
-│ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐                               │
-│ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘                               │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ SEÇÃO 4: ANÁLISE DE INFRAESTRUTURA (grid 2x2)                                   │
-│ ┌─────────────────────────────┐ ┌─────────────────────────────┐                 │
-│ │ Ocupação de Racks (bar)     │ │ Tipos de Equipamento (pie)  │                 │
-│ └─────────────────────────────┘ └─────────────────────────────┘                 │
-│ ┌─────────────────────────────┐ ┌─────────────────────────────┐                 │
-│ │ Status de Conexões (bar)    │ │ Uso de Portas (stacked bar) │                 │
-│ └─────────────────────────────┘ └─────────────────────────────┘                 │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ SEÇÃO 5: CENTRO DE SUPORTE                                                      │
-│ ┌───────────────┐ ┌─────────────────────────────────────────────────────────┐   │
-│ │ Performance   │ │ Cards de Status (Abertos, Em Andamento, Resolvidos...)  │   │
-│ │ SLA Widget    │ │                                                         │   │
-│ └───────────────┘ └─────────────────────────────────────────────────────────┘   │
-│ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐                 │
-│ │ Por Categoria   │ │ Por Técnico     │ │ Tendência           │                 │
-│ └─────────────────┘ └─────────────────┘ └─────────────────────┘                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+Menu Monitoramento
+├── Visão Geral          → /monitoring (dashboard com todos painéis)
+├── Configurações        → /monitoring/settings (gerenciar painéis)
+├── ─────────────────── (separador dinâmico)
+├── Dashboard Grafana    → /monitoring/panel/uuid-1 (webview direto)
+├── Zabbix Principal     → /monitoring/panel/uuid-2 (webview direto)
+└── Outro Painel         → /monitoring/panel/uuid-3 (webview direto)
 ```
 
 ---
 
-### Alterações Detalhadas
+### Alterações Necessárias
 
-#### 1. Hero Section Aprimorado
-- Adicionar data/hora atual
-- Manter título e descrição
-- Remover labels repetitivas das seções
+#### 1. AppLayout.tsx - Menu Dinâmico
 
-#### 2. Nova Seção de Métricas (linha única)
-- Unificar MetricsWidget + Card de Portas em uma única linha
-- 5 cards compactos side-by-side
-- Design mais moderno com gradientes sutis
+**Problema**: O menu atual é estático com itens fixos.
 
-#### 3. Widgets de Monitoramento em Grid 3 Colunas
-- CriticalAlertsWidget, ZabbixMonitoringWidget, EpiMonitorWidget
-- Lado a lado com altura igual
-- Remover labels "Monitoramento Externo" e "Segurança do Trabalho" (redundante com título do card)
+**Solução**: Carregar os painéis do banco de dados e adicionar como submenus dinâmicos.
 
-#### 4. Quick Access Mais Compacto
-- Reduzir padding
-- Grid responsivo 5x2 → 10x1 em telas grandes
-- Ícones menores e mais elegantes
+Modificações:
+- Importar o hook `useMonitoringPanels`
+- Modificar a seção `monitoring` do `menuGroups` para incluir painéis ativos
+- Adicionar ícones diferenciados por tipo (Grafana/Zabbix/Outro)
 
-#### 5. Gráficos Padronizados
-- Remover Cards wrapper duplicados (os charts já têm)
-- Padronizar altura dos gráficos (250px)
-- Adicionar hover effects consistentes
+#### 2. Novas Rotas em App.tsx
 
-#### 6. Filtros Colapsíveis (Opcional)
-- Transformar em dropdown/collapsible
-- Mostrar apenas quando necessário
-- Manter funcionalidade atual
+Adicionar rotas:
+- `/monitoring` → Visão geral (já existe)
+- `/monitoring/settings` → Página de configurações
+- `/monitoring/panel/:id` → Visualização de painel individual em tela cheia
+
+#### 3. Nova Página MonitoringPanelView.tsx
+
+Criar uma página simples que:
+- Recebe o ID do painel via URL
+- Carrega os dados do painel
+- Exibe o iframe em tela cheia (100% altura)
+- Botões: Voltar, Atualizar, Abrir em Nova Aba
+
+#### 4. Separar MonitoringSettings.tsx
+
+Extrair a aba de configurações para uma página separada com acesso direto pelo menu.
 
 ---
 
-### Arquivos a Serem Modificados
+### Arquivos a Modificar/Criar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/Dashboard.tsx` | Modificar | Reorganizar layout, remover duplicações, unificar seções |
-| `src/components/dashboard/MetricsWidget.tsx` | Modificar | Converter para layout horizontal (5 cards em linha) |
-| `src/components/dashboard/QuickAccessWidget.tsx` | Modificar | Layout mais compacto |
-| `src/components/dashboard/DashboardFilters.tsx` | Modificar | Transformar em collapsible |
+| `src/components/layout/AppLayout.tsx` | Modificar | Adicionar painéis dinâmicos ao menu |
+| `src/App.tsx` | Modificar | Adicionar rotas `/monitoring/settings` e `/monitoring/panel/:id` |
+| `src/pages/MonitoringDashboard.tsx` | Modificar | Remover aba settings, manter só visão geral |
+| `src/pages/MonitoringSettings.tsx` | Criar | Página dedicada para configurações |
+| `src/pages/MonitoringPanelView.tsx` | Criar | Visualização de painel individual em webview |
 
 ---
 
-### Melhorias Visuais
+### Detalhes Técnicos
 
-1. **Espaçamento consistente**: gap-6 entre seções principais
-2. **Cores harmoniosas**: usar cores do sistema de forma coerente
-3. **Sombras sutis**: hover:shadow-lg para interatividade
-4. **Bordas suaves**: border-border/50 para elegância
-5. **Gradientes leves**: from-card to-primary/5 para depth
-6. **Tipografia hierárquica**: títulos maiores, descrições menores
+#### Menu Dinâmico no AppLayout
+
+```typescript
+// Dentro do menuGroups, modificar a seção 'monitoring':
+{
+  id: 'monitoring',
+  label: 'Monitoramento',
+  icon: Activity,
+  visible: (isAdmin || isTechnician) && !isNetworkViewer,
+  items: [
+    { label: 'Visão Geral', icon: LayoutDashboard, path: '/monitoring', visible: true },
+    { label: 'Configurações', icon: Settings, path: '/monitoring/settings', visible: isAdmin },
+    // Separador visual + painéis dinâmicos:
+    ...activePanels.map(panel => ({
+      label: panel.name,
+      icon: panel.panel_type === 'grafana' ? BarChart3 : 
+            panel.panel_type === 'zabbix' ? AlertCircle : Monitor,
+      path: `/monitoring/panel/${panel.id}`,
+      visible: true,
+    })),
+  ],
+}
+```
+
+#### Página de Visualização Individual
+
+A nova página `MonitoringPanelView.tsx` terá:
+- Header com nome do painel e botões de ação
+- iframe ocupando toda a altura disponível
+- Suporte a tela cheia nativa do navegador
 
 ---
 
-### Resultado Esperado
+### Fluxo do Usuário
 
-- Dashboard 30% mais compacto verticalmente
-- Informações críticas visíveis sem scroll
-- Layout responsivo aprimorado
-- Visual profissional e moderno
-- Melhor UX com agrupamento lógico
+1. Clica em "Monitoramento" no menu
+2. Vê submenu com:
+   - "Visão Geral" (todos os painéis em cards)
+   - "Configurações" (gerenciar painéis - só admin)
+   - Lista de painéis ativos (Dashboard Grafana, Zabbix, etc)
+3. Clica diretamente no painel desejado
+4. Abre página limpa com webview em tela cheia
+
+---
+
+### Considerações
+
+- **Performance**: Os painéis são carregados uma vez e cacheados pelo React Query
+- **Permissões**: Apenas admins podem acessar "Configurações"
+- **Responsividade**: Menu colapsado mostra tooltip com nome do painel
+- **Loading**: Skeleton enquanto carrega os painéis no menu
 
