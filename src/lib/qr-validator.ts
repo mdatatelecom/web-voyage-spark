@@ -78,12 +78,12 @@ export function extractConnectionCode(text: string): string | null {
 
   const cleaned = raw.toUpperCase();
   
-  // Prefer system prefixes; allow multiple segments (e.g., CON-0001-0002, CAB-12-34)
-  const prefixed = cleaned.match(/\b(?:CON|NET|CAB|FIB|LINK)[-_][A-Z0-9]+(?:[-_][A-Z0-9]+)*\b/);
+  // Prefer system prefixes; allow multiple segments (e.g., CON-0001-0002, CAB-12-34, C-00034)
+  const prefixed = cleaned.match(/\b(?:CON|NET|CAB|FIB|LINK|C)[-_][A-Z0-9]+(?:[-_][A-Z0-9]+)*\b/);
   if (prefixed) return prefixed[0].replace(/_/g, '-');
 
-  // Generic fallback: PREFIX-ALPHANUM... (embedded anywhere)
-  const genericEmbedded = cleaned.match(/\b[A-Z]{2,8}[-_][A-Z0-9]{3,32}(?:[-_][A-Z0-9]{2,32})*\b/);
+  // Generic fallback: 1-8 letter prefix + alphanumeric suffix (e.g., C-00034, AB-123)
+  const genericEmbedded = cleaned.match(/\b[A-Z]{1,8}[-_][A-Z0-9]{2,32}(?:[-_][A-Z0-9]{2,32})*\b/);
   if (genericEmbedded) return genericEmbedded[0].replace(/_/g, '-');
   
   return null;
