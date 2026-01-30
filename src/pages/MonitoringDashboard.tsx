@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   Activity, 
   Plus, 
@@ -11,10 +12,16 @@ import {
   RefreshCw,
   Monitor,
   Maximize2,
-  Settings
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
 import { useMonitoringPanels, MonitoringPanel } from '@/hooks/useMonitoringPanels';
 import { useUserRole } from '@/hooks/useUserRole';
+
+// Helper to check if URL is HTTP on HTTPS page
+const isMixedContent = (url: string) => {
+  return url?.startsWith('http://') && window.location.protocol === 'https:';
+};
 
 export default function MonitoringDashboard() {
   const navigate = useNavigate();
@@ -158,14 +165,28 @@ export default function MonitoringDashboard() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="relative bg-muted/20" style={{ height: '500px' }}>
-                    <iframe
-                      key={`${panel.id}-${refreshKey}`}
-                      src={panel.url}
-                      className="w-full h-full border-0"
-                      title={panel.name}
-                      allow="fullscreen"
-                      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    />
+                    {isMixedContent(panel.url) ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">Iframe bloqueado</h3>
+                        <p className="text-muted-foreground mb-4 max-w-md text-sm">
+                          URLs HTTP não podem ser incorporadas em páginas HTTPS por motivos de segurança.
+                        </p>
+                        <Button size="sm" onClick={() => window.open(panel.url, '_blank')}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Abrir em Nova Aba
+                        </Button>
+                      </div>
+                    ) : (
+                      <iframe
+                        key={`${panel.id}-${refreshKey}`}
+                        src={panel.url}
+                        className="w-full h-full border-0"
+                        title={panel.name}
+                        allow="fullscreen"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      />
+                    )}
                   </div>
                 </CardContent>
               </Card>
