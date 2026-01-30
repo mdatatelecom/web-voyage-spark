@@ -32,16 +32,28 @@ export function parseQRCode(text: string): QRCodeData | null {
 export function extractConnectionCode(text: string): string | null {
   const cleaned = text.trim().toUpperCase();
   
-  // Match CON-XXXX format
-  const conMatch = cleaned.match(/^CON-[A-Z0-9]+$/);
+  // Match CON-XXXX format (most common)
+  const conMatch = cleaned.match(/CON-[A-Z0-9]+/);
   if (conMatch) {
     return conMatch[0];
   }
   
-  // Match any alphanumeric code that could be a connection code (e.g., CON-A1B2C3)
-  const genericMatch = cleaned.match(/^[A-Z]{2,4}-[A-Z0-9]{4,10}$/);
+  // Match any alphanumeric code with prefix-suffix format (e.g., NET-A1B2C3, CAB-1234)
+  const genericMatch = cleaned.match(/^[A-Z]{2,5}-[A-Z0-9]{3,12}$/);
   if (genericMatch) {
     return genericMatch[0];
+  }
+  
+  // Try to find CON- pattern anywhere in the text (in case of URL or extra data)
+  const embeddedMatch = cleaned.match(/CON-[A-Z0-9]{4,12}/);
+  if (embeddedMatch) {
+    return embeddedMatch[0];
+  }
+  
+  // Check if it's a UUID format (direct connection ID)
+  const uuidMatch = cleaned.match(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i);
+  if (uuidMatch) {
+    return uuidMatch[0];
   }
   
   return null;
