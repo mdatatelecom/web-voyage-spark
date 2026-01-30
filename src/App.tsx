@@ -50,6 +50,8 @@ import IPAMDashboard from "./pages/IPAMDashboard";
 import LandingScreenshots from "./pages/LandingScreenshots";
 import FloorPlanSelector from "./pages/FloorPlanSelector";
 import MonitoringDashboard from "./pages/MonitoringDashboard";
+import MonitoringSettings from "./pages/MonitoringSettings";
+import MonitoringPanelView from "./pages/MonitoringPanelView";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -421,6 +423,22 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole={['admin', 'technician']}>
                   <MonitoringDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/settings"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <MonitoringSettings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/monitoring/panel/:id"
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <MonitoringPanelView />
                 </ProtectedRoute>
               } 
             />

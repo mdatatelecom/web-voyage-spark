@@ -1,15 +1,18 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon, Activity, Server } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon, Activity, Server, Monitor, LayoutDashboard, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useMonitoringPanels } from '@/hooks/useMonitoringPanels';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
@@ -43,6 +46,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { user, signOut } = useAuth();
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
+  const { panels: monitoringPanels, isLoading: panelsLoading } = useMonitoringPanels();
   const [terminalOpen, setTerminalOpen] = useState(false);
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -77,6 +81,23 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     setOpenGroups((prev) =>
       prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
     );
+  };
+
+  // Get active monitoring panels for dynamic menu
+  const activePanels = useMemo(() => {
+    return monitoringPanels.filter(p => p.is_active);
+  }, [monitoringPanels]);
+
+  // Get icon based on panel type
+  const getPanelIcon = (panelType: string): LucideIcon => {
+    switch (panelType) {
+      case 'grafana':
+        return BarChart3;
+      case 'zabbix':
+        return AlertCircle;
+      default:
+        return Monitor;
+    }
   };
 
   const menuGroups: MenuGroup[] = [
@@ -159,7 +180,9 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       icon: Activity,
       visible: (isAdmin || isTechnician) && !isNetworkViewer,
       items: [
-        { label: 'Painéis', icon: Activity, path: '/monitoring', visible: true },
+        { label: 'Visão Geral', icon: LayoutDashboard, path: '/monitoring', visible: true },
+        { label: 'Configurações', icon: Settings, path: '/monitoring/settings', visible: isAdmin },
+        // Dynamic panels will be added below in the render
       ],
     },
     {
@@ -375,6 +398,40 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                           </Button>
                         );
                       })}
+                      
+                      {/* Dynamic monitoring panels */}
+                      {group.id === 'monitoring' && activePanels.length > 0 && (
+                        <>
+                          <Separator className="my-2" />
+                          {panelsLoading ? (
+                            <div className="space-y-2 px-2">
+                              <Skeleton className="h-7 w-full" />
+                              <Skeleton className="h-7 w-full" />
+                            </div>
+                          ) : (
+                            activePanels.map((panel) => {
+                              const PanelIcon = getPanelIcon(panel.panel_type);
+                              const isPanelActive = location.pathname === `/monitoring/panel/${panel.id}`;
+
+                              return (
+                                <Button
+                                  key={panel.id}
+                                  variant={isPanelActive ? "secondary" : "ghost"}
+                                  size="sm"
+                                  className={cn(
+                                    "w-full justify-start gap-2 text-sm h-9",
+                                    isPanelActive && "bg-primary/10 text-primary font-medium"
+                                  )}
+                                  onClick={() => navigate(`/monitoring/panel/${panel.id}`)}
+                                >
+                                  <PanelIcon className="h-3.5 w-3.5" />
+                                  <span className="truncate">{panel.name}</span>
+                                </Button>
+                              );
+                            })
+                          )}
+                        </>
+                      )}
                     </CollapsibleContent>
                   </Collapsible>
                 );
