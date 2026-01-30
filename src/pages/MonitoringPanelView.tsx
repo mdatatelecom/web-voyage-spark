@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   ArrowLeft, 
   RefreshCw, 
   ExternalLink, 
   Maximize2,
-  Activity
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { useMonitoringPanels } from '@/hooks/useMonitoringPanels';
 
@@ -19,15 +21,24 @@ export default function MonitoringPanelView() {
   const { panels, isLoading } = useMonitoringPanels();
   const [refreshKey, setRefreshKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [iframeError, setIframeError] = useState(false);
 
   const panel = panels.find(p => p.id === id);
 
+  // Check if it's a mixed content issue (HTTP URL on HTTPS page)
+  const isMixedContent = panel?.url?.startsWith('http://') && window.location.protocol === 'https:';
+
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
+    setIframeError(false);
   };
 
   const handleFullscreen = () => {
     setIsFullscreen(true);
+  };
+
+  const handleIframeError = () => {
+    setIframeError(true);
   };
 
   // Fullscreen view
@@ -60,6 +71,7 @@ export default function MonitoringPanelView() {
           className="w-full h-[calc(100vh-73px)] border-0"
           title={panel.name}
           allow="fullscreen"
+          onError={handleIframeError}
         />
       </div>
     );
@@ -138,16 +150,45 @@ export default function MonitoringPanelView() {
           </div>
         </div>
 
+        {/* Mixed Content Warning */}
+        {isMixedContent && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Conteúdo HTTP em página HTTPS</AlertTitle>
+            <AlertDescription>
+              O painel usa uma URL HTTP ({panel.url}), mas esta página é servida via HTTPS. 
+              O navegador bloqueia esse tipo de conteúdo por segurança. 
+              <strong> Use o botão "Abrir em Nova Aba"</strong> para visualizar o painel, 
+              ou configure o servidor do painel para usar HTTPS.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Iframe Container */}
         <div className="rounded-lg border overflow-hidden bg-muted/20" style={{ height: 'calc(100vh - 220px)' }}>
-          <iframe
-            key={refreshKey}
-            src={panel.url}
-            className="w-full h-full border-0"
-            title={panel.name}
-            allow="fullscreen"
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-          />
+          {isMixedContent ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Iframe bloqueado pelo navegador</h3>
+              <p className="text-muted-foreground mb-4 max-w-md">
+                URLs HTTP não podem ser incorporadas em páginas HTTPS por motivos de segurança.
+              </p>
+              <Button onClick={() => window.open(panel.url, '_blank')}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir em Nova Aba
+              </Button>
+            </div>
+          ) : (
+            <iframe
+              key={refreshKey}
+              src={panel.url}
+              className="w-full h-full border-0"
+              title={panel.name}
+              allow="fullscreen"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              onError={handleIframeError}
+            />
+          )}
         </div>
       </div>
     </AppLayout>
