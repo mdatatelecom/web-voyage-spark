@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { 
   Building, Cable, Network, Server, LogOut, BarChart3, 
   Loader2, Ticket, RefreshCw, Zap, PieChart, ExternalLink,
-  TrendingUp, Activity
+  Activity, Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +17,7 @@ import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { SLAWidget } from '@/components/dashboard/SLAWidget';
 import { usePortUsageStats } from '@/hooks/useDashboardStats';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { TicketStatsCards } from '@/components/tickets/TicketStatsCards';
 import { TicketsByCategoryChart } from '@/components/tickets/TicketsByCategoryChart';
@@ -28,7 +28,8 @@ import { MetricsWidget } from '@/components/dashboard/MetricsWidget';
 import { QuickAccessWidget } from '@/components/dashboard/QuickAccessWidget';
 import { ZabbixMonitoringWidget } from '@/components/dashboard/ZabbixMonitoringWidget';
 import { EpiMonitorWidget } from '@/components/dashboard/EpiMonitorWidget';
-import { Progress } from '@/components/ui/progress';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -36,6 +37,13 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every minute
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Redirect viewers to scanner page
   useEffect(() => {
@@ -72,7 +80,6 @@ export default function Dashboard() {
   });
 
   const { data: portStats } = usePortUsageStats();
-  const availablePercent = portStats?.total ? Math.round((portStats.available / portStats.total) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -126,21 +133,27 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
-        {/* Hero Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-1">
-            <Activity className="h-5 w-5 text-primary" />
-            <h2 className="text-2xl font-bold">Painel de Controle</h2>
+      <main className="container mx-auto px-6 py-6 space-y-6">
+        {/* Hero Section com Data/Hora */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="h-5 w-5 text-primary" />
+              <h2 className="text-2xl font-bold">Painel de Controle</h2>
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Visão geral da infraestrutura e conectividade de rede
+            </p>
           </div>
-          <p className="text-muted-foreground">
-            Visão geral da infraestrutura e conectividade de rede
-          </p>
+          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg">
+            <Clock className="h-4 w-4" />
+            <span>{format(currentTime, "EEEE, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}</span>
+          </div>
         </div>
 
         {/* Alerta de usuário sem função */}
         {roles.length === 0 && (
-          <Card className="mb-8 border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-yellow-500/10">
+          <Card className="border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-yellow-500/10">
             <CardHeader>
               <CardTitle className="text-yellow-600 dark:text-yellow-500">
                 Nenhuma Função Atribuída
@@ -152,171 +165,115 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Filtros */}
-        <div className="mb-8">
-          <DashboardFilters />
-        </div>
+        {/* Filtros Colapsíveis */}
+        <DashboardFilters />
 
-        {/* Seção Principal: Métricas + Alertas */}
-        <section className="grid gap-6 lg:grid-cols-3 mb-8">
-          {/* Métricas de Infraestrutura */}
-          <div className="lg:col-span-1">
-            <div className="mb-3 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Infraestrutura
-              </h3>
-            </div>
-            <MetricsWidget
-              buildings={stats?.buildings || 0}
-              racks={stats?.racks || 0}
-              equipment={stats?.equipment || 0}
-              connections={stats?.connections || 0}
-              isLoading={isLoadingStats}
-            />
-            
-            {/* Card de Portas */}
-            <Card className="mt-4 relative overflow-hidden border-border/50 bg-gradient-to-br from-card to-green-500/5 isolate">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full -mr-12 -mt-12 z-0" />
-              <CardHeader className="pb-2 relative z-10">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium uppercase tracking-wider">
-                    Disponibilidade de Portas
-                  </CardDescription>
-                  <Cable className="h-4 w-4 text-green-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative z-10">
-                <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                  {portStats?.available || 0}
-                </div>
-                <Progress 
-                  value={availablePercent} 
-                  className="mt-3 h-2 bg-muted"
-                />
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3 text-green-500" />
-                  {availablePercent}% disponíveis ({portStats?.available || 0} de {portStats?.total || 0})
-                </p>
-              </CardContent>
-            </Card>
+        {/* SEÇÃO 1: Métricas Rápidas (5 colunas) */}
+        <section>
+          <MetricsWidget
+            buildings={stats?.buildings || 0}
+            racks={stats?.racks || 0}
+            equipment={stats?.equipment || 0}
+            connections={stats?.connections || 0}
+            ports={portStats?.available}
+            isLoading={isLoadingStats}
+          />
+        </section>
+
+        {/* SEÇÃO 2: Monitoramento e Alertas (3 colunas) */}
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Monitoramento e Alertas
+            </h3>
           </div>
-          
-          {/* Widget de Alertas Críticos */}
-          <div className="lg:col-span-2 space-y-6">
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Alertas do Sistema
-                </h3>
-              </div>
-              <CriticalAlertsWidget />
-            </div>
-            
-            {/* Widget de Monitoramento Zabbix */}
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Monitoramento Externo
-                </h3>
-              </div>
-              <ZabbixMonitoringWidget />
-            </div>
-            
-            {/* Widget de Segurança do Trabalho (EPI Monitor) */}
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Segurança do Trabalho
-                </h3>
-              </div>
-              <EpiMonitorWidget />
-            </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <CriticalAlertsWidget />
+            <ZabbixMonitoringWidget />
+            <EpiMonitorWidget />
           </div>
         </section>
 
-        {/* Seção de Acesso Rápido */}
-        <section className="mb-8 relative z-10">
-          <div className="mb-4 flex items-center gap-2">
+        {/* SEÇÃO 3: Acesso Rápido (compacto) */}
+        <section>
+          <div className="mb-3 flex items-center gap-2">
             <Zap className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Acesso Rápido
             </h3>
           </div>
-          <Card className="p-5 bg-card backdrop-blur-sm border-border/50 shadow-sm">
+          <Card className="p-3 bg-card/50 border-border/50">
             <QuickAccessWidget />
           </Card>
         </section>
 
-        {/* Seção de Gráficos de Infraestrutura */}
-        <section className="mb-8">
-          <div className="mb-4 flex items-center gap-2">
+        {/* SEÇÃO 4: Análise de Infraestrutura (grid 2x2) */}
+        <section>
+          <div className="mb-3 flex items-center gap-2">
             <PieChart className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Análise de Infraestrutura
             </h3>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Server className="h-4 w-4 text-primary" />
                   Ocupação de Racks
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[250px]">
                 <RackOccupancyChart />
               </CardContent>
             </Card>
             
             <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Building className="h-4 w-4 text-primary" />
                   Tipos de Equipamento
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[250px]">
                 <EquipmentTypeChart />
               </CardContent>
             </Card>
             
             <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Cable className="h-4 w-4 text-primary" />
                   Status de Conexões
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[250px]">
                 <ConnectionStatusChart />
               </CardContent>
             </Card>
             
             <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Network className="h-4 w-4 text-primary" />
                   Uso de Portas
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[250px]">
                 <PortUsageChart />
               </CardContent>
             </Card>
           </div>
         </section>
 
-        {/* Seção de Chamados de Suporte */}
-        <section className="pt-8 border-t border-border/50">
-          <div className="flex items-center justify-between mb-6">
+        {/* SEÇÃO 5: Centro de Suporte */}
+        <section className="pt-6 border-t border-border/50">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Ticket className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-bold">Centro de Suporte</h2>
+                <h2 className="text-lg font-bold">Centro de Suporte</h2>
               </div>
               <p className="text-sm text-muted-foreground">
                 Métricas e desempenho do suporte técnico
@@ -324,6 +281,7 @@ export default function Dashboard() {
             </div>
             <Button 
               variant="outline" 
+              size="sm"
               onClick={() => navigate('/tickets')}
               className="gap-2"
             >
@@ -332,7 +290,7 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-4 mb-6">
+          <div className="grid gap-4 lg:grid-cols-4 mb-4">
             <div className="lg:col-span-1">
               <SLAWidget />
             </div>
@@ -341,30 +299,30 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium">Por Categoria</CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[200px]">
                 <TicketsByCategoryChart />
               </CardContent>
             </Card>
             
             <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium">Por Técnico</CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[200px]">
                 <TicketsByTechnicianChart />
               </CardContent>
             </Card>
             
             <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 pb-3 border-b border-border/30">
+              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
                 <CardTitle className="text-sm font-medium">Tendência</CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 h-[200px]">
                 <TicketTrendChart />
               </CardContent>
             </Card>
@@ -372,13 +330,13 @@ export default function Dashboard() {
         </section>
 
         {/* Card de Relatórios */}
-        <Card className="mt-8 overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-          <CardHeader className="bg-gradient-to-r from-card to-primary/5 border-b border-border/30">
-            <CardTitle className="flex items-center gap-2">
+        <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
+            <CardTitle className="flex items-center gap-2 text-base">
               <BarChart3 className="h-5 w-5 text-primary" />
               Relatórios
             </CardTitle>
-            <CardDescription>Acesse relatórios detalhados de ocupação</CardDescription>
+            <CardDescription className="text-xs">Acesse relatórios detalhados de ocupação</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <Button 

@@ -1,29 +1,26 @@
 import React from 'react';
-import { Building2, Server, Cpu, Cable, TrendingUp, TrendingDown } from 'lucide-react';
+import { Building2, Server, Cpu, Cable, Plug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MetricCardProps {
   title: string;
   value: number | string;
   icon: React.ReactNode;
-  trend?: number;
-  trendLabel?: string;
-  color: 'blue' | 'green' | 'purple' | 'orange';
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'cyan';
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
   title,
   value,
   icon,
-  trend,
-  trendLabel,
   color,
 }) => {
   const colorClasses = {
-    blue: 'from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600',
-    green: 'from-green-500/10 to-green-600/5 border-green-500/20 text-green-600',
-    purple: 'from-purple-500/10 to-purple-600/5 border-purple-500/20 text-purple-600',
-    orange: 'from-orange-500/10 to-orange-600/5 border-orange-500/20 text-orange-600',
+    blue: 'from-blue-500/10 to-blue-600/5 border-blue-500/20',
+    green: 'from-green-500/10 to-green-600/5 border-green-500/20',
+    purple: 'from-purple-500/10 to-purple-600/5 border-purple-500/20',
+    orange: 'from-orange-500/10 to-orange-600/5 border-orange-500/20',
+    cyan: 'from-cyan-500/10 to-cyan-600/5 border-cyan-500/20',
   };
 
   const iconColorClasses = {
@@ -31,6 +28,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     green: 'bg-green-500/10 text-green-600',
     purple: 'bg-purple-500/10 text-purple-600',
     orange: 'bg-orange-500/10 text-orange-600',
+    cyan: 'bg-cyan-500/10 text-cyan-600',
   };
 
   return (
@@ -42,39 +40,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
         colorClasses[color]
       )}
     >
-      <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-current opacity-5 -mr-8 -mt-8" />
-      
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      <div className="flex items-center gap-3">
+        <div className={cn("p-2 rounded-lg shrink-0", iconColorClasses[color])}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">
             {title}
           </p>
-          <p className="text-3xl font-bold mt-1 text-foreground">{value}</p>
-          
-          {trend !== undefined && (
-            <div className="flex items-center gap-1 mt-2">
-              {trend >= 0 ? (
-                <TrendingUp className="h-3 w-3 text-green-500" />
-              ) : (
-                <TrendingDown className="h-3 w-3 text-red-500" />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                trend >= 0 ? "text-green-600" : "text-red-600"
-              )}>
-                {trend > 0 && '+'}{trend}%
-              </span>
-              {trendLabel && (
-                <span className="text-xs text-muted-foreground">
-                  {trendLabel}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        
-        <div className={cn("p-2.5 rounded-lg", iconColorClasses[color])}>
-          {icon}
+          <p className="text-2xl font-bold text-foreground">{value}</p>
         </div>
       </div>
     </div>
@@ -86,6 +60,7 @@ interface MetricsWidgetProps {
   racks: number;
   equipment: number;
   connections: number;
+  ports?: number;
   isLoading?: boolean;
 }
 
@@ -94,20 +69,21 @@ export const MetricsWidget: React.FC<MetricsWidgetProps> = ({
   racks,
   equipment,
   connections,
+  ports,
   isLoading,
 }) => {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-3 h-full animate-pulse">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-xl bg-muted h-full min-h-[100px]" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 animate-pulse">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="rounded-xl bg-muted h-[76px]" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 h-full">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
       <MetricCard
         title="Localizações"
         value={buildings}
@@ -132,6 +108,14 @@ export const MetricsWidget: React.FC<MetricsWidgetProps> = ({
         icon={<Cable className="h-5 w-5" />}
         color="orange"
       />
+      {ports !== undefined && (
+        <MetricCard
+          title="Portas Livres"
+          value={ports}
+          icon={<Plug className="h-5 w-5" />}
+          color="cyan"
+        />
+      )}
     </div>
   );
 };
