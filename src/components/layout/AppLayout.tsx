@@ -154,6 +154,15 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       ],
     },
     {
+      id: 'monitoring',
+      label: 'Monitoramento',
+      icon: Activity,
+      visible: (isAdmin || isTechnician) && !isNetworkViewer,
+      items: [
+        { label: 'Painéis', icon: Activity, path: '/monitoring', visible: true },
+      ],
+    },
+    {
       id: 'system',
       label: 'Sistema',
       icon: Settings,

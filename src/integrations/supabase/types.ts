@@ -850,6 +850,45 @@ export type Database = {
         }
         Relationships: []
       }
+      monitoring_panels: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          panel_type: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          panel_type?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          panel_type?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       notification_settings: {
         Row: {
           alert_critical: boolean
