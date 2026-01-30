@@ -28,19 +28,19 @@ export const useMonitoringPanels = () => {
   const { data: panels = [], isLoading } = useQuery({
     queryKey: ['monitoring-panels'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('monitoring_panels')
         .select('*')
         .order('display_order', { ascending: true });
 
       if (error) throw error;
-      return data as MonitoringPanel[];
+      return (data || []) as MonitoringPanel[];
     },
   });
 
   const addPanelMutation = useMutation({
     mutationFn: async (input: CreatePanelInput) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('monitoring_panels')
         .insert([input])
         .select()
@@ -56,7 +56,7 @@ export const useMonitoringPanels = () => {
 
   const updatePanelMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<MonitoringPanel> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('monitoring_panels')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
@@ -73,7 +73,7 @@ export const useMonitoringPanels = () => {
 
   const deletePanelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('monitoring_panels')
         .delete()
         .eq('id', id);
