@@ -28,33 +28,63 @@ export function parseQRCode(text: string): QRCodeData | null {
   }
 }
 
+const UUID_ANYWHERE_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+function isUuid(value: string) {
+  return UUID_ANYWHERE_REGEX.test(value) && value.match(UUID_ANYWHERE_REGEX)?.[0] === value;
+}
+
+function tryExtractFromUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+
+    // Common query params that might carry IDs/codes
+    const candidates = [
+      url.searchParams.get('id'),
+      url.searchParams.get('connectionId'),
+      url.searchParams.get('connection_id'),
+      url.searchParams.get('code'),
+      url.searchParams.get('connectionCode'),
+      url.searchParams.get('connection_code'),
+    ].filter(Boolean) as string[];
+
+    // Also scan pathname/hash as fallback
+    candidates.push(url.pathname);
+    candidates.push(url.hash);
+
+    for (const c of candidates) {
+      const hit = extractConnectionCode(c);
+      if (hit) return hit;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Extract connection code from barcode text
 export function extractConnectionCode(text: string): string | null {
-  const cleaned = text.trim().toUpperCase();
+  const raw = String(text ?? '').trim();
+  if (!raw) return null;
+
+  // If the QR contains a URL, try extracting from it first.
+  const fromUrl = tryExtractFromUrl(raw);
+  if (fromUrl) return fromUrl;
+
+  // UUID anywhere (common when QR stores a direct /connections/:id URL)
+  const uuidAnywhere = raw.match(UUID_ANYWHERE_REGEX);
+  if (uuidAnywhere) return uuidAnywhere[0];
+
+  const cleaned = raw.toUpperCase();
   
-  // Match CON-XXXX format (most common)
-  const conMatch = cleaned.match(/CON-[A-Z0-9]+/);
-  if (conMatch) {
-    return conMatch[0];
-  }
-  
-  // Match any alphanumeric code with prefix-suffix format (e.g., NET-A1B2C3, CAB-1234)
-  const genericMatch = cleaned.match(/^[A-Z]{2,5}-[A-Z0-9]{3,12}$/);
-  if (genericMatch) {
-    return genericMatch[0];
-  }
-  
-  // Try to find CON- pattern anywhere in the text (in case of URL or extra data)
-  const embeddedMatch = cleaned.match(/CON-[A-Z0-9]{4,12}/);
-  if (embeddedMatch) {
-    return embeddedMatch[0];
-  }
-  
-  // Check if it's a UUID format (direct connection ID)
-  const uuidMatch = cleaned.match(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i);
-  if (uuidMatch) {
-    return uuidMatch[0];
-  }
+  // Prefer system prefixes; allow multiple segments (e.g., CON-0001-0002, CAB-12-34)
+  const prefixed = cleaned.match(/\b(?:CON|NET|CAB|FIB|LINK)[-_][A-Z0-9]+(?:[-_][A-Z0-9]+)*\b/);
+  if (prefixed) return prefixed[0].replace(/_/g, '-');
+
+  // Generic fallback: PREFIX-ALPHANUM... (embedded anywhere)
+  const genericEmbedded = cleaned.match(/\b[A-Z]{2,8}[-_][A-Z0-9]{3,32}(?:[-_][A-Z0-9]{2,32})*\b/);
+  if (genericEmbedded) return genericEmbedded[0].replace(/_/g, '-');
   
   return null;
 }
@@ -67,30 +97,29 @@ export async function parseConnectionCode(text: string): Promise<QRCodeData | nu
     return null;
   }
   
-  try {
-    const { data: connection, error } = await supabase
-      .from('v_connection_details')
-      .select('id, connection_code, equipment_a_name, port_a_name, equipment_b_name, port_b_name')
-      .eq('connection_code', connectionCode)
-      .maybeSingle();
-    
-    if (error || !connection) {
-      return null;
-    }
-    
-    return {
-      code: connection.connection_code!,
-      id: connection.id!,
-      a: {
-        eq: connection.equipment_a_name || '',
-        p: connection.port_a_name || '',
-      },
-      b: {
-        eq: connection.equipment_b_name || '',
-        p: connection.port_b_name || '',
-      },
-    };
-  } catch {
-    return null;
-  }
+  const baseQuery = supabase
+    .from('v_connection_details')
+    .select('id, connection_code, equipment_a_name, port_a_name, equipment_b_name, port_b_name');
+
+  const query = isUuid(connectionCode)
+    ? baseQuery.eq('id', connectionCode)
+    : baseQuery.eq('connection_code', connectionCode);
+
+  const { data: connection, error } = await query.maybeSingle();
+
+  if (error) throw error;
+  if (!connection) return null;
+
+  return {
+    code: connection.connection_code!,
+    id: connection.id!,
+    a: {
+      eq: connection.equipment_a_name || '',
+      p: connection.port_a_name || '',
+    },
+    b: {
+      eq: connection.equipment_b_name || '',
+      p: connection.port_b_name || '',
+    },
+  };
 }

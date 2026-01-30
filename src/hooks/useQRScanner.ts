@@ -71,6 +71,8 @@ export const useQRScanner = () => {
         console.error('Error getting cameras:', err);
         if (err.name === 'NotAllowedError') {
           setError('Permissão de câmera negada. Habilite nas configurações do navegador.');
+        } else if (err.name === 'NotReadableError') {
+          setError('Câmera está sendo usada por outro aplicativo. Feche-o e tente novamente.');
         } else {
           setError('Não foi possível acessar as câmeras. Verifique as permissões.');
         }
@@ -92,7 +94,7 @@ export const useQRScanner = () => {
     localStorage.setItem('qr_scan_history', JSON.stringify(newHistory));
   }, [scanHistory]);
 
-  const processQRCode = useCallback(async (decodedText: string) => {
+  const processQRCode = useCallback(async (decodedText: string): Promise<boolean> => {
     setError(null);
     
     // Try to parse as JSON QR code first
@@ -100,7 +102,18 @@ export const useQRScanner = () => {
     
     // If not a JSON QR code, try to parse as connection code (barcode)
     if (!qrData) {
-      qrData = await parseConnectionCode(decodedText);
+      try {
+        qrData = await parseConnectionCode(decodedText);
+      } catch (err: any) {
+        console.error('Error validating connection code:', err);
+        setError('Não foi possível validar o código. Verifique permissões e conectividade.');
+        toast({
+          title: 'Falha ao Validar',
+          description: 'Não foi possível validar o QR Code agora. Tente novamente.',
+          variant: 'destructive',
+        });
+        return false;
+      }
     }
     
     if (!qrData) {
@@ -110,7 +123,10 @@ export const useQRScanner = () => {
         description: 'Este código não é do sistema InfraConnexus.',
         variant: 'destructive',
       });
-      return;
+      if (import.meta.env.DEV) {
+        console.warn('[QRScanner] Unrecognized code payload:', decodedText);
+      }
+      return false;
     }
 
     // Vibrate device
@@ -135,7 +151,7 @@ export const useQRScanner = () => {
           description: `A conexão ${qrData.code} não existe mais no sistema.`,
           variant: 'destructive',
         });
-        return;
+        return false;
       }
 
       // Log scan activity
@@ -162,6 +178,8 @@ export const useQRScanner = () => {
         title: 'Conexão Encontrada!',
         description: `${qrData.code} - ${connection.equipment_a_name} → ${connection.equipment_b_name}`,
       });
+
+      return true;
     } catch (err: any) {
       console.error('Error processing code:', err);
       setError('Erro ao buscar dados da conexão.');
@@ -170,6 +188,8 @@ export const useQRScanner = () => {
         description: 'Não foi possível buscar os dados da conexão.',
         variant: 'destructive',
       });
+
+      return false;
     }
   }, [toast, user, addToHistory]);
 
@@ -197,7 +217,26 @@ export const useQRScanner = () => {
         },
         (decodedText) => {
           html5QrCode.pause(true);
-          processQRCode(decodedText);
+          processQRCode(decodedText)
+            .then((ok) => {
+              if (!ok) {
+                // Avoid rapid re-triggers on the same code.
+                window.setTimeout(() => {
+                  try {
+                    html5QrCode.resume();
+                  } catch {
+                    // ignore
+                  }
+                }, 1500);
+              }
+            })
+            .catch(() => {
+              try {
+                html5QrCode.resume();
+              } catch {
+                // ignore
+              }
+            });
         },
         (errorMessage) => {
           // Scanning errors are normal, ignore them
