@@ -209,6 +209,10 @@ export const useGo2rtcSettings = () => {
       : `${rtspUrl}#tcp`;
 
     try {
+      // Use AbortController for faster timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       // Use Edge Function proxy to register the RTSP stream with TCP mode
       const { data, error } = await supabase.functions.invoke('go2rtc-proxy', {
         body: { 
@@ -217,6 +221,8 @@ export const useGo2rtcSettings = () => {
           method: 'PUT'
         }
       });
+
+      clearTimeout(timeoutId);
 
       if (error) {
         return { success: false, message: error.message || 'Erro ao registrar stream via proxy' };
@@ -229,8 +235,20 @@ export const useGo2rtcSettings = () => {
         return { success: true, hlsUrl };
       }
       
+      // Return specific error types for better UX
+      if (data?.errorType === 'CONNECTION_REFUSED') {
+        return { success: false, message: 'Servidor go2rtc offline ou inacessível' };
+      }
+      if (data?.errorType === 'SSL_CERTIFICATE_ERROR' || data?.errorType === 'HTTPS_REDIRECT') {
+        return { success: false, message: 'Erro SSL: use HTTP ao invés de HTTPS' };
+      }
+      
       return { success: false, message: data?.error || 'Falha ao registrar stream no go2rtc' };
     } catch (error) {
+      // Fast fail on abort
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { success: false, message: 'Timeout: go2rtc não respondeu' };
+      }
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Erro ao registrar stream' 
