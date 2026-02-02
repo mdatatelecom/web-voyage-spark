@@ -1,183 +1,170 @@
 
 
-## Plano: Proteção contra DevTools e Código Fonte
+## Plano: Correções e Melhorias no Gerenciamento de Usuários
 
-### Objetivo
-Implementar proteção para dificultar o acesso ao código fonte da aplicação através de:
-- Bloqueio do menu de contexto (clique direito)
-- Bloqueio de teclas de atalho (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U)
-- Configuração via painel de administração para ativar/desativar
+### Problemas Identificados
+
+Após análise do código e das requisições de rede, identifiquei os seguintes problemas:
 
 ---
 
-### Nova Estrutura
+### 1. Botão "Adicionar Role" na Tabela de Usuários
 
-```text
-Configurações do Sistema (System.tsx)
-├── Aba "Segurança" ou dentro de "Status"
-│   ├── Toggle: Desabilitar Menu de Contexto (clique direito)
-│   ├── Toggle: Desabilitar Teclas de Desenvolvedor (F12, Ctrl+Shift+I)
-│   └── Descrição informativa sobre as limitações
+**Problema Atual:**
+No arquivo `Users.tsx` (linha 281-287), o botão "Adicionar Role" na tabela de usuários abre o mesmo diálogo genérico (`UserRoleDialog`) que exige buscar o usuário por email novamente. Isso é confuso porque o usuário já está selecionado na linha da tabela.
+
+**Solução:**
+Passar o usuário selecionado diretamente para o diálogo ou criar um fluxo simplificado.
+
+---
+
+### 2. Fluxo do UserRoleDialog
+
+**Problema Atual:**
+O componente `UserRoleDialog` exige dois passos:
+1. Buscar usuário por email (chamando edge function)
+2. Atribuir a role
+
+Quando clicamos em "Adicionar Role" na linha do usuário, o email já é conhecido, mas não é passado para o diálogo.
+
+**Solução:**
+Modificar o `UserRoleDialog` para aceitar um `userId` opcional. Se passado, pular a etapa de busca.
+
+---
+
+### 3. Verificação de Permissões - Configurações
+
+**Verificação Realizada:**
+- `/system` → Requer `admin` (App.tsx linha 248-254)
+- `/users` → Requer `admin` (App.tsx linha 208-214)
+- `/alert-settings` → Requer `admin` (App.tsx linha 240-246)
+- `/monitoring/settings` → Requer `admin` (App.tsx linha 437-444)
+
+**Status:** As rotas estão corretamente protegidas com `requiredRole="admin"`.
+
+**Menu Lateral (AppLayout.tsx):**
+- Grupo "Sistema" (linha 189-199): `visible: isAdmin && !isNetworkViewer`
+- "Configurações" do Monitoramento (linha 184): `visible: isAdmin`
+
+**Status:** Menu está corretamente restrito a admins.
+
+---
+
+### 4. Melhorias Propostas
+
+---
+
+#### A. Corrigir Botão "Adicionar Role" na Tabela
+
+**Arquivo:** `src/pages/Users.tsx`
+
+Modificar para passar o usuário selecionado:
+```typescript
+// Antes (linha 281-287):
+<Button onClick={() => setRoleDialogOpen(true)}>
+  Adicionar Role
+</Button>
+
+// Depois:
+const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
+
+<Button onClick={() => {
+  setSelectedUserForRole(user);
+  setRoleDialogOpen(true);
+}}>
+  Adicionar Role
+</Button>
 ```
 
 ---
 
-### Arquivos a Criar/Modificar
+#### B. Melhorar UserRoleDialog
+
+**Arquivo:** `src/components/users/UserRoleDialog.tsx`
+
+Adicionar prop opcional para receber usuário pré-selecionado:
+
+```typescript
+interface UserRoleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  preselectedUser?: { id: string; email: string } | null;
+}
+
+// Se preselectedUser existir, pré-preencher e pular busca
+useEffect(() => {
+  if (preselectedUser) {
+    setEmail(preselectedUser.email);
+    setFoundUserId(preselectedUser.id);
+  }
+}, [preselectedUser]);
+```
+
+---
+
+#### C. Adicionar Atribuição Direta de Role na Tabela
+
+**Melhoria UX:** Adicionar dropdown direto na tabela para adicionar role rapidamente sem abrir diálogo.
+
+```typescript
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="outline" size="sm">
+      <Plus className="w-3 h-3 mr-1" />
+      Role
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    {['viewer', 'network_viewer', 'technician', 'admin']
+      .filter(r => !user.roles.includes(r as UserRole))
+      .map(role => (
+        <DropdownMenuItem 
+          key={role}
+          onClick={() => assignRole({ userId: user.id, role: role as UserRole })}
+        >
+          {getRoleLabel(role as UserRole)}
+        </DropdownMenuItem>
+      ))
+    }
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+---
+
+#### D. Melhorar Feedback Visual
+
+**Adicionar loading state** ao atribuir role:
+- Mostrar spinner no botão durante atribuição
+- Feedback visual quando role é adicionada
+
+---
+
+### Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/hooks/useDevToolsProtection.ts` | Criar | Hook que gerencia proteção de DevTools |
-| `src/hooks/useSystemSettings.ts` | Modificar | Adicionar interface e lógica para security_settings |
-| `src/pages/System.tsx` | Modificar | Adicionar seção de configuração de segurança |
-| `src/App.tsx` | Modificar | Aplicar proteção global via hook |
+| `src/pages/Users.tsx` | Modificar | Adicionar state para usuário selecionado, dropdown de roles |
+| `src/components/users/UserRoleDialog.tsx` | Modificar | Aceitar usuário pré-selecionado |
+| `src/hooks/useUsers.ts` | Verificar | Garantir que `assignRole` funciona corretamente |
 
 ---
 
-### Detalhes Técnicos
+### Verificações de Segurança Realizadas
 
-#### 1. Novo Hook: useDevToolsProtection.ts
-
-Este hook irá:
-- Carregar configurações de segurança do banco/cache
-- Adicionar listeners para eventos de teclado e contexto
-- Bloquear atalhos: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
-- Bloquear menu de contexto (clique direito)
-- Limpar listeners ao desmontar
-
-```typescript
-// Estrutura básica do hook
-interface SecuritySettings {
-  disableContextMenu: boolean;
-  disableDevToolsShortcuts: boolean;
-}
-
-export const useDevToolsProtection = () => {
-  // Carregar configurações do localStorage/banco
-  // Adicionar event listeners condicionalmente
-  // Retornar estado atual
-};
-```
-
-#### 2. Event Listeners
-
-**Teclado (keydown):**
-```typescript
-const handleKeyDown = (e: KeyboardEvent) => {
-  // F12
-  if (e.key === 'F12') {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Ctrl+Shift+I (DevTools)
-  if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Ctrl+Shift+J (Console)
-  if (e.ctrlKey && e.shiftKey && e.key === 'J') {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Ctrl+Shift+C (Inspect)
-  if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Ctrl+U (View Source)
-  if (e.ctrlKey && e.key === 'u') {
-    e.preventDefault();
-    return false;
-  }
-};
-```
-
-**Menu de Contexto:**
-```typescript
-const handleContextMenu = (e: MouseEvent) => {
-  e.preventDefault();
-  return false;
-};
-```
-
-#### 3. Armazenamento
-
-Utilizará a tabela `system_settings` existente com uma nova chave:
-```json
-{
-  "setting_key": "security_settings",
-  "setting_value": {
-    "disableContextMenu": true,
-    "disableDevToolsShortcuts": true
-  }
-}
-```
-
-#### 4. Interface de Configuração (System.tsx)
-
-Adicionar dentro da aba de configurações ou criar nova aba "Segurança":
-
-- **Toggle "Desabilitar Clique Direito"**
-  - Impede menu de contexto do navegador
-  
-- **Toggle "Desabilitar Atalhos de Desenvolvedor"**
-  - Bloqueia F12, Ctrl+Shift+I/J/C, Ctrl+U
-
-- **Aviso informativo:**
-  > "Estas proteções dificultam mas não impedem totalmente o acesso ao código fonte. Usuários avançados podem contorná-las. São úteis para prevenir acesso casual."
+| Área | Status | Detalhes |
+|------|--------|----------|
+| Rotas protegidas | OK | `/users`, `/system`, `/alert-settings` requerem admin |
+| Menu lateral | OK | Grupo "Sistema" só visível para admin |
+| RLS policies | OK | `user_roles` tem policy "Only admins can manage roles" |
+| Edge functions | OK | `admin-list-users` e `admin-find-user-by-email` verificam role admin |
 
 ---
 
-### Fluxo de Funcionamento
+### Resumo das Alterações
 
-1. Usuário acessa Sistema → Configurações de Segurança
-2. Ativa os toggles desejados
-3. Configuração salva no banco de dados
-4. Hook `useDevToolsProtection` carrega configurações
-5. Listeners são adicionados globalmente no App
-6. Tentativas de usar F12/clique direito são bloqueadas
-
----
-
-### Integração no App.tsx
-
-```typescript
-import { useDevToolsProtection } from '@/hooks/useDevToolsProtection';
-
-const App = () => {
-  // Aplicar proteção globalmente
-  useDevToolsProtection();
-  
-  return (
-    // ... resto do app
-  );
-};
-```
-
----
-
-### Considerações de Segurança
-
-**Limitações importantes:**
-- Esta proteção é apenas uma barreira visual/casual
-- DevTools pode ser aberto de outras formas (menu do navegador, linha de comando)
-- Código fonte sempre pode ser acessado via Network tab
-- É uma medida de "security through obscurity"
-
-**Benefícios:**
-- Impede acesso casual por usuários não técnicos
-- Dificulta cópia rápida de conteúdo
-- Profissionaliza a aparência do sistema
-
----
-
-### Estimativa de Alterações
-
-- **Novo hook**: ~80 linhas
-- **System.tsx**: ~50 linhas adicionais
-- **App.tsx**: ~5 linhas
-- **useSystemSettings.ts**: ~30 linhas
+1. **UserRoleDialog** - Aceitar `preselectedUser` prop para pular busca
+2. **Users.tsx** - Passar usuário selecionado ao abrir diálogo
+3. **Users.tsx** - Adicionar dropdown de roles na tabela para ação rápida
+4. **Users.tsx** - Melhorar feedback visual durante atribuição
 
