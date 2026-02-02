@@ -46,6 +46,22 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Failed to connect to go2rtc server";
     console.error("go2rtc-proxy error:", errorMessage);
+    
+    // Check for SSL certificate errors
+    if (errorMessage.includes("UnknownIssuer") || 
+        errorMessage.includes("certificate") || 
+        errorMessage.includes("SSL") ||
+        errorMessage.includes("TLS")) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Erro de certificado SSL: O servidor go2rtc usa um certificado não confiável ou autoassinado. Use HTTP ao invés de HTTPS, ou configure um certificado válido no servidor.",
+          errorType: "SSL_CERTIFICATE_ERROR"
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
