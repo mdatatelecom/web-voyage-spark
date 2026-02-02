@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,14 +24,33 @@ import { Loader2 } from 'lucide-react';
 interface UserRoleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  preselectedUser?: { id: string; email: string } | null;
 }
 
-export const UserRoleDialog = ({ open, onOpenChange }: UserRoleDialogProps) => {
+export const UserRoleDialog = ({ open, onOpenChange, preselectedUser }: UserRoleDialogProps) => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('viewer');
   const [foundUserId, setFoundUserId] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const { findUserByEmail, assignRole, isAssigning } = useUsers();
+
+  // Pré-preencher quando usuário é passado
+  useEffect(() => {
+    if (preselectedUser && open) {
+      setEmail(preselectedUser.email);
+      setFoundUserId(preselectedUser.id);
+    }
+  }, [preselectedUser, open]);
+
+  // Limpar estado ao fechar
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setEmail('');
+      setFoundUserId(null);
+      setRole('viewer');
+    }
+    onOpenChange(newOpen);
+  };
 
   const handleSearch = async () => {
     if (!email) {
@@ -67,42 +86,53 @@ export const UserRoleDialog = ({ open, onOpenChange }: UserRoleDialogProps) => {
       { userId: foundUserId, role },
       {
         onSuccess: () => {
-          setEmail('');
-          setFoundUserId(null);
-          setRole('viewer');
-          onOpenChange(false);
+          handleOpenChange(false);
         },
       }
     );
   };
 
+  const isPreselected = preselectedUser && foundUserId === preselectedUser.id;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Atribuir Role a Usuário</DialogTitle>
           <DialogDescription>
-            Busque um usuário por email e atribua uma role
+            {isPreselected 
+              ? `Atribuir role para ${preselectedUser.email}`
+              : 'Busque um usuário por email e atribua uma role'
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email do Usuário</Label>
-            <div className="flex gap-2">
-              <Input
-                id="email"
-                type="email"
-                placeholder="usuario@exemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-              <Button onClick={handleSearch} disabled={searching}>
-                {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buscar'}
-              </Button>
+          {!isPreselected && (
+            <div className="space-y-2">
+              <Label htmlFor="email">Email do Usuário</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="usuario@exemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button onClick={handleSearch} disabled={searching}>
+                  {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buscar'}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {foundUserId && (
+            <div className="p-3 bg-muted rounded-md">
+              <p className="text-sm text-muted-foreground">Usuário selecionado:</p>
+              <p className="font-medium">{email}</p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
@@ -121,7 +151,7 @@ export const UserRoleDialog = ({ open, onOpenChange }: UserRoleDialogProps) => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={handleAssign} disabled={!foundUserId || isAssigning}>
