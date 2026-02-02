@@ -27,10 +27,44 @@ serve(async (req) => {
     const targetUrl = `${serverUrl}${endpoint}`;
     console.log(`go2rtc-proxy: Fetching ${targetUrl}`);
     
+    // Use manual redirect to detect HTTPS redirects with bad certificates
     const response = await fetch(targetUrl, {
       method,
       signal: AbortSignal.timeout(10000),
+      redirect: 'manual',
     });
+
+    // Check if server is redirecting to HTTPS
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      console.log(`go2rtc-proxy: Server redirected to ${location}`);
+      
+      if (location?.startsWith('https://')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `O servidor está redirecionando para HTTPS (${location}), mas o certificado SSL é inválido. Configure o servidor go2rtc para usar HTTP ou instale um certificado SSL válido.`,
+            errorType: "HTTPS_REDIRECT"
+          }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Follow other redirects manually
+      const redirectResponse = await fetch(location || targetUrl, {
+        method,
+        signal: AbortSignal.timeout(10000),
+      });
+      const redirectData = await redirectResponse.text();
+      return new Response(
+        JSON.stringify({ 
+          success: redirectResponse.ok, 
+          status: redirectResponse.status,
+          data: redirectData 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const data = await response.text();
     console.log(`go2rtc-proxy: Response status ${response.status}, data length: ${data.length}`);
