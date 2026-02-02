@@ -171,6 +171,15 @@ export const useGo2rtcSettings = () => {
         return { success: true, message: 'Servidor go2rtc online e acessível' };
       } else {
         setServerStatus('offline');
+        
+        // Handle SSL certificate errors with a more helpful message
+        if (data?.errorType === 'SSL_CERTIFICATE_ERROR') {
+          return { 
+            success: false, 
+            message: 'Erro de certificado SSL. Tente usar HTTP (ex: http://192.168.1.100:1984) ao invés de HTTPS, ou configure um certificado válido no servidor go2rtc.'
+          };
+        }
+        
         return { success: false, message: data?.error || 'Servidor não respondeu' };
       }
     } catch (error) {
