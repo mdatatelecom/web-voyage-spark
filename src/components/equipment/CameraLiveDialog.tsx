@@ -21,9 +21,11 @@ type StreamType =
 
 type StreamMode = 'detecting' | 'webrtc' | 'hls' | 'mjpeg' | 'snapshot' | 'error';
 
-// Constants for retry logic
-const MAX_WEBRTC_ATTEMPTS = 2;
-const WEBRTC_TIMEOUT_MS = 8000;
+// Constants for retry logic - optimized for faster feedback
+const MAX_WEBRTC_ATTEMPTS = 1; // Single attempt, fail fast
+const WEBRTC_TIMEOUT_MS = 5000; // Reduced from 8s
+const ICE_GATHERING_TIMEOUT_MS = 1000; // Reduced from 2s
+const GO2RTC_REGISTER_TIMEOUT_MS = 3000; // Fast fail for registration
 
 // Extract auth credentials from URL
 const extractAuthFromUrl = (url: string): { cleanUrl: string; username?: string; password?: string } => {
@@ -412,7 +414,7 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // Wait for ICE gathering to complete or timeout
+      // Wait for ICE gathering to complete or timeout (fast)
       if (pc.iceGatheringState !== 'complete') {
         await new Promise<void>((resolve) => {
           const checkState = () => {
@@ -421,8 +423,8 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
             }
           };
           pc.onicegatheringstatechange = checkState;
-          // Also resolve after a short timeout to not wait too long
-          setTimeout(resolve, 2000);
+          // Faster timeout for quicker feedback
+          setTimeout(resolve, ICE_GATHERING_TIMEOUT_MS);
         });
       }
 
@@ -876,8 +878,13 @@ export function CameraLiveDialog({ open, onOpenChange, cameraName, streamUrl }: 
               <div className="flex flex-col items-center gap-2">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                 <p className="text-sm text-muted-foreground">
-                  {streamMode === 'detecting' ? 'Conectando...' : 'Carregando...'}
+                  {streamMode === 'detecting' ? 'Detectando stream...' : 'Conectando via ' + getStreamModeLabel() + '...'}
                 </p>
+                {lastError && (
+                  <p className="text-xs text-muted-foreground/70 max-w-xs text-center">
+                    {lastError}
+                  </p>
+                )}
               </div>
             </div>
           )}
