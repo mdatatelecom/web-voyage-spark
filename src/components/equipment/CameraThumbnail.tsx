@@ -45,29 +45,34 @@ export function CameraThumbnail({
         return;
       }
 
-      // Priority 2: Try go2rtc snapshot if enabled and RTSP stream configured
+      // Priority 2: Use fallback image (location photo) - most reliable option
+      if (fallbackImage) {
+        setImageSrc(fallbackImage);
+        return;
+      }
+
+      // Priority 3: Try go2rtc snapshot if enabled (may fail due to CORS)
+      // Only try with very short timeout to avoid blocking UI
       if (go2rtcSettings.enabled && go2rtcSettings.serverUrl && liveUrl?.toLowerCase().startsWith('rtsp://')) {
         try {
           const streamName = cameraName?.replace(/\s+/g, '_').toLowerCase() || `cam_${cameraId}`;
-          const snapshot = await getSnapshot(streamName);
+          
+          // Use Promise.race with a fast timeout
+          const snapshotPromise = getSnapshot(streamName);
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+          
+          const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
           if (snapshot && isMounted) {
             setImageSrc(snapshot);
             setIsLoading(false);
             return;
           }
         } catch (err) {
-          console.log('go2rtc snapshot failed, trying fallback');
+          // Silently fail - go2rtc snapshot often blocked by CORS
         }
       }
 
-      // Priority 3: For HLS streams, we can't easily get a snapshot
-      // Priority 4: Use fallback image (location photo)
-      if (fallbackImage) {
-        setImageSrc(fallbackImage);
-        return;
-      }
-
-      // No thumbnail available
+      // No thumbnail available - show placeholder immediately
       if (isMounted) {
         setHasError(true);
         setIsLoading(false);
