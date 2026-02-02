@@ -69,6 +69,7 @@ import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
 import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
 import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
+import { useSecuritySettings } from '@/hooks/useDevToolsProtection';
 import { WhatsAppTemplateEditor } from '@/components/whatsapp/WhatsAppTemplateEditor';
 import { WhatsAppGroupSelector } from '@/components/whatsapp/WhatsAppGroupSelector';
 import { LandingContentEditor } from '@/components/landing/LandingContentEditor';
@@ -82,7 +83,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Plus, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
+import { Plus, AlertTriangle as AlertTriangleIcon, Shield } from 'lucide-react';
 
 export default function System() {
   const { toast } = useToast();
@@ -159,6 +160,15 @@ export default function System() {
   const [localGo2rtcSettings, setLocalGo2rtcSettings] = useState(go2rtcSettings);
   const [go2rtcTestStatus, setGo2rtcTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [go2rtcTestMessage, setGo2rtcTestMessage] = useState<string>('');
+
+  // Security Settings
+  const {
+    settings: securitySettings,
+    setSettings: setLocalSecuritySettings,
+    isLoading: securityLoading,
+    isSaving: securitySaving,
+    saveSettings: saveSecuritySettings
+  } = useSecuritySettings();
 
   // WhatsApp Settings
   const { 
@@ -559,6 +569,10 @@ export default function System() {
             <TabsTrigger value="landing">
               <Layout className="w-4 h-4 mr-2" />
               Landing Page
+            </TabsTrigger>
+            <TabsTrigger value="security">
+              <Shield className="w-4 h-4 mr-2" />
+              Segurança
             </TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>
@@ -2319,6 +2333,122 @@ export default function System() {
                       <LandingContentEditor />
                     </DialogContent>
                   </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Segurança */}
+          <TabsContent value="security" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Proteção do Sistema
+                </CardTitle>
+                <CardDescription>
+                  Configure proteções para dificultar o acesso ao código fonte e ferramentas de desenvolvedor
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Alert>
+                  <AlertTriangleIcon className="w-4 h-4" />
+                  <AlertTitle>Importante</AlertTitle>
+                  <AlertDescription>
+                    Estas proteções dificultam, mas não impedem totalmente, o acesso ao código fonte. 
+                    Usuários avançados podem contorná-las usando o menu do navegador ou linha de comando. 
+                    São úteis para prevenir acesso casual por usuários não técnicos.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="disableContextMenu" className="font-medium">
+                          Desabilitar Clique Direito
+                        </Label>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Impede que o menu de contexto do navegador seja exibido ao clicar com o botão direito
+                      </p>
+                    </div>
+                    <Switch
+                      id="disableContextMenu"
+                      checked={securitySettings.disableContextMenu}
+                      disabled={securityLoading || securitySaving}
+                      onCheckedChange={async (checked) => {
+                        const newSettings = { ...securitySettings, disableContextMenu: checked };
+                        setLocalSecuritySettings(newSettings);
+                        const success = await saveSecuritySettings(newSettings);
+                        if (success) {
+                          toast({
+                            title: '✅ Configuração salva!',
+                            description: checked 
+                              ? 'Clique direito desabilitado'
+                              : 'Clique direito habilitado'
+                          });
+                        } else {
+                          toast({
+                            title: 'Erro ao salvar',
+                            description: 'Não foi possível salvar a configuração',
+                            variant: 'destructive'
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="disableDevTools" className="font-medium">
+                          Desabilitar Atalhos de Desenvolvedor
+                        </Label>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Bloqueia atalhos como F12, Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), 
+                        Ctrl+Shift+C (Inspecionar) e Ctrl+U (Ver Código Fonte)
+                      </p>
+                    </div>
+                    <Switch
+                      id="disableDevTools"
+                      checked={securitySettings.disableDevToolsShortcuts}
+                      disabled={securityLoading || securitySaving}
+                      onCheckedChange={async (checked) => {
+                        const newSettings = { ...securitySettings, disableDevToolsShortcuts: checked };
+                        setLocalSecuritySettings(newSettings);
+                        const success = await saveSecuritySettings(newSettings);
+                        if (success) {
+                          toast({
+                            title: '✅ Configuração salva!',
+                            description: checked 
+                              ? 'Atalhos de desenvolvedor desabilitados'
+                              : 'Atalhos de desenvolvedor habilitados'
+                          });
+                        } else {
+                          toast({
+                            title: 'Erro ao salvar',
+                            description: 'Não foi possível salvar a configuração',
+                            variant: 'destructive'
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <h4 className="font-medium text-foreground">Atalhos bloqueados:</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li><kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">F12</kbd> - Abre DevTools</li>
+                    <li><kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+Shift+I</kbd> - Abre DevTools</li>
+                    <li><kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+Shift+J</kbd> - Abre Console</li>
+                    <li><kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+Shift+C</kbd> - Inspecionar Elemento</li>
+                    <li><kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+U</kbd> - Ver Código Fonte</li>
+                  </ul>
                 </div>
               </CardContent>
             </Card>

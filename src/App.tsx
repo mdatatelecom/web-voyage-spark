@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useDevToolsProtection } from "@/hooks/useDevToolsProtection";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -58,12 +59,19 @@ const FloorPlan = lazy(() => import("./pages/FloorPlan"));
 
 const queryClient = new QueryClient();
 
+// Component wrapper to apply DevTools protection
+const DevToolsProtectionWrapper = ({ children }: { children: React.ReactNode }) => {
+  useDevToolsProtection();
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
+        <DevToolsProtectionWrapper>
+          <Toaster />
+          <Sonner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -446,6 +454,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </DevToolsProtectionWrapper>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
