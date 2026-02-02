@@ -296,14 +296,23 @@ export const useGo2rtcSettings = () => {
     const serverUrl = normalizeServerUrl(settings.serverUrl);
 
     try {
+      // Use Edge Function proxy to avoid CORS issues
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        `${serverUrl}/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
-        { signal: AbortSignal.timeout(10000) }
+        `${supabaseUrl}/functions/v1/go2rtc-snapshot-proxy?server=${encodeURIComponent(serverUrl)}&stream=${encodeURIComponent(streamName)}`,
+        { 
+          signal: AbortSignal.timeout(5000),
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          }
+        }
       );
 
       if (response.ok) {
-        const blob = await response.blob();
-        return URL.createObjectURL(blob);
+        const result = await response.json();
+        if (result.success && result.image) {
+          return result.image;
+        }
       }
       return null;
     } catch {
