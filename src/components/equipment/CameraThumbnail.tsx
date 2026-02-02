@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Camera, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { useState } from 'react';
+import { Camera, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
 
 interface CameraThumbnailProps {
   cameraId: string;
@@ -11,94 +10,30 @@ interface CameraThumbnailProps {
   fallbackImage?: string;
   status?: string;
   className?: string;
-  refreshInterval?: number; // in seconds, 0 to disable auto-refresh
+  refreshInterval?: number;
   showStatus?: boolean;
 }
 
 export function CameraThumbnail({
-  cameraId,
   cameraName,
   snapshotUrl,
   liveUrl,
   fallbackImage,
   status = 'active',
   className,
-  refreshInterval = 30,
   showStatus = true,
 }: CameraThumbnailProps) {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(Date.now());
-  const { settings: go2rtcSettings, getSnapshot } = useGo2rtcSettings();
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Determine the best source for thumbnail
-  useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    setHasError(false);
-
-    const loadThumbnail = async () => {
-      // Priority 1: Explicit snapshot URL configured
-      if (snapshotUrl) {
-        setImageSrc(`${snapshotUrl}${snapshotUrl.includes('?') ? '&' : '?'}t=${lastRefresh}`);
-        return;
-      }
-
-      // Priority 2: Use fallback image (location photo) - most reliable option
-      if (fallbackImage) {
-        setImageSrc(fallbackImage);
-        return;
-      }
-
-      // Priority 3: Try go2rtc snapshot if enabled (may fail due to CORS)
-      // Only try with very short timeout to avoid blocking UI
-      if (go2rtcSettings.enabled && go2rtcSettings.serverUrl && liveUrl?.toLowerCase().startsWith('rtsp://')) {
-        try {
-          const streamName = cameraName?.replace(/\s+/g, '_').toLowerCase() || `cam_${cameraId}`;
-          
-          // Use Promise.race with a fast timeout
-          const snapshotPromise = getSnapshot(streamName);
-          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
-          
-          const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
-          if (snapshot && isMounted) {
-            setImageSrc(snapshot);
-            setIsLoading(false);
-            return;
-          }
-        } catch (err) {
-          // Silently fail - go2rtc snapshot often blocked by CORS
-        }
-      }
-
-      // No thumbnail available - show placeholder immediately
-      if (isMounted) {
-        setHasError(true);
-        setIsLoading(false);
-      }
-    };
-
-    loadThumbnail();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [cameraId, cameraName, snapshotUrl, liveUrl, fallbackImage, go2rtcSettings, getSnapshot, lastRefresh]);
-
-  // Auto-refresh
-  useEffect(() => {
-    if (refreshInterval <= 0 || hasError) return;
-
-    const interval = setInterval(() => {
-      setLastRefresh(Date.now());
-    }, refreshInterval * 1000);
-
-    return () => clearInterval(interval);
-  }, [refreshInterval, hasError]);
+  // Use saved image directly - no async loading needed
+  const imageSrc = snapshotUrl 
+    ? `${snapshotUrl}${snapshotUrl.includes('?') ? '&' : '?'}t=${refreshKey}`
+    : fallbackImage || null;
 
   const handleRefresh = () => {
-    setLastRefresh(Date.now());
+    setRefreshKey(Date.now());
   };
 
   const handleImageLoad = () => {
@@ -109,12 +44,6 @@ export function CameraThumbnail({
   const handleImageError = () => {
     setIsLoading(false);
     setHasError(true);
-    // Try fallback if not already using it
-    if (imageSrc !== fallbackImage && fallbackImage) {
-      setImageSrc(fallbackImage);
-      setHasError(false);
-      setIsLoading(true);
-    }
   };
 
   const isOnline = status === 'active';
