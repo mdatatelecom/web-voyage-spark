@@ -1,127 +1,183 @@
 
 
-## Plano: Menu Monitoramento com Submenus Dinâmicos
+## Plano: Proteção contra DevTools e Código Fonte
 
-### Situação Atual
-
-Atualmente, o menu "Monitoramento" tem apenas um item fixo "Painéis" que abre uma página com abas internas. Isso não é ideal porque:
-- Os painéis não aparecem diretamente no menu
-- Precisa clicar em "Painéis" e depois escolher qual ver
-- A configuração está dentro de uma aba, não em um submenu separado
+### Objetivo
+Implementar proteção para dificultar o acesso ao código fonte da aplicação através de:
+- Bloqueio do menu de contexto (clique direito)
+- Bloqueio de teclas de atalho (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U)
+- Configuração via painel de administração para ativar/desativar
 
 ---
 
-### Nova Estrutura Proposta
+### Nova Estrutura
 
 ```text
-Menu Monitoramento
-├── Visão Geral          → /monitoring (dashboard com todos painéis)
-├── Configurações        → /monitoring/settings (gerenciar painéis)
-├── ─────────────────── (separador dinâmico)
-├── Dashboard Grafana    → /monitoring/panel/uuid-1 (webview direto)
-├── Zabbix Principal     → /monitoring/panel/uuid-2 (webview direto)
-└── Outro Painel         → /monitoring/panel/uuid-3 (webview direto)
+Configurações do Sistema (System.tsx)
+├── Aba "Segurança" ou dentro de "Status"
+│   ├── Toggle: Desabilitar Menu de Contexto (clique direito)
+│   ├── Toggle: Desabilitar Teclas de Desenvolvedor (F12, Ctrl+Shift+I)
+│   └── Descrição informativa sobre as limitações
 ```
 
 ---
 
-### Alterações Necessárias
-
-#### 1. AppLayout.tsx - Menu Dinâmico
-
-**Problema**: O menu atual é estático com itens fixos.
-
-**Solução**: Carregar os painéis do banco de dados e adicionar como submenus dinâmicos.
-
-Modificações:
-- Importar o hook `useMonitoringPanels`
-- Modificar a seção `monitoring` do `menuGroups` para incluir painéis ativos
-- Adicionar ícones diferenciados por tipo (Grafana/Zabbix/Outro)
-
-#### 2. Novas Rotas em App.tsx
-
-Adicionar rotas:
-- `/monitoring` → Visão geral (já existe)
-- `/monitoring/settings` → Página de configurações
-- `/monitoring/panel/:id` → Visualização de painel individual em tela cheia
-
-#### 3. Nova Página MonitoringPanelView.tsx
-
-Criar uma página simples que:
-- Recebe o ID do painel via URL
-- Carrega os dados do painel
-- Exibe o iframe em tela cheia (100% altura)
-- Botões: Voltar, Atualizar, Abrir em Nova Aba
-
-#### 4. Separar MonitoringSettings.tsx
-
-Extrair a aba de configurações para uma página separada com acesso direto pelo menu.
-
----
-
-### Arquivos a Modificar/Criar
+### Arquivos a Criar/Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/layout/AppLayout.tsx` | Modificar | Adicionar painéis dinâmicos ao menu |
-| `src/App.tsx` | Modificar | Adicionar rotas `/monitoring/settings` e `/monitoring/panel/:id` |
-| `src/pages/MonitoringDashboard.tsx` | Modificar | Remover aba settings, manter só visão geral |
-| `src/pages/MonitoringSettings.tsx` | Criar | Página dedicada para configurações |
-| `src/pages/MonitoringPanelView.tsx` | Criar | Visualização de painel individual em webview |
+| `src/hooks/useDevToolsProtection.ts` | Criar | Hook que gerencia proteção de DevTools |
+| `src/hooks/useSystemSettings.ts` | Modificar | Adicionar interface e lógica para security_settings |
+| `src/pages/System.tsx` | Modificar | Adicionar seção de configuração de segurança |
+| `src/App.tsx` | Modificar | Aplicar proteção global via hook |
 
 ---
 
 ### Detalhes Técnicos
 
-#### Menu Dinâmico no AppLayout
+#### 1. Novo Hook: useDevToolsProtection.ts
+
+Este hook irá:
+- Carregar configurações de segurança do banco/cache
+- Adicionar listeners para eventos de teclado e contexto
+- Bloquear atalhos: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
+- Bloquear menu de contexto (clique direito)
+- Limpar listeners ao desmontar
 
 ```typescript
-// Dentro do menuGroups, modificar a seção 'monitoring':
+// Estrutura básica do hook
+interface SecuritySettings {
+  disableContextMenu: boolean;
+  disableDevToolsShortcuts: boolean;
+}
+
+export const useDevToolsProtection = () => {
+  // Carregar configurações do localStorage/banco
+  // Adicionar event listeners condicionalmente
+  // Retornar estado atual
+};
+```
+
+#### 2. Event Listeners
+
+**Teclado (keydown):**
+```typescript
+const handleKeyDown = (e: KeyboardEvent) => {
+  // F12
+  if (e.key === 'F12') {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Ctrl+Shift+I (DevTools)
+  if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Ctrl+Shift+J (Console)
+  if (e.ctrlKey && e.shiftKey && e.key === 'J') {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Ctrl+Shift+C (Inspect)
+  if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Ctrl+U (View Source)
+  if (e.ctrlKey && e.key === 'u') {
+    e.preventDefault();
+    return false;
+  }
+};
+```
+
+**Menu de Contexto:**
+```typescript
+const handleContextMenu = (e: MouseEvent) => {
+  e.preventDefault();
+  return false;
+};
+```
+
+#### 3. Armazenamento
+
+Utilizará a tabela `system_settings` existente com uma nova chave:
+```json
 {
-  id: 'monitoring',
-  label: 'Monitoramento',
-  icon: Activity,
-  visible: (isAdmin || isTechnician) && !isNetworkViewer,
-  items: [
-    { label: 'Visão Geral', icon: LayoutDashboard, path: '/monitoring', visible: true },
-    { label: 'Configurações', icon: Settings, path: '/monitoring/settings', visible: isAdmin },
-    // Separador visual + painéis dinâmicos:
-    ...activePanels.map(panel => ({
-      label: panel.name,
-      icon: panel.panel_type === 'grafana' ? BarChart3 : 
-            panel.panel_type === 'zabbix' ? AlertCircle : Monitor,
-      path: `/monitoring/panel/${panel.id}`,
-      visible: true,
-    })),
-  ],
+  "setting_key": "security_settings",
+  "setting_value": {
+    "disableContextMenu": true,
+    "disableDevToolsShortcuts": true
+  }
 }
 ```
 
-#### Página de Visualização Individual
+#### 4. Interface de Configuração (System.tsx)
 
-A nova página `MonitoringPanelView.tsx` terá:
-- Header com nome do painel e botões de ação
-- iframe ocupando toda a altura disponível
-- Suporte a tela cheia nativa do navegador
+Adicionar dentro da aba de configurações ou criar nova aba "Segurança":
 
----
+- **Toggle "Desabilitar Clique Direito"**
+  - Impede menu de contexto do navegador
+  
+- **Toggle "Desabilitar Atalhos de Desenvolvedor"**
+  - Bloqueia F12, Ctrl+Shift+I/J/C, Ctrl+U
 
-### Fluxo do Usuário
-
-1. Clica em "Monitoramento" no menu
-2. Vê submenu com:
-   - "Visão Geral" (todos os painéis em cards)
-   - "Configurações" (gerenciar painéis - só admin)
-   - Lista de painéis ativos (Dashboard Grafana, Zabbix, etc)
-3. Clica diretamente no painel desejado
-4. Abre página limpa com webview em tela cheia
+- **Aviso informativo:**
+  > "Estas proteções dificultam mas não impedem totalmente o acesso ao código fonte. Usuários avançados podem contorná-las. São úteis para prevenir acesso casual."
 
 ---
 
-### Considerações
+### Fluxo de Funcionamento
 
-- **Performance**: Os painéis são carregados uma vez e cacheados pelo React Query
-- **Permissões**: Apenas admins podem acessar "Configurações"
-- **Responsividade**: Menu colapsado mostra tooltip com nome do painel
-- **Loading**: Skeleton enquanto carrega os painéis no menu
+1. Usuário acessa Sistema → Configurações de Segurança
+2. Ativa os toggles desejados
+3. Configuração salva no banco de dados
+4. Hook `useDevToolsProtection` carrega configurações
+5. Listeners são adicionados globalmente no App
+6. Tentativas de usar F12/clique direito são bloqueadas
+
+---
+
+### Integração no App.tsx
+
+```typescript
+import { useDevToolsProtection } from '@/hooks/useDevToolsProtection';
+
+const App = () => {
+  // Aplicar proteção globalmente
+  useDevToolsProtection();
+  
+  return (
+    // ... resto do app
+  );
+};
+```
+
+---
+
+### Considerações de Segurança
+
+**Limitações importantes:**
+- Esta proteção é apenas uma barreira visual/casual
+- DevTools pode ser aberto de outras formas (menu do navegador, linha de comando)
+- Código fonte sempre pode ser acessado via Network tab
+- É uma medida de "security through obscurity"
+
+**Benefícios:**
+- Impede acesso casual por usuários não técnicos
+- Dificulta cópia rápida de conteúdo
+- Profissionaliza a aparência do sistema
+
+---
+
+### Estimativa de Alterações
+
+- **Novo hook**: ~80 linhas
+- **System.tsx**: ~50 linhas adicionais
+- **App.tsx**: ~5 linhas
+- **useSystemSettings.ts**: ~30 linhas
 
