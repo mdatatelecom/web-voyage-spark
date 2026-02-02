@@ -55,8 +55,46 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Erro de certificado SSL: O servidor go2rtc usa um certificado não confiável ou autoassinado. Use HTTP ao invés de HTTPS, ou configure um certificado válido no servidor.",
+          error: "Erro de certificado SSL: O servidor go2rtc usa um certificado não confiável. Use HTTP ao invés de HTTPS, ou configure um certificado válido.",
           errorType: "SSL_CERTIFICATE_ERROR"
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check for connection refused errors
+    if (errorMessage.includes("Connection refused") || 
+        errorMessage.includes("connection refused") ||
+        errorMessage.includes("os error 111")) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Conexão recusada: O servidor go2rtc não está respondendo. Verifique se: 1) O serviço go2rtc está rodando, 2) A porta está aberta no firewall, 3) O go2rtc está escutando em 0.0.0.0 (não apenas localhost).",
+          errorType: "CONNECTION_REFUSED"
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check for timeout errors
+    if (errorMessage.includes("timeout") || errorMessage.includes("Timeout")) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Timeout: O servidor go2rtc não respondeu a tempo. Verifique se o servidor está acessível e não está sobrecarregado.",
+          errorType: "TIMEOUT"
+        }),
+        { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check for DNS errors
+    if (errorMessage.includes("dns error") || errorMessage.includes("DNS") || errorMessage.includes("lookup")) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Erro de DNS: Não foi possível resolver o endereço do servidor. Verifique se o hostname está correto.",
+          errorType: "DNS_ERROR"
         }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
