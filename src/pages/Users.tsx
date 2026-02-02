@@ -12,6 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useUsers, UserRole } from '@/hooks/useUsers';
@@ -20,14 +26,14 @@ import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
 import { UserRoleDialog } from '@/components/users/UserRoleDialog';
 import { UserCreateDialog } from '@/components/users/UserCreateDialog';
 import { UserEditDialog } from '@/components/users/UserEditDialog';
-import { Plus, X, UserPlus, Pencil, User, Download, Loader2 } from 'lucide-react';
+import { Plus, X, UserPlus, Pencil, User, Download, Loader2, ChevronDown } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export default function Users() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile } = useUsers();
+  const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile, assignRole, isAssigning } = useUsers();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
   const { fetchAndUpdateProfilePicture } = useWhatsAppProfilePicture();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
@@ -35,6 +41,7 @@ export default function Users() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isBatchFetching, setIsBatchFetching] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [selectedUserForRole, setSelectedUserForRole] = useState<{ id: string; email: string } | null>(null);
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
     email: string;
@@ -278,13 +285,37 @@ export default function Users() {
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setRoleDialogOpen(true)}
-                            >
-                              Adicionar Role
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={isAssigning}>
+                                  {isAssigning ? (
+                                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                  ) : (
+                                    <Plus className="w-3 h-3 mr-1" />
+                                  )}
+                                  Role
+                                  <ChevronDown className="w-3 h-3 ml-1" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {(['viewer', 'network_viewer', 'technician', 'admin'] as UserRole[])
+                                  .filter(r => !user.roles.includes(r))
+                                  .map(role => (
+                                    <DropdownMenuItem 
+                                      key={role}
+                                      onClick={() => assignRole({ userId: user.id, role })}
+                                    >
+                                      {getRoleLabel(role)}
+                                    </DropdownMenuItem>
+                                  ))
+                                }
+                                {user.roles.length === 4 && (
+                                  <DropdownMenuItem disabled>
+                                    Todas as roles atribuídas
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -355,7 +386,14 @@ export default function Users() {
           onOpenChange={setCreateDialogOpen}
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}
         />
-        <UserRoleDialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen} />
+        <UserRoleDialog 
+          open={roleDialogOpen} 
+          onOpenChange={(open) => {
+            setRoleDialogOpen(open);
+            if (!open) setSelectedUserForRole(null);
+          }}
+          preselectedUser={selectedUserForRole}
+        />
         <UserEditDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
