@@ -1,47 +1,24 @@
 
-# Enviar Imagem EPI junto com Alerta WhatsApp
 
-## Problema Atual
-Quando um alerta de EPI e recebido com uma imagem (screenshot da camera), a notificacao WhatsApp envia apenas o texto. A imagem fica salva no sistema mas nao e enviada junto com o alerta no WhatsApp.
+# Ajuste do Layout do Centro de Suporte no Dashboard
 
-## Solucao
+## O que sera alterado
 
-### 1. Adicionar suporte a envio de midia no `send-whatsapp`
-Criar duas novas actions na edge function `send-whatsapp`:
-- `send-media`: Envia imagem para numero individual usando o endpoint `/message/sendMedia` da Evolution API
-- `send-group-media`: Envia imagem para grupo usando o mesmo endpoint
+Na secao "Centro de Suporte" do Dashboard, o layout atual coloca o SLA Widget em 1/4 da largura e os cards de tickets em 3/4 da largura, lado a lado. A mudanca proposta:
 
-Parametros: `mediaUrl` (URL publica da imagem), `caption` (texto da mensagem), `phone` ou `groupId`
-
-### 2. Atualizar `zabbix-webhook` para enviar imagem no WhatsApp
-No fluxo de notificacao EPI (linhas ~409-450), quando `imageUrl` estiver disponivel:
-- Usar a action `send-media` ou `send-group-media` em vez de `send` / `send-group`
-- Passar a `imageUrl` como midia e a mensagem de texto como `caption`
-- Se nao houver imagem, manter o comportamento atual (envio de texto simples)
+1. **Cards de Tickets (Abertos, Em Andamento, Resolvidos, T. Medio, Tecnicos)** - Ocuparao a largura total da pagina em uma unica linha com 5 colunas
+2. **Performance SLA** - Ficara logo abaixo dos cards, tambem ocupando a largura total da pagina
 
 ## Detalhes Tecnicos
 
-### Edge Function `send-whatsapp` - Novas actions
+### Arquivo: `src/pages/Dashboard.tsx`
 
-```text
-action: "send-media"
-  -> Evolution API: POST /message/sendMedia/{instance}
-  -> Body: { number, media: { mediatype: "image", url: imageUrl }, caption }
+Substituir o grid atual (linhas 293-300) que divide em `lg:grid-cols-4` com SLA em 1 coluna e cards em 3 colunas por:
 
-action: "send-group-media"  
-  -> Mesmo endpoint, com groupId como number
-```
+- `TicketStatsCards` em um bloco proprio ocupando largura total
+- `SLAWidget` em um bloco proprio abaixo, com `className="w-full"` para garantir largura total
 
-### Edge Function `zabbix-webhook` - Alteracao no envio EPI
+### Arquivo: `src/components/tickets/TicketStatsCards.tsx`
 
-```text
-Se imageUrl disponivel:
-  -> Invocar send-whatsapp com action "send-media" ou "send-group-media"
-  -> Passar mediaUrl: imageUrl, caption: notificationMessage
-Senao:
-  -> Manter comportamento atual (send / send-group com texto)
-```
+O grid atual ja usa `grid-cols-2 md:grid-cols-4 lg:grid-cols-5`, o que distribui os 5 cards corretamente em telas grandes. Nenhuma alteracao necessaria neste componente.
 
-### Arquivos modificados
-1. `supabase/functions/send-whatsapp/index.ts` - Adicionar actions `send-media` e `send-group-media`
-2. `supabase/functions/zabbix-webhook/index.ts` - Usar envio com midia quando imagem disponivel
