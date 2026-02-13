@@ -1,24 +1,35 @@
 
 
-# Ajuste do Layout do Centro de Suporte no Dashboard
+# Corrigir Graficos Cortados no Dashboard
 
-## O que sera alterado
+## Problema Identificado
 
-Na secao "Centro de Suporte" do Dashboard, o layout atual coloca o SLA Widget em 1/4 da largura e os cards de tickets em 3/4 da largura, lado a lado. A mudanca proposta:
+Cada grafico no Dashboard esta sendo renderizado dentro de **dois Cards aninhados**:
+- O Dashboard cria um Card externo com altura fixa (`h-[250px]` ou `h-[200px]`)
+- Cada componente de grafico (RackOccupancyChart, EquipmentTypeChart, etc.) cria seu proprio Card interno com `h-[300px]`
 
-1. **Cards de Tickets (Abertos, Em Andamento, Resolvidos, T. Medio, Tecnicos)** - Ocuparao a largura total da pagina em uma unica linha com 5 colunas
-2. **Performance SLA** - Ficara logo abaixo dos cards, tambem ocupando a largura total da pagina
+Resultado: os graficos ficam cortados porque o container externo e menor que o conteudo interno.
 
-## Detalhes Tecnicos
+## Solucao
+
+Remover os Cards externos do Dashboard e deixar cada componente de grafico renderizar seu proprio Card completo. Isso elimina o aninhamento e permite que cada grafico ocupe o espaco necessario.
+
+## Alteracoes
 
 ### Arquivo: `src/pages/Dashboard.tsx`
 
-Substituir o grid atual (linhas 293-300) que divide em `lg:grid-cols-4` com SLA em 1 coluna e cards em 3 colunas por:
+**Secao "Analise de Infraestrutura" (linhas 219-267):**
+- Remover os Cards externos que envolvem cada grafico
+- Manter o grid `md:grid-cols-2` mas com os componentes diretamente dentro
+- Cada componente (RackOccupancyChart, EquipmentTypeChart, ConnectionStatusChart, PortUsageChart) ja possui seu proprio Card com header e conteudo
 
-- `TicketStatsCards` em um bloco proprio ocupando largura total
-- `SLAWidget` em um bloco proprio abaixo, com `className="w-full"` para garantir largura total
+**Secao "Centro de Suporte" - graficos de tickets (linhas 298-325):**
+- Mesmo problema: Cards externos com `h-[200px]` envolvendo TicketsByCategoryChart, TicketsByTechnicianChart e TicketTrendChart
+- Remover os Cards externos e deixar os componentes renderizarem seus proprios Cards
+- Manter o grid `md:grid-cols-3`
 
-### Arquivo: `src/components/tickets/TicketStatsCards.tsx`
-
-O grid atual ja usa `grid-cols-2 md:grid-cols-4 lg:grid-cols-5`, o que distribui os 5 cards corretamente em telas grandes. Nenhuma alteracao necessaria neste componente.
+### Resultado esperado
+- Graficos de infraestrutura: 4 cards em grid 2x2, cada um com altura adequada para visualizar o conteudo completo
+- Graficos de tickets: 3 cards em linha, sem corte de conteudo
+- Labels dos eixos, legendas e tooltips totalmente visiveis
 
