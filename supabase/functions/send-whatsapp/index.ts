@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type } = await req.json();
+    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type, mediaUrl, caption } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
@@ -1220,6 +1220,176 @@ serve(async (req) => {
         
         return new Response(
           JSON.stringify({ success: false, message: `Erro ao enviar: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Send media (image) to individual number
+    if (action === 'send-media') {
+      const targetMediaUrl = mediaUrl;
+      const targetCaption = caption || message || '';
+
+      if (!phone || !targetMediaUrl) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Telefone e mediaUrl são obrigatórios' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const formattedPhone = formatPhoneNumber(phone, settings.defaultCountryCode || '55');
+      console.log('Sending media to:', formattedPhone, 'URL:', targetMediaUrl);
+
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/message/sendMedia/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: formattedPhone,
+              mediatype: 'image',
+              media: targetMediaUrl,
+              caption: targetCaption,
+            }),
+          }
+        );
+
+        console.log('Evolution API send-media response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message || errorData?.message || `Erro ${response.status}`;
+          console.error('Evolution API send-media error:', errorMsg);
+
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: formattedPhone,
+            message_content: targetCaption,
+            message_type: notification_type || 'media',
+            status: 'error',
+            error_message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
+          });
+
+          return new Response(
+            JSON.stringify({ success: false, message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg) }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Media sent successfully to:', formattedPhone);
+
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: formattedPhone,
+          message_content: targetCaption,
+          message_type: notification_type || 'media',
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          external_id: data?.key?.id || null,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Mídia enviada com sucesso', data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Send-media fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro ao enviar mídia: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Send media (image) to WhatsApp group
+    if (action === 'send-group-media') {
+      if (!groupId) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'ID do grupo e mediaUrl são obrigatórios' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const targetMediaUrl = mediaUrl || '';
+      const targetCaption = caption || message || '';
+
+      console.log('Sending media to group:', groupId);
+
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/message/sendMedia/${settings.evolutionInstance}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              number: groupId,
+              mediatype: 'image',
+              media: targetMediaUrl,
+              caption: targetCaption,
+            }),
+          }
+        );
+
+        console.log('Evolution API send-group-media response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message || errorData?.message || `Erro ${response.status}`;
+
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: groupId,
+            message_content: targetCaption,
+            message_type: notification_type || 'group_media',
+            status: 'error',
+            error_message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
+          });
+
+          return new Response(
+            JSON.stringify({ success: false, message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg) }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        console.log('Media sent successfully to group:', groupId);
+
+        await supabase.from('whatsapp_notifications').insert({
+          ticket_id: ticketId || null,
+          phone_number: groupId,
+          message_content: targetCaption,
+          message_type: notification_type || 'group_media',
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          external_id: data?.key?.id || null,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Mídia enviada para o grupo com sucesso', data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Send-group-media fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro ao enviar mídia: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
