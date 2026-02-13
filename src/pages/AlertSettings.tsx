@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle, Clock, Radar, ExternalLink } from 'lucide-react';
+import { Settings, RotateCcw, Save, Video, Camera, Cable, Network, MessageSquare, CheckCircle, Clock, Radar, ExternalLink, HardHat, Phone, Users } from 'lucide-react';
 import { useAlertSettings } from '@/hooks/useAlertSettings';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
@@ -52,6 +52,16 @@ export default function AlertSettings() {
   const [zabbixBaseUrl, setZabbixBaseUrl] = useState('');
   const [loadingZabbixUrl, setLoadingZabbixUrl] = useState(true);
 
+  // EPI settings
+  const [epiEnabled, setEpiEnabled] = useState(true);
+  const [epiWhatsappEnabled, setEpiWhatsappEnabled] = useState(true);
+  const [epiMinSeverity, setEpiMinSeverity] = useState(2);
+  const [epiTargetType, setEpiTargetType] = useState<'individual' | 'group'>('individual');
+  const [epiPhone, setEpiPhone] = useState('');
+  const [epiGroupId, setEpiGroupId] = useState('');
+  const [loadingEpiTarget, setLoadingEpiTarget] = useState(true);
+  const [whatsappGroups, setWhatsappGroups] = useState<Array<{ id: string; subject: string }>>([]);
+
   useEffect(() => {
     if (settings) {
       setRackWarning(getSetting('rack_warning_threshold')?.setting_value || 80);
@@ -78,6 +88,11 @@ export default function AlertSettings() {
       setZabbixEnabled((getSetting('zabbix_enabled')?.setting_value ?? 1) === 1);
       setZabbixWhatsappEnabled((getSetting('zabbix_whatsapp_enabled')?.setting_value ?? 1) === 1);
       setZabbixMinSeverity(getSetting('zabbix_min_severity')?.setting_value || 2);
+
+      // EPI settings
+      setEpiEnabled((getSetting('epi_enabled')?.setting_value ?? 1) === 1);
+      setEpiWhatsappEnabled((getSetting('epi_whatsapp_enabled')?.setting_value ?? 1) === 1);
+      setEpiMinSeverity(getSetting('epi_min_severity')?.setting_value || 2);
     }
   }, [settings, getSetting]);
 
@@ -98,6 +113,36 @@ export default function AlertSettings() {
     };
 
     loadZabbixUrl();
+  }, []);
+
+  // Load EPI WhatsApp target and groups
+  useEffect(() => {
+    const loadEpiTarget = async () => {
+      const [{ data: epiTarget }, { data: groups }] = await Promise.all([
+        supabase
+          .from('system_settings')
+          .select('setting_value')
+          .eq('setting_key', 'epi_whatsapp_target')
+          .single(),
+        supabase
+          .from('whatsapp_groups')
+          .select('id, subject')
+          .order('subject'),
+      ]);
+
+      if (epiTarget?.setting_value) {
+        const val = epiTarget.setting_value as any;
+        setEpiTargetType(val.targetType || 'individual');
+        setEpiPhone(val.phone || '');
+        setEpiGroupId(val.groupId || '');
+      }
+      if (groups) {
+        setWhatsappGroups(groups);
+      }
+      setLoadingEpiTarget(false);
+    };
+
+    loadEpiTarget();
   }, []);
 
   // Load notification settings for resolved alerts toggle
@@ -182,6 +227,11 @@ export default function AlertSettings() {
     updateSetting({ key: 'zabbix_whatsapp_enabled', value: zabbixWhatsappEnabled ? 1 : 0 });
     updateSetting({ key: 'zabbix_min_severity', value: zabbixMinSeverity });
 
+    // EPI settings
+    updateSetting({ key: 'epi_enabled', value: epiEnabled ? 1 : 0 });
+    updateSetting({ key: 'epi_whatsapp_enabled', value: epiWhatsappEnabled ? 1 : 0 });
+    updateSetting({ key: 'epi_min_severity', value: epiMinSeverity });
+
     // Save Zabbix base URL to system_settings
     const { error } = await supabase
       .from('system_settings')
@@ -192,6 +242,22 @@ export default function AlertSettings() {
 
     if (error) {
       toast.error('Erro ao salvar URL do Zabbix');
+    }
+
+    // Save EPI WhatsApp target to system_settings
+    const { error: epiError } = await supabase
+      .from('system_settings')
+      .upsert({
+        setting_key: 'epi_whatsapp_target',
+        setting_value: {
+          targetType: epiTargetType,
+          phone: epiPhone,
+          groupId: epiGroupId,
+        },
+      }, { onConflict: 'setting_key' });
+
+    if (epiError) {
+      toast.error('Erro ao salvar configurações EPI WhatsApp');
     }
   };
 
@@ -538,6 +604,201 @@ export default function AlertSettings() {
                   <li>Conexão defeituosa é corrigida (status = active)</li>
                   <li>Conexão em testing é ativada ou removida</li>
                   <li>Equipamento recebe endereço IP</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
+
+        {/* EPI Monitor Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <HardHat className="w-5 h-5" />
+            EPI Monitor
+          </h2>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HardHat className="w-5 h-5" />
+                  Configurações Gerais
+                </CardTitle>
+                <CardDescription>
+                  Habilite e configure alertas do EPI Monitor
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="epi-enabled">Integração habilitada</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Receber alertas do EPI Monitor via webhook
+                    </p>
+                  </div>
+                  <Switch
+                    id="epi-enabled"
+                    checked={epiEnabled}
+                    onCheckedChange={setEpiEnabled}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="epi-whatsapp">Notificar via WhatsApp</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar alertas EPI para WhatsApp
+                    </p>
+                  </div>
+                  <Switch
+                    id="epi-whatsapp"
+                    checked={epiWhatsappEnabled}
+                    onCheckedChange={setEpiWhatsappEnabled}
+                    disabled={!epiEnabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Severidade mínima para notificar</Label>
+                  <Select
+                    value={String(epiMinSeverity)}
+                    onValueChange={(v) => setEpiMinSeverity(Number(v))}
+                    disabled={!epiEnabled || !epiWhatsappEnabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Info (todas)</SelectItem>
+                      <SelectItem value="2">Warning (aviso e crítico)</SelectItem>
+                      <SelectItem value="3">Critical (apenas crítico)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Destino WhatsApp EPI
+                </CardTitle>
+                <CardDescription>
+                  Escolha para onde enviar os alertas de EPI
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Tipo de destino</Label>
+                  <Select
+                    value={epiTargetType}
+                    onValueChange={(v) => setEpiTargetType(v as 'individual' | 'group')}
+                    disabled={!epiEnabled || !epiWhatsappEnabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="individual">
+                        <span className="flex items-center gap-2">
+                          <Phone className="w-3 h-3" />
+                          Número individual
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="group">
+                        <span className="flex items-center gap-2">
+                          <Users className="w-3 h-3" />
+                          Grupo do WhatsApp
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {epiTargetType === 'individual' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="epi-phone">Telefone para Alertas EPI</Label>
+                    <Input
+                      id="epi-phone"
+                      type="tel"
+                      placeholder="5511999999999"
+                      value={epiPhone}
+                      onChange={(e) => setEpiPhone(e.target.value)}
+                      disabled={!epiEnabled || !epiWhatsappEnabled}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formato: código do país + DDD + número
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Grupo do WhatsApp</Label>
+                    <Select
+                      value={epiGroupId}
+                      onValueChange={setEpiGroupId}
+                      disabled={!epiEnabled || !epiWhatsappEnabled}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um grupo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {whatsappGroups.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            Nenhum grupo sincronizado
+                          </SelectItem>
+                        ) : (
+                          whatsappGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.subject}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Grupos sincronizados via Configurações do Sistema &gt; WhatsApp
+                    </p>
+                  </div>
+                )}
+
+                {!epiEnabled || !epiWhatsappEnabled ? (
+                  <div className="p-3 bg-muted rounded-lg text-xs text-muted-foreground">
+                    Habilite a integração EPI e notificações WhatsApp para configurar o destino
+                  </div>
+                ) : (
+                  <div className="p-3 bg-muted rounded-lg text-xs">
+                    <p>Os alertas de EPI com imagens serão enviados como foto + legenda no WhatsApp</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuração do Webhook EPI</CardTitle>
+              <CardDescription>
+                Configure o EPI Monitor para enviar alertas para esta URL
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-xs font-mono break-all">
+                  https://gszsufxjstgpsxikgeeb.supabase.co/functions/v1/zabbix-webhook
+                </p>
+              </div>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p className="font-medium">Parâmetros aceitos (EPI Monitor):</p>
+                <ul className="list-disc list-inside text-xs space-y-1">
+                  <li><code className="bg-muted px-1 rounded">source</code> - "epi_monitor"</li>
+                  <li><code className="bg-muted px-1 rounded">message</code> - Mensagem do alerta</li>
+                  <li><code className="bg-muted px-1 rounded">severity</code> - Severidade (critical, warning, info)</li>
+                  <li><code className="bg-muted px-1 rounded">camera</code> - Nome da câmera</li>
+                  <li><code className="bg-muted px-1 rounded">risk</code> - Tipo de risco identificado</li>
+                  <li><code className="bg-muted px-1 rounded">image</code> - URL ou Base64 da imagem/screenshot</li>
+                  <li><code className="bg-muted px-1 rounded">employee_name</code> - Nome do funcionário</li>
+                  <li><code className="bg-muted px-1 rounded">department</code> - Departamento</li>
                 </ul>
               </div>
             </CardContent>
