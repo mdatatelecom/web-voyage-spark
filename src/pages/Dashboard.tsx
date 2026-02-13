@@ -217,53 +217,10 @@ export default function Dashboard() {
             </h3>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Server className="h-4 w-4 text-primary" />
-                  Ocupação de Racks
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[250px]">
-                <RackOccupancyChart />
-              </CardContent>
-            </Card>
-            
-            <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Building className="h-4 w-4 text-primary" />
-                  Tipos de Equipamento
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[250px]">
-                <EquipmentTypeChart />
-              </CardContent>
-            </Card>
-            
-            <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Cable className="h-4 w-4 text-primary" />
-                  Status de Conexões
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[250px]">
-                <ConnectionStatusChart />
-              </CardContent>
-            </Card>
-            
-            <Card className="overflow-hidden border-border/50 hover:shadow-lg transition-shadow">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Network className="h-4 w-4 text-primary" />
-                  Uso de Portas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[250px]">
-                <PortUsageChart />
-              </CardContent>
-            </Card>
+            <RackOccupancyChart />
+            <EquipmentTypeChart />
+            <ConnectionStatusChart />
+            <PortUsageChart />
           </div>
         </section>
 
@@ -296,32 +253,9 @@ export default function Dashboard() {
           </div>
           
           <div className="grid gap-4 md:grid-cols-3">
-            <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium">Por Categoria</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[200px]">
-                <TicketsByCategoryChart />
-              </CardContent>
-            </Card>
-            
-            <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium">Por Técnico</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[200px]">
-                <TicketsByTechnicianChart />
-              </CardContent>
-            </Card>
-            
-            <Card className="overflow-hidden border-border/50">
-              <CardHeader className="bg-gradient-to-r from-card to-primary/5 py-3 border-b border-border/30">
-                <CardTitle className="text-sm font-medium">Tendência</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 h-[200px]">
-                <TicketTrendChart />
-              </CardContent>
-            </Card>
+            <TicketsByCategoryChart />
+            <TicketsByTechnicianChart />
+            <TicketTrendChart />
           </div>
         </section>
 
