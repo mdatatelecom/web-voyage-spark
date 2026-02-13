@@ -290,13 +290,9 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-4 mb-4">
-            <div className="lg:col-span-1">
-              <SLAWidget />
-            </div>
-            <div className="lg:col-span-3">
-              <TicketStatsCards />
-            </div>
+          <div className="space-y-4 mb-4">
+            <TicketStatsCards />
+            <SLAWidget />
           </div>
           
           <div className="grid gap-4 md:grid-cols-3">
