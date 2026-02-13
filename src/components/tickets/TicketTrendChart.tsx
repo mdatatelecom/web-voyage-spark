@@ -11,7 +11,7 @@ export const TicketTrendChart = () => {
 
   if (isLoading) {
     return (
-      <Card className="col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
@@ -33,7 +33,7 @@ export const TicketTrendChart = () => {
   }));
 
   return (
-    <Card className="col-span-full lg:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />

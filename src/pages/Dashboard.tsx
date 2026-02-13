@@ -23,6 +23,7 @@ import { TicketStatsCards } from '@/components/tickets/TicketStatsCards';
 import { TicketsByCategoryChart } from '@/components/tickets/TicketsByCategoryChart';
 import { TicketsByTechnicianChart } from '@/components/tickets/TicketsByTechnicianChart';
 import { TicketTrendChart } from '@/components/tickets/TicketTrendChart';
+import { TicketsByEpiChart } from '@/components/tickets/TicketsByEpiChart';
 import { CriticalAlertsWidget } from '@/components/dashboard/CriticalAlertsWidget';
 import { MetricsWidget } from '@/components/dashboard/MetricsWidget';
 import { QuickAccessWidget } from '@/components/dashboard/QuickAccessWidget';
@@ -255,6 +256,9 @@ export default function Dashboard() {
           <div className="grid gap-4 md:grid-cols-3">
             <TicketsByCategoryChart />
             <TicketsByTechnicianChart />
+            <TicketsByEpiChart />
+          </div>
+          <div className="mt-4">
             <TicketTrendChart />
           </div>
         </section>
