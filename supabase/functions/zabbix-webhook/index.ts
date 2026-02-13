@@ -409,27 +409,55 @@ serve(async (req) => {
       if (shouldSendWhatsApp) {
         console.log('Sending EPI WhatsApp notification...');
         
+        // Primeiro, verificar se há configurações específicas de EPI WhatsApp
+        const { data: epiWhatsappTarget } = await supabase
+          .from('system_settings')
+          .select('setting_value')
+          .eq('setting_key', 'epi_whatsapp_target')
+          .single();
+
+        // Fallback para configurações globais de WhatsApp
         const { data: whatsappSettings } = await supabase
           .from('system_settings')
           .select('setting_value')
           .eq('setting_key', 'whatsapp_settings')
           .single();
 
-        if (whatsappSettings?.setting_value?.isEnabled) {
+        // Determinar target: EPI-específico ou global
+        let targetType = 'individual';
+        let targetPhone = '';
+        let targetGroupId = '';
+        let isEnabled = false;
+
+        if (epiWhatsappTarget?.setting_value) {
+          const epiTarget = epiWhatsappTarget.setting_value;
+          targetType = epiTarget.targetType || 'individual';
+          targetPhone = epiTarget.phone || '';
+          targetGroupId = epiTarget.groupId || '';
+          // EPI target configurado, usar ele
+          isEnabled = true;
+          console.log('Using EPI-specific WhatsApp target:', { targetType, targetPhone: targetPhone ? '***' : '', targetGroupId });
+        } else if (whatsappSettings?.setting_value?.isEnabled) {
+          // Fallback para configurações globais
           const settings = whatsappSettings.setting_value;
-          const targetType = settings.targetType || 'individual';
-          
+          targetType = settings.targetType || 'individual';
+          targetPhone = settings.defaultPhone || '';
+          targetGroupId = settings.selectedGroupId || '';
+          isEnabled = true;
+          console.log('Using global WhatsApp settings for EPI');
+        }
+
+        if (isEnabled) {
           const notificationMessage = `${emoji} *ALERTA EPI MONITOR (${epiSeverity.toUpperCase()})*\n\n*Tipo:* ${epiPayload.alert_type || 'Alerta'}\n*Mensagem:* ${epiPayload.message || '-'}\n${epiPayload.equipment_name ? `*EPI:* ${epiPayload.equipment_name}\n` : ''}${epiPayload.employee_name ? `*Funcionário:* ${epiPayload.employee_name}\n` : ''}${epiPayload.department ? `*Departamento:* ${epiPayload.department}\n` : ''}${epiPayload.due_date ? `*Vencimento:* ${epiPayload.due_date}\n` : ''}\n_${new Date().toLocaleString('pt-BR')}_`;
 
           try {
-            if (targetType === 'group' && settings.selectedGroupId) {
-              console.log('Sending EPI notification to group:', settings.selectedGroupId, '- Has image:', !!imageUrl);
+            if (targetType === 'group' && targetGroupId) {
+              console.log('Sending EPI notification to group:', targetGroupId, '- Has image:', !!imageUrl);
               if (imageUrl) {
-                // Enviar com imagem
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     action: 'send-group-media',
-                    groupId: settings.selectedGroupId,
+                    groupId: targetGroupId,
                     message: notificationMessage,
                     mediaUrl: imageUrl,
                     notification_type: 'epi_alert',
@@ -437,25 +465,23 @@ serve(async (req) => {
                 });
                 console.log('WhatsApp EPI media notification sent to group');
               } else {
-                // Enviar apenas texto
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     action: 'send-group',
-                    groupId: settings.selectedGroupId,
+                    groupId: targetGroupId,
                     message: notificationMessage,
                     notification_type: 'epi_alert',
                   },
                 });
                 console.log('WhatsApp EPI text notification sent to group');
               }
-            } else {
-              console.log('Sending individual EPI notification... Has image:', !!imageUrl);
+            } else if (targetPhone) {
+              console.log('Sending individual EPI notification to:', targetPhone, '- Has image:', !!imageUrl);
               if (imageUrl) {
-                // Enviar com imagem
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     action: 'send-media',
-                    phone: settings.defaultPhone || '',
+                    phone: targetPhone,
                     message: notificationMessage,
                     mediaUrl: imageUrl,
                     notification_type: 'epi_alert',
@@ -463,16 +489,18 @@ serve(async (req) => {
                 });
                 console.log('WhatsApp individual EPI media notification sent');
               } else {
-                // Enviar apenas texto
                 await supabase.functions.invoke('send-whatsapp', {
                   body: {
                     action: 'send',
+                    phone: targetPhone,
                     message: notificationMessage,
                     notification_type: 'epi_alert',
                   },
                 });
                 console.log('WhatsApp individual EPI text notification sent');
               }
+            } else {
+              console.log('No phone or group configured for EPI WhatsApp notification');
             }
           } catch (e) {
             console.error('Error sending EPI WhatsApp notification:', e);
