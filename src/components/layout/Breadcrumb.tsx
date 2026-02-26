@@ -161,10 +161,6 @@ export const Breadcrumb = () => {
       breadcrumbs.push({ label: 'Scanner QR Code', path: '/scan' });
     }
     
-    if (pathSegments[0] === 'analytics' && pathSegments[1] === 'scans') {
-      breadcrumbs.push({ label: 'Analytics', path: '/analytics/scans' });
-      breadcrumbs.push({ label: 'Scans', path: '/analytics/scans' });
-    }
 
     return breadcrumbs;
   };

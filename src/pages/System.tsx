@@ -70,9 +70,6 @@ export default function System() {
     systemHealth,
     alertStats,
     usageStats,
-    runCapacityCheck,
-    isRunningCheck,
-    cleanOldData,
   } = useSystemStats();
 
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'status');
@@ -311,7 +308,7 @@ export default function System() {
               <Shield className="w-4 h-4 mr-2" />
               Segurança
             </TabsTrigger>
-            <TabsTrigger value="advanced">Avançado</TabsTrigger>
+            
           </TabsList>
 
           {/* Tab: Status do Sistema */}
@@ -1227,78 +1224,6 @@ export default function System() {
             </Card>
           </TabsContent>
 
-          {/* Tab: Avançado */}
-          <TabsContent value="advanced" className="space-y-6">
-            {/* Configurar Cron Externo */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Configurar Verificações Automáticas</h3>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Configure um serviço de cron externo para executar verificações automáticas de
-                  capacidade a cada 15 minutos.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <div>
-                    <div className="text-sm font-semibold mb-1">URL da Edge Function:</div>
-                    <code className="text-xs bg-background p-2 rounded block">
-                      {import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-capacity-alerts
-                    </code>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold mb-1">Header de Autorização:</div>
-                    <code className="text-xs bg-background p-2 rounded block break-all">
-                      Authorization: Bearer {import.meta.env.VITE_SUPABASE_ANON_KEY}
-                    </code>
-                  </div>
-                </div>
-                <div className="text-sm space-y-2">
-                  <p className="font-semibold">Serviços recomendados:</p>
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                    <li>
-                      <a href="https://cron-job.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        Cron-Job.org
-                      </a> - Gratuito e fácil de configurar
-                    </li>
-                    <li>
-                      <a href="https://easycron.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        EasyCron
-                      </a> - Interface simples
-                    </li>
-                    <li>GitHub Actions - Use workflows agendados</li>
-                  </ul>
-                </div>
-              </div>
-            </Card>
-
-            {/* Limpar Dados Antigos */}
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Trash2 className="w-5 h-5" />
-                Limpar Dados Antigos
-              </h3>
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <Button
-                    variant="destructive"
-                    onClick={() => cleanOldData({ type: 'logs', days: 90 })}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Limpar Logs &gt; 90 dias
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => cleanOldData({ type: 'alerts', days: 30 })}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Limpar Alertas Resolvidos &gt; 30 dias
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  ⚠️ Esta ação não pode ser desfeita. Os dados serão permanentemente removidos.
-                </p>
-              </div>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
