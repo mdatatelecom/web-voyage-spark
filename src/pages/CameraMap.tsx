@@ -396,12 +396,9 @@ export default function CameraMap() {
                               <CameraThumbnail
                                 cameraId={camera.id}
                                 cameraName={camera.name}
-                                snapshotUrl={parseNotes(camera.notes)?.snapshot_url}
-                                liveUrl={parseNotes(camera.notes)?.live_url}
                                 fallbackImage={camera.location_photo_url}
                                 status={camera.equipment_status || 'planned'}
                                 className="w-12 h-12"
-                                refreshInterval={60}
                                 showStatus={false}
                               />
                             </TableCell>
@@ -472,12 +469,9 @@ export default function CameraMap() {
                             <CameraThumbnail
                               cameraId={camera.id}
                               cameraName={camera.name}
-                              snapshotUrl={notes.snapshot_url}
-                              liveUrl={notes.live_url}
                               fallbackImage={camera.location_photo_url}
                               status={camera.equipment_status || 'planned'}
                               className="w-16 h-16 mb-2"
-                              refreshInterval={30}
                             />
                             
                             {/* Name */}
