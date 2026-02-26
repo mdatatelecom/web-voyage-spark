@@ -1,72 +1,55 @@
 
 
-# Corrigir Filtros do Dashboard - Conexao Completa
+# Remover Funcionalidades de Cameras ao Vivo
 
-## Problema Identificado
+## Contexto
 
-Os filtros do dashboard estao conectados apenas aos 4 graficos de infraestrutura (Rack Occupancy, Equipment Type, Connection Status, Port Usage). Os seguintes componentes **NAO reagem** aos filtros:
+As cameras no sistema passam a ser apenas para documentacao (fotos de localizacao, registro de instalacao). Toda funcionalidade de visualizacao ao vivo (streaming, snapshots dinamicos, indicadores LIVE) sera removida.
 
-1. **MetricsWidget** - Os contadores (Predios, Racks, Equipamentos, Conexoes, Portas) usam uma query `dashboard-stats` que ignora os filtros
-2. **CriticalAlertsWidget** - Nao recebe filtros
-3. **ZabbixMonitoringWidget** - Nao recebe filtros
-4. **EpiMonitorWidget** - Nao recebe filtros
-5. **TicketStatsCards / SLAWidget / Ticket Charts** - Nao recebem filtros
+## Arquivos e Alteracoes
 
-## Plano de Correcao
+### 1. `src/components/equipment/CameraThumbnail.tsx`
+- Remover props `snapshotUrl`, `liveUrl`, `refreshInterval`
+- Remover estado `refreshKey` e funcao `handleRefresh`
+- Remover bloco "Live indicator for streams" (badge LIVE)
+- Remover botao de refresh
+- Simplificar para usar apenas `fallbackImage` (foto de localizacao) como fonte de imagem
+- O componente mostra apenas a foto estatica da camera ou o placeholder (icone Camera)
 
-### 1. Atualizar a query `dashboard-stats` para usar filtros
+### 2. `src/components/equipment/EquipmentEditDialog.tsx`
+- Remover estado `liveUrl` e `setLiveUrl`
+- Remover campo "URL de Streaming ao Vivo" do formulario
+- Remover `live_url` do objeto de notas salvas
+- Manter campos de foto de localizacao e descricao (documentacao)
 
-A query na linha 76-92 do `Dashboard.tsx` faz `select('count')` sem nenhum filtro. Quando o usuario seleciona um predio, os contadores devem refletir apenas dados daquele predio.
+### 3. `src/pages/CameraMap.tsx`
+- Remover props `snapshotUrl` e `liveUrl` de todas as chamadas ao `CameraThumbnail`
+- Remover `refreshInterval` das chamadas
+- Manter `fallbackImage` (foto de localizacao) como unica fonte visual
 
-- Extrair essa query para um hook `useDashboardCounts(filters)` no `useDashboardStats.ts`
-- Quando `buildingId` estiver definido, filtrar racks por predio (via floors/rooms), equipamentos por racks filtrados, conexoes por portas dos equipamentos filtrados
-- Incluir `statsFilters` na queryKey para re-fetch automatico
+### 4. `src/pages/EquipmentDetails.tsx`
+- Remover funcao `extractLiveUrl`
+- Remover variavel `liveUrl` do bloco de camera
+- Nao ha mais referencia a streaming nessa pagina
 
-### 2. Passar filtros para widgets de monitoramento
+### 5. `src/hooks/useCameras.ts`
+- Nenhuma alteracao necessaria - ja nao referencia live/snapshot URLs diretamente (usa `location_photo_url` de notes)
 
-- `CriticalAlertsWidget`, `ZabbixMonitoringWidget`, `EpiMonitorWidget`: Adicionar prop `filters` opcional
-- Quando `buildingId` estiver definido, filtrar alertas que pertencem a equipamentos/racks daquele predio
-- Se nao houver filtro, manter comportamento atual
+## O que permanece
 
-### 3. Garantir reatividade correta
+- Fotos de localizacao (upload e exibicao)
+- Descricao de localizacao
+- Status do equipamento (active/offline/planned)
+- Indicador de status (bolinha verde/vermelha)
+- Toda a topologia NVR/DVR e associacao de canais
+- Mapa de cameras com filtros
 
-- Verificar que todas as queryKeys incluem os parametros de filtro relevantes
-- Remover `staleTime: 5 * 60 * 1000` ou reduzir para garantir atualizacao mais rapida quando filtros mudam
+## Resumo Tecnico
 
----
-
-## Detalhes Tecnicos
-
-### Arquivo: `src/hooks/useDashboardStats.ts`
-
-Adicionar novo hook:
-```typescript
-export const useDashboardCounts = (filters?: DashboardStatsFilters) => {
-  return useQuery({
-    queryKey: ['dashboard-stats', filters?.buildingId, filters?.connectionStatus, filters?.equipmentType],
-    queryFn: async () => {
-      if (!filters?.buildingId) {
-        // Sem filtro: contagem total (comportamento atual)
-        const [buildings, racks, equipment, connections] = await Promise.all([...]);
-        return { buildings, racks, equipment, connections };
-      }
-      // Com filtro de predio: contar apenas recursos daquele predio
-      const rackIds = await getBuildingRackIds(filters.buildingId);
-      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId);
-      // Contar connections filtradas por portas dos equipamentos
-      return { buildings: 1, racks: rackIds.length, equipment: equipmentIds.length, connections: filteredCount };
-    }
-  });
-};
-```
-
-### Arquivo: `src/pages/Dashboard.tsx`
-
-- Substituir a query inline `dashboard-stats` pelo novo hook `useDashboardCounts(statsFilters)`
-- Passar `statsFilters` para `CriticalAlertsWidget`, `ZabbixMonitoringWidget`, `EpiMonitorWidget`
-
-### Arquivos de Widgets (CriticalAlertsWidget, ZabbixMonitoringWidget, EpiMonitorWidget)
-
-- Adicionar prop `filters?: DashboardStatsFilters`
-- Filtrar alertas pelo `buildingId` quando presente (via entity_id dos alertas que referenciam equipamentos/racks)
+| Arquivo | Acao |
+|---------|------|
+| CameraThumbnail.tsx | Simplificar - remover live/snapshot/refresh |
+| EquipmentEditDialog.tsx | Remover campo live_url |
+| CameraMap.tsx | Remover props live/snapshot das chamadas |
+| EquipmentDetails.tsx | Remover extractLiveUrl e uso |
 
