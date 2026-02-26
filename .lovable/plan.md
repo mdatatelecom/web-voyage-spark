@@ -1,35 +1,110 @@
 
 
-# Corrigir Graficos Cortados no Dashboard
+## Plano: Limpeza do Projeto - Remover Funcionalidades Desnecessarias
 
-## Problema Identificado
+### Resumo
 
-Cada grafico no Dashboard esta sendo renderizado dentro de **dois Cards aninhados**:
-- O Dashboard cria um Card externo com altura fixa (`h-[250px]` ou `h-[200px]`)
-- Cada componente de grafico (RackOccupancyChart, EquipmentTypeChart, etc.) cria seu proprio Card interno com `h-[300px]`
+Remover completamente 4 funcionalidades do projeto e limpar as tabelas do banco de dados associadas:
 
-Resultado: os graficos ficam cortados porque o container externo e menor que o conteudo interno.
+1. **Cameras ao vivo (tempo real)** - Dialog de live streaming, proxies go2rtc/WebRTC
+2. **Chat com IA** - Botao flutuante, dialog, hook, edge function
+3. **Base de Conhecimento** - Pagina, dialog, hook, tabela
+4. **CLI (Terminal)** - Dialog do terminal, componente de autocomplete
 
-## Solucao
+---
 
-Remover os Cards externos do Dashboard e deixar cada componente de grafico renderizar seu proprio Card completo. Isso elimina o aninhamento e permite que cada grafico ocupe o espaco necessario.
+### Detalhes Tecnicos
 
-## Alteracoes
+#### 1. Remover Camera ao Vivo
 
-### Arquivo: `src/pages/Dashboard.tsx`
+**Arquivos a deletar:**
+- `src/components/equipment/CameraLiveDialog.tsx`
+- `supabase/functions/go2rtc-proxy/index.ts`
+- `supabase/functions/go2rtc-hls-proxy/index.ts`
+- `supabase/functions/go2rtc-webrtc-proxy/index.ts`
+- `supabase/functions/go2rtc-snapshot-proxy/index.ts`
+- `supabase/functions/hls-proxy/index.ts`
 
-**Secao "Analise de Infraestrutura" (linhas 219-267):**
-- Remover os Cards externos que envolvem cada grafico
-- Manter o grid `md:grid-cols-2` mas com os componentes diretamente dentro
-- Cada componente (RackOccupancyChart, EquipmentTypeChart, ConnectionStatusChart, PortUsageChart) ja possui seu proprio Card com header e conteudo
+**Arquivos a editar:**
+- `src/pages/CameraMap.tsx` - Remover import e uso do CameraLiveDialog, botao "Ao Vivo"
+- `src/pages/EquipmentDetails.tsx` - Remover import e uso do CameraLiveDialog, botao "Play"
+- `src/components/equipment/CameraThumbnail.tsx` - Remover snapshot via go2rtc (manter thumbnail estatico ou placeholder)
+- `supabase/config.toml` - Remover entradas das 5 functions de proxy
 
-**Secao "Centro de Suporte" - graficos de tickets (linhas 298-325):**
-- Mesmo problema: Cards externos com `h-[200px]` envolvendo TicketsByCategoryChart, TicketsByTechnicianChart e TicketTrendChart
-- Remover os Cards externos e deixar os componentes renderizarem seus proprios Cards
-- Manter o grid `md:grid-cols-3`
+**Hooks a deletar:**
+- `src/hooks/useGo2rtcSettings.ts`
 
-### Resultado esperado
-- Graficos de infraestrutura: 4 cards em grid 2x2, cada um com altura adequada para visualizar o conteudo completo
-- Graficos de tickets: 3 cards em linha, sem corte de conteudo
-- Labels dos eixos, legendas e tooltips totalmente visiveis
+**Arquivos a editar (referencias ao go2rtc):**
+- `src/pages/System.tsx` - Remover secao de configuracao go2RTC
+
+#### 2. Remover Chat com IA
+
+**Arquivos a deletar:**
+- `src/components/ai/SystemChatButton.tsx`
+- `src/components/ai/SystemChatDialog.tsx`
+- `src/components/ai/ChatMessage.tsx`
+- `src/hooks/useSystemChat.ts`
+- `supabase/functions/system-chat/index.ts`
+
+**Arquivos a editar:**
+- `src/components/layout/AppLayout.tsx` - Remover import e uso do `SystemChatButton`
+- `supabase/config.toml` - Remover entrada `[functions.system-chat]`
+
+#### 3. Remover Base de Conhecimento
+
+**Arquivos a deletar:**
+- `src/pages/KnowledgeBase.tsx`
+- `src/components/ai/KnowledgeDialog.tsx`
+- `src/components/ai/ImportPreviewDialog.tsx`
+- `src/hooks/useKnowledgeBase.ts`
+
+**Arquivos a editar:**
+- `src/App.tsx` - Remover rota `/knowledge-base` e import
+- `src/components/layout/AppLayout.tsx` - Remover item "Base de Conhecimento" do menu (linha 198)
+
+#### 4. Remover CLI (Terminal)
+
+**Arquivos a deletar:**
+- `src/components/cli/TerminalDialog.tsx`
+- `src/components/cli/AutocompleteDropdown.tsx`
+
+**Arquivos a editar:**
+- `src/components/layout/AppLayout.tsx` - Remover import do TerminalDialog, estado `terminalOpen`, item "CLI" do menu, e `<TerminalDialog>` do JSX
+- `supabase/config.toml` - Remover entrada `[functions.terminal-proxy]` (se aplicavel)
+
+**Edge function a deletar:**
+- `supabase/functions/terminal-proxy/index.ts`
+
+#### 5. Limpeza do Banco de Dados
+
+Executar migracao SQL para:
+- `DROP TABLE IF EXISTS chat_messages CASCADE;` - Mensagens do chat IA
+- `DROP TABLE IF EXISTS system_knowledge CASCADE;` - Base de conhecimento
+- Remover dados de `system_settings` relacionados ao go2rtc (`DELETE FROM system_settings WHERE setting_key = 'go2rtc_server'`)
+
+#### 6. Limpeza de Configuracao
+
+- `supabase/config.toml` - Remover todas as entradas das functions deletadas:
+  - `system-chat`
+  - `terminal-proxy`
+  - `go2rtc-proxy`
+  - `go2rtc-hls-proxy`
+  - `go2rtc-webrtc-proxy`
+  - `go2rtc-snapshot-proxy`
+  - `hls-proxy`
+
+---
+
+### Dependencias npm que podem ser removidas apos limpeza
+
+- `hls.js` - Usado apenas pelo CameraLiveDialog (verificar se nao ha outro uso)
+
+### O que permanece intacto
+
+- Sistema de cameras (cadastro, mapa, thumbnails estaticos, NVR report)
+- WhatsApp integration
+- Tickets/Chamados
+- Toda infraestrutura (Buildings, Floors, Rooms, Racks, Equipment, Connections)
+- IPAM, VLANs, Alertas, Monitoramento
+- QR Scanner, Labels, Audit
 
