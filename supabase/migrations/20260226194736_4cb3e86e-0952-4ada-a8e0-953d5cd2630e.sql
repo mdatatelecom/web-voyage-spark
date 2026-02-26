@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Service role can manage sessions" ON public.whatsapp_sessions;

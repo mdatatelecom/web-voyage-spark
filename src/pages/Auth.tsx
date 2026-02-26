@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, Network, Mail, Lock } from 'lucide-react';
-import { NetworkParticles } from '@/components/animations/NetworkParticles';
 import { InfrastructureIllustration } from '@/components/login/InfrastructureIllustration';
 
 export default function Auth() {
@@ -50,10 +49,6 @@ export default function Auth() {
     <div className="min-h-screen flex bg-background">
       {/* Left Side - Illustration (Hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary/10 via-primary/5 to-background overflow-hidden">
-        {/* Network Particles Background */}
-        <div className="absolute inset-0">
-          <NetworkParticles />
-        </div>
         
         {/* Infrastructure Illustration */}
         <InfrastructureIllustration />
