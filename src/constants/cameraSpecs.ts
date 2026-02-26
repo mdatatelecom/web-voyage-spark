@@ -384,6 +384,13 @@ export interface SwitchBudgetValidation {
   message: string;
 }
 
+// Analog camera power source types
+export const ANALOG_POWER_SOURCE_TYPES = [
+  { value: 'individual_12v', label: 'Fonte 12V Individual', icon: '🔋', description: 'Uma fonte por câmera' },
+  { value: 'centralized_12v', label: 'Fonte 12V Chaveada Centralizada', icon: '⚡', description: 'Uma fonte para múltiplas câmeras' },
+  { value: 'rack_multi', label: 'Fonte Multi-Saída Rack', icon: '🔌', description: 'Fonte com múltiplas saídas no rack' },
+] as const;
+
 export const validateSwitchBudget = (
   availableWatts: number,
   cameraPowerConsumption: number,

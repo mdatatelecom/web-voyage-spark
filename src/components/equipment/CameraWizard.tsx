@@ -28,6 +28,7 @@ import {
   POWER_SOURCE_TYPES,
   POE_INJECTOR_TEMPLATES,
   ANALOG_CAMERA_TEMPLATES,
+  ANALOG_POWER_SOURCE_TYPES,
   getCameraTemplatesByManufacturer,
   getAnalogCameraTemplatesByManufacturer,
   getPoePortType,
@@ -111,6 +112,9 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
     maxWatts: 15.4,
   });
   
+  // Analog power source
+  const [analogPowerSource, setAnalogPowerSource] = useState<string>('');
+  
   // Hooks
   const { buildings } = useBuildings();
   const { floors } = useFloors(locationData.buildingId);
@@ -133,8 +137,13 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
   
   // Fetch NVR/DVR equipment for association
   const { data: nvrDevices, isLoading: loadingNvrs } = useQuery({
-    queryKey: ['nvr-dvr-devices'],
+    queryKey: ['nvr-dvr-devices', connectionType],
     queryFn: async () => {
+      // Filter by camera type: analog → DVR only, IP → NVR only
+      const allowedTypes = isIPCamera 
+        ? ['nvr', 'nvr_poe'] 
+        : ['dvr'];
+      
       const { data, error } = await supabase
         .from('equipment')
         .select(`
@@ -150,8 +159,32 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             )
           )
         `)
-        .in('type', ['nvr', 'nvr_poe', 'dvr'] as any[]);
+        .in('type', allowedTypes as any[]);
       if (error) throw error;
+      
+      // Also fetch PoE port availability for NVR PoE devices
+      const nvrIds = (data || []).filter(d => (d.type as string) === 'nvr_poe').map(d => d.id);
+      let portAvailability: Record<string, { total: number; available: number }> = {};
+      
+      if (nvrIds.length > 0) {
+        const { data: ports } = await supabase
+          .from('ports')
+          .select('equipment_id, status, port_type')
+          .in('equipment_id', nvrIds)
+          .in('port_type', ['rj45_poe', 'rj45_poe_plus', 'rj45_poe_plus_plus'] as any[]);
+        
+        if (ports) {
+          for (const port of ports) {
+            if (!portAvailability[port.equipment_id]) {
+              portAvailability[port.equipment_id] = { total: 0, available: 0 };
+            }
+            portAvailability[port.equipment_id].total++;
+            if (port.status === 'available') {
+              portAvailability[port.equipment_id].available++;
+            }
+          }
+        }
+      }
       
       // Parse notes to get channel info
       return (data || []).map(nvr => {
@@ -163,6 +196,12 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         const totalChannels = parsedNotes.total_channels || (nvr.type === 'dvr' ? 8 : 16);
         const cameras = parsedNotes.cameras || [];
         const usedChannels = cameras.length;
+        const nvrType = nvr.type as string;
+        
+        // For NVR PoE: check actual PoE port availability
+        const poeInfo = portAvailability[nvr.id];
+        const availablePoePorts = poeInfo?.available ?? 0;
+        const totalPoePorts = poeInfo?.total ?? 0;
         
         return {
           ...nvr,
@@ -170,6 +209,9 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
           usedChannels,
           availableChannels: Math.max(0, totalChannels - usedChannels),
           cameras,
+          nvrType,
+          availablePoePorts,
+          totalPoePorts,
           location: nvr.rack 
             ? `${(nvr.rack as any)?.room?.floor?.building?.name || ''} > ${(nvr.rack as any)?.room?.name || ''} > ${(nvr.rack as any)?.name || ''}`
             : 'Sem localização',
@@ -273,14 +315,22 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         throw new Error('Selecione a localização da câmera');
       }
       
-      // For IP cameras, require power source selection
-      if (isIPCamera && powerSource === 'switch_poe' && !selectedPortId) {
+      // For IP cameras, require power source selection (unless NVR PoE)
+      const selectedNvrDevice = nvrDevices?.find(n => n.id === selectedNvrId);
+      const isSelectedNvrPoe = selectedNvrDevice?.nvrType === 'nvr_poe';
+      
+      if (isIPCamera && !isSelectedNvrPoe && powerSource === 'switch_poe' && !selectedPortId) {
         throw new Error('Selecione um switch e porta PoE');
       }
       
       // For analog cameras, require NVR/DVR association
       if (!isIPCamera && !selectedNvrId) {
-        throw new Error('Câmeras convencionais precisam ser associadas a um DVR/NVR');
+        throw new Error('Câmeras convencionais precisam ser associadas a um DVR');
+      }
+      
+      // For analog cameras, require power source type
+      if (!isIPCamera && !analogPowerSource) {
+        throw new Error('Selecione o tipo de fonte de alimentação');
       }
       
       // Validar disponibilidade do IP se informado
@@ -319,16 +369,19 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             hasAudio: cameraData.hasAudio,
             hasSD: isIPCamera ? cameraData.hasSD : false,
             locationDescription: cameraData.locationDescription,
-            powerSource: isIPCamera ? powerSource : 'external',
+            powerSource: isIPCamera 
+              ? (isSelectedNvrPoe ? 'nvr_poe' : powerSource) 
+              : analogPowerSource || 'external',
             vlanUuid: isIPCamera ? cameraData.vlanUuid : null,
             buildingId: locationData.buildingId,
             floorId: locationData.floorId,
             roomId: locationData.roomId,
             nvrId: selectedNvrId || null,
             nvrChannel: selectedChannel,
+            recording: !!(selectedNvrId),
           }),
           power_consumption_watts: isIPCamera ? cameraData.powerConsumption : null,
-          equipment_status: 'active',
+          equipment_status: (isIPCamera && !selectedNvrId) ? 'not_recording' : 'active',
         })
         .select()
         .single();
@@ -505,12 +558,27 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
     setSelectedSwitchId('');
     setSelectedPortId('');
     setSelectedInjectorId('');
+    setAnalogPowerSource('');
     removePhoto();
     onOpenChange(false);
   };
   
-  // Steps: 1-Type, 2-Manufacturer, 3-Specs, 4-Location, 5-NVR/DVR, 6-Power(IP only)
-  const getTotalSteps = () => isIPCamera ? 6 : 5;
+  // Determine if selected NVR is PoE type
+  const selectedNvr = nvrDevices?.find(n => n.id === selectedNvrId);
+  const isNvrPoe = selectedNvr?.nvrType === 'nvr_poe';
+  const isNvrStandard = selectedNvr?.nvrType === 'nvr';
+  
+  // Steps: 1-Type, 2-Manufacturer, 3-Specs, 4-Location, 5-NVR/DVR, 6-Power(conditional)
+  // IP + NVR PoE: skip power step (6 steps but step 6 auto-skipped)
+  // IP + NVR Standard or Standalone: show power step
+  // Analog: 6 steps (step 6 = DC power source selection)
+  const needsPowerStep = () => {
+    if (!isIPCamera) return true; // Analog always needs DC power source
+    if (isNvrPoe && selectedNvrId) return false; // NVR PoE provides power
+    return true; // IP + standard NVR or standalone needs power source
+  };
+  
+  const getTotalSteps = () => needsPowerStep() ? 6 : 5;
   
   const canProceed = () => {
     switch (step) {
@@ -524,7 +592,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         return true; // optional for IP
       }
       case 6: {
-        if (!isIPCamera) return true;
+        if (!isIPCamera) return !!analogPowerSource; // Analog requires DC power source type
         if (powerSource === 'switch_poe') return selectedPortId;
         if (powerSource === 'poe_injector') return selectedInjectorId || (createNewInjector && newInjectorData.name);
         return true; // external power
@@ -1076,8 +1144,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
               <Video className="w-4 h-4" />
               <span className="text-sm">
                 {isIPCamera 
-                  ? 'Associe a câmera a um NVR/DVR (opcional)' 
-                  : 'Selecione o DVR/NVR de destino (obrigatório)'}
+                  ? 'Associe a câmera a um NVR (opcional)' 
+                  : 'Selecione o DVR de destino (obrigatório)'}
               </span>
             </div>
             
@@ -1085,7 +1153,17 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Câmeras convencionais precisam estar conectadas a um DVR ou NVR para gravação.
+                  Câmeras analógicas precisam estar conectadas a um <strong>DVR</strong> para gravação via entrada BNC.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {isIPCamera && selectedNvrId && isNvrStandard && (
+              <Alert className="border-yellow-500/50 bg-yellow-500/5">
+                <AlertCircle className="h-4 w-4 text-yellow-500" />
+                <AlertDescription>
+                  NVR Padrão selecionado. Este NVR <strong>não alimenta câmeras</strong> via PoE. 
+                  Você precisará configurar uma fonte de energia (Switch PoE, Injetor ou Fonte Externa) no próximo passo.
                 </AlertDescription>
               </Alert>
             )}
@@ -1093,31 +1171,49 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             {loadingNvrs ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                Buscando NVRs/DVRs...
+                Buscando {isIPCamera ? 'NVRs' : 'DVRs'}...
               </div>
             ) : nvrDevices && nvrDevices.length > 0 ? (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {isIPCamera && (
-                  <Button 
-                    variant={!selectedNvrId ? 'default' : 'outline'}
-                    className="w-full justify-start"
-                    onClick={() => { setSelectedNvrId(''); setSelectedChannel(null); }}
-                  >
-                    <Monitor className="w-4 h-4 mr-2" />
-                    Sem NVR (standalone - apenas rede)
-                  </Button>
+                  <>
+                    <Button 
+                      variant={!selectedNvrId ? 'default' : 'outline'}
+                      className="w-full justify-start"
+                      onClick={() => { setSelectedNvrId(''); setSelectedChannel(null); }}
+                    >
+                      <Monitor className="w-4 h-4 mr-2" />
+                      Sem NVR (standalone - apenas rede)
+                    </Button>
+                    {!selectedNvrId && (
+                      <Alert className="border-yellow-500/50 bg-yellow-500/5">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <AlertDescription>
+                          ⚠️ Câmera ficará como <strong>"Não Gravando"</strong>. Sem vínculo com NVR, não haverá gravação automática.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
                 )}
-                {nvrDevices.map(nvr => (
+                {nvrDevices.map(nvr => {
+                  // For NVR PoE, block if no PoE ports available
+                  const isPoeFull = nvr.nvrType === 'nvr_poe' && nvr.availablePoePorts === 0;
+                  const isFull = nvr.availableChannels === 0 || isPoeFull;
+                  
+                  return (
                   <Card
                     key={nvr.id}
                     className={cn(
                       "cursor-pointer transition-all",
                       selectedNvrId === nvr.id ? 'ring-2 ring-primary' : 'hover:bg-accent/50',
-                      nvr.availableChannels === 0 && 'opacity-50 cursor-not-allowed'
+                      isFull && 'opacity-50 cursor-not-allowed'
                     )}
                     onClick={() => {
-                      if (nvr.availableChannels === 0) {
-                        toast.error(`${nvr.name} não tem canais disponíveis`);
+                      if (isFull) {
+                        const reason = isPoeFull 
+                          ? `${nvr.name} não tem portas PoE disponíveis`
+                          : `${nvr.name} não tem canais disponíveis`;
+                        toast.error(reason);
                         return;
                       }
                       setSelectedNvrId(nvr.id);
@@ -1130,21 +1226,28 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                           <div className="flex items-center gap-2">
                             <Video className="w-4 h-4 text-primary" />
                             <span className="font-semibold">{nvr.name}</span>
-                            <Badge variant="secondary">{(nvr.type as string).toUpperCase()}</Badge>
-                            {nvr.availableChannels === 0 && (
-                              <Badge variant="destructive">Lotado</Badge>
+                            <Badge variant="secondary">{nvr.nvrType.toUpperCase().replace('_', ' ')}</Badge>
+                            {isFull && (
+                              <Badge variant="destructive">
+                                {isPoeFull ? 'Sem portas PoE' : 'Lotado'}
+                              </Badge>
                             )}
                           </div>
                           {nvr.ip_address && (
                             <p className="text-sm text-muted-foreground mt-1">IP: {nvr.ip_address}</p>
                           )}
                           <p className="text-sm text-muted-foreground">📍 {nvr.location}</p>
-                          <div className="flex items-center gap-4 mt-2 text-sm">
+                          <div className="flex items-center gap-4 mt-2 text-sm flex-wrap">
                             <span className={nvr.availableChannels > 0 ? "text-green-600" : "text-destructive"}>
                               📹 {nvr.usedChannels}/{nvr.totalChannels} canais usados
                             </span>
+                            {nvr.nvrType === 'nvr_poe' && (
+                              <span className={nvr.availablePoePorts > 0 ? "text-blue-600" : "text-destructive"}>
+                                ⚡ {nvr.availablePoePorts}/{nvr.totalPoePorts} portas PoE livres
+                              </span>
+                            )}
                             <span className="text-muted-foreground">
-                              {nvr.availableChannels} disponíveis
+                              {nvr.availableChannels} ch disponíveis
                             </span>
                           </div>
                         </div>
@@ -1186,26 +1289,36 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                       )}
                     </CardContent>
                   </Card>
-                ))}
+                );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 border rounded-lg border-dashed">
                 <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="font-medium">Nenhum NVR/DVR cadastrado</p>
+                <p className="font-medium">Nenhum {isIPCamera ? 'NVR' : 'DVR'} cadastrado</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Cadastre um NVR ou DVR primeiro na tela de Equipamentos
+                  Cadastre um {isIPCamera ? 'NVR' : 'DVR'} primeiro na tela de Equipamentos
                 </p>
               </div>
             )}
           </div>
         )}
         
-        {/* Step 6: Power Source (IP cameras only) */}
+        {/* Step 6: Power Source (IP cameras) */}
         {step === 6 && isIPCamera && (() => {
           const poeRecommendation = getPoeRecommendation(selectedTemplate, cameraData.powerConsumption);
           
           return (
           <div className="space-y-4">
+            {isNvrStandard && selectedNvrId && (
+              <Alert className="border-yellow-500/50 bg-yellow-500/5">
+                <AlertCircle className="h-4 w-4 text-yellow-500" />
+                <AlertDescription>
+                  O NVR Padrão selecionado <strong>não fornece energia PoE</strong>. Configure a fonte de alimentação abaixo.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="flex items-center justify-between gap-2 mb-4">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Zap className="w-4 h-4" />
@@ -1291,7 +1404,6 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                                 📍 {sw.roomName} - {sw.rackName}
                               </p>
                               
-                              {/* PoE Budget Visual Progress */}
                               <div className="mt-3">
                                 <div className="flex justify-between text-xs mb-1">
                                   <span className="text-muted-foreground">Budget PoE</span>
@@ -1315,7 +1427,6 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                                       budgetValidation.warningLevel === 'insufficient' && "[&>div]:bg-destructive"
                                     )}
                                   />
-                                  {/* Projected usage indicator */}
                                   {budgetValidation.isValid && (
                                     <div 
                                       className="absolute top-0 h-2 bg-primary/40 rounded-r-full transition-all"
@@ -1355,7 +1466,6 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
                           </div>
                           
                           {selectedSwitchId === sw.id && (() => {
-                            // Filter ports that can power this camera
                             const compatiblePorts = sw.availablePorts.filter(port => 
                               canPortPowerCamera(port.port_type, cameraData.powerConsumption)
                             );
@@ -1499,7 +1609,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
               </div>
             )}
             
-            {/* External power - just info */}
+            {/* External power */}
             {powerSource === 'external' && (
               <div className="mt-4 p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">
@@ -1519,6 +1629,38 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             )}
           </div>
         );})()}
+        
+        {/* Step 6: Analog Power Source (DC) */}
+        {step === 6 && !isIPCamera && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-muted-foreground mb-4">
+              <Zap className="w-4 h-4" />
+              <span className="text-sm">Selecione o tipo de fonte de alimentação DC</span>
+            </div>
+            
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Câmeras analógicas necessitam de uma fonte de alimentação DC externa (12V). Selecione o tipo de fonte utilizada.
+              </AlertDescription>
+            </Alert>
+            
+            <RadioGroup value={analogPowerSource} onValueChange={setAnalogPowerSource} className="space-y-3">
+              {ANALOG_POWER_SOURCE_TYPES.map(type => (
+                <div key={type.value} className="flex items-center space-x-3">
+                  <RadioGroupItem value={type.value} id={`analog-${type.value}`} />
+                  <Label htmlFor={`analog-${type.value}`} className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xl">{type.icon}</span>
+                    <div>
+                      <span className="font-medium">{type.label}</span>
+                      <p className="text-xs text-muted-foreground">{type.description}</p>
+                    </div>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+        )}
         
         {/* Navigation */}
         <div className="flex justify-between pt-4 border-t">
