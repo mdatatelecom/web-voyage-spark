@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
-import { useConnectionStatusStats } from '@/hooks/useDashboardStats';
+import { useConnectionStatusStats, DashboardStatsFilters } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,8 +20,12 @@ const STATUS_COLORS: Record<string, string> = {
   inactive: 'hsl(var(--muted))'
 };
 
-export function ConnectionStatusChart() {
-  const { data: connectionStats, isLoading } = useConnectionStatusStats();
+interface ConnectionStatusChartProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function ConnectionStatusChart({ filters }: ConnectionStatusChartProps) {
+  const { data: connectionStats, isLoading } = useConnectionStatusStats(filters);
 
   if (isLoading) {
     return (
