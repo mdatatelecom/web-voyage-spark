@@ -50,7 +50,7 @@ import {
   Wifi,
   XCircle,
   MessageCircle,
-  Video,
+  
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
@@ -68,7 +68,7 @@ import { COLOR_PRESETS, type ColorPreset } from '@/constants/colorPresets';
 import { LOGO_PRESETS, LOGO_CATEGORIES } from '@/constants/logoPresets';
 import { useVpnSettings } from '@/hooks/useVpnSettings';
 import { useWhatsAppSettings } from '@/hooks/useWhatsAppSettings';
-import { useGo2rtcSettings } from '@/hooks/useGo2rtcSettings';
+
 import { useSecuritySettings } from '@/hooks/useDevToolsProtection';
 import { WhatsAppTemplateEditor } from '@/components/whatsapp/WhatsAppTemplateEditor';
 import { WhatsAppGroupSelector } from '@/components/whatsapp/WhatsAppGroupSelector';
@@ -148,18 +148,6 @@ export default function System() {
   const [relayTestStatus, setRelayTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [relayTestMessage, setRelayTestMessage] = useState<string>('');
 
-  // go2rtc Streaming Settings
-  const { 
-    settings: go2rtcSettings, 
-    isLoading: go2rtcLoading, 
-    serverStatus: go2rtcServerStatus,
-    isTesting: go2rtcTesting,
-    saveSettings: saveGo2rtcSettings, 
-    testConnection: testGo2rtcConnection 
-  } = useGo2rtcSettings();
-  const [localGo2rtcSettings, setLocalGo2rtcSettings] = useState(go2rtcSettings);
-  const [go2rtcTestStatus, setGo2rtcTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [go2rtcTestMessage, setGo2rtcTestMessage] = useState<string>('');
 
   // Security Settings
   const {
@@ -371,48 +359,6 @@ export default function System() {
     refreshWhatsAppInstances
   ]);
 
-  // go2rtc settings sync
-  useEffect(() => {
-    setLocalGo2rtcSettings(go2rtcSettings);
-  }, [go2rtcSettings]);
-
-  const testGo2rtcServer = async () => {
-    setGo2rtcTestStatus('testing');
-    setGo2rtcTestMessage('Testando conexão com go2rtc...');
-    
-    const result = await testGo2rtcConnection(localGo2rtcSettings.serverUrl);
-    
-    if (result.success) {
-      setGo2rtcTestStatus('success');
-      setGo2rtcTestMessage(result.message);
-    } else {
-      setGo2rtcTestStatus('error');
-      setGo2rtcTestMessage(result.message);
-    }
-  };
-
-  const handleSaveGo2rtcSettings = async () => {
-    // Validate connection before saving if enabled
-    if (localGo2rtcSettings.enabled && localGo2rtcSettings.serverUrl) {
-      setGo2rtcTestStatus('testing');
-      setGo2rtcTestMessage('Validando conexão antes de salvar...');
-      
-      const result = await testGo2rtcConnection(localGo2rtcSettings.serverUrl);
-      
-      if (!result.success) {
-        setGo2rtcTestStatus('error');
-        setGo2rtcTestMessage(`${result.message}. Salvando mesmo assim...`);
-      } else {
-        setGo2rtcTestStatus('success');
-        setGo2rtcTestMessage('Conexão validada!');
-      }
-    }
-    
-    await saveGo2rtcSettings(localGo2rtcSettings);
-    
-    // Keep status for a moment then reset
-    setTimeout(() => setGo2rtcTestStatus('idle'), 3000);
-  };
 
   const testRelayConnection = async () => {
     if (!localVpnSettings.sshRelayUrl) {
@@ -555,16 +501,6 @@ export default function System() {
             <TabsTrigger value="customization">
               <Palette className="w-4 h-4 mr-2" />
               Personalização
-            </TabsTrigger>
-            <TabsTrigger value="streaming">
-              <Video className="w-4 h-4 mr-2" />
-              Streaming
-              {go2rtcServerStatus !== 'unknown' && (
-                <div className={`ml-2 w-2 h-2 rounded-full ${
-                  go2rtcServerStatus === 'online' ? 'bg-green-500' :
-                  go2rtcServerStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'
-                }`} />
-              )}
             </TabsTrigger>
             <TabsTrigger value="landing">
               <Layout className="w-4 h-4 mr-2" />
@@ -2038,157 +1974,6 @@ export default function System() {
             </Card>
           </TabsContent>
 
-          {/* Tab: Streaming (go2rtc) */}
-          <TabsContent value="streaming" className="space-y-6">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Video className="w-5 h-5" />
-                  Configurações do Servidor go2rtc
-                </h3>
-                {/* Real-time status indicator */}
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    go2rtcServerStatus === 'online' ? 'bg-green-500 animate-pulse' :
-                    go2rtcServerStatus === 'offline' ? 'bg-red-500' :
-                    'bg-gray-400'
-                  }`} />
-                  <span className="text-sm text-muted-foreground">
-                    {go2rtcServerStatus === 'online' ? 'Online' :
-                     go2rtcServerStatus === 'offline' ? 'Offline' :
-                     'Desconhecido'}
-                  </span>
-                  {go2rtcTesting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                </div>
-              </div>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  O go2rtc permite converter streams RTSP em HLS para visualização direta no navegador.
-                  Configure a URL do seu servidor go2rtc para habilitar a conversão automática.
-                </p>
-
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="go2rtc-enabled"
-                      checked={localGo2rtcSettings.enabled}
-                      onCheckedChange={(checked) =>
-                        setLocalGo2rtcSettings(prev => ({ ...prev, enabled: checked }))
-                      }
-                    />
-                    <Label htmlFor="go2rtc-enabled">Habilitar conversão RTSP → HLS via go2rtc</Label>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="go2rtc-url">URL do Servidor go2rtc</Label>
-                    <Input
-                      id="go2rtc-url"
-                      value={localGo2rtcSettings.serverUrl}
-                      onChange={(e) =>
-                        setLocalGo2rtcSettings(prev => ({ ...prev, serverUrl: e.target.value }))
-                      }
-                      placeholder="http://192.168.1.100:1984"
-                      disabled={!localGo2rtcSettings.enabled}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Exemplo: http://192.168.1.100:1984 (o protocolo http:// será adicionado automaticamente se omitido)
-                    </p>
-                  </div>
-
-                  {/* Test Result */}
-                  {go2rtcTestStatus !== 'idle' && (
-                    <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                      go2rtcTestStatus === 'testing' ? 'bg-muted' :
-                      go2rtcTestStatus === 'success' ? 'bg-green-500/10 text-green-700' :
-                      'bg-destructive/10 text-destructive'
-                    }`}>
-                      {go2rtcTestStatus === 'testing' && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {go2rtcTestStatus === 'success' && <CheckCircle className="h-4 w-4" />}
-                      {go2rtcTestStatus === 'error' && <XCircle className="h-4 w-4" />}
-                      <span className="text-sm">{go2rtcTestMessage}</span>
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={testGo2rtcServer}
-                      disabled={!localGo2rtcSettings.serverUrl || go2rtcTestStatus === 'testing'}
-                    >
-                      {go2rtcTestStatus === 'testing' ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Wifi className="w-4 h-4 mr-2" />
-                      )}
-                      Testar Conexão
-                    </Button>
-                    <Button onClick={handleSaveGo2rtcSettings}>
-                      Salvar Configurações
-                    </Button>
-                  </div>
-                </div>
-
-                <Separator className="my-6" />
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Como instalar o go2rtc</h4>
-                  <div className="bg-muted p-4 rounded-lg text-sm space-y-2">
-                    <p><strong>Docker (recomendado):</strong></p>
-                    <code className="block bg-background p-2 rounded text-xs">
-                      docker run -d --name go2rtc -p 1984:1984 -p 8554:8554 alexxit/go2rtc
-                    </code>
-                    
-                    <p className="mt-3"><strong>Documentação:</strong></p>
-                    <a 
-                      href="https://github.com/AlexxIT/go2rtc" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      https://github.com/AlexxIT/go2rtc
-                    </a>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Endpoints utilizados</h4>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Endpoint</TableHead>
-                          <TableHead>Método</TableHead>
-                          <TableHead>Descrição</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow>
-                          <TableCell><code>/api/streams</code></TableCell>
-                          <TableCell>GET</TableCell>
-                          <TableCell>Verificar status do servidor</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell><code>/api/streams?name=X&src=Y</code></TableCell>
-                          <TableCell>PUT</TableCell>
-                          <TableCell>Registrar stream RTSP</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell><code>/api/stream.m3u8?src=X</code></TableCell>
-                          <TableCell>GET</TableCell>
-                          <TableCell>Consumir como HLS</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell><code>/api/frame.jpeg?src=X</code></TableCell>
-                          <TableCell>GET</TableCell>
-                          <TableCell>Obter snapshot</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </TabsContent>
 
           {/* Tab: Avançado */}
           <TabsContent value="advanced" className="space-y-6">

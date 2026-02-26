@@ -11,14 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List, Play } from 'lucide-react';
+import { Camera, MapPin, Building2, Layers, DoorOpen, Search, Eye, WifiOff, AlertTriangle, CheckCircle, Clock, X, Edit, Server, ExternalLink, Hash, LayoutGrid, List } from 'lucide-react';
 import { CameraThumbnail } from '@/components/equipment/CameraThumbnail';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useCameras, type CameraData } from '@/hooks/useCameras';
 import { getConnectionTypeLabel } from '@/constants/cameraSpecs';
 import { EquipmentEditDialog } from '@/components/equipment/EquipmentEditDialog';
-import { CameraLiveDialog } from '@/components/equipment/CameraLiveDialog';
+
 import { useEquipment } from '@/hooks/useEquipment';
 
 const STATUS_CONFIG = {
@@ -43,8 +43,6 @@ export default function CameraMap() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [cameraToEdit, setCameraToEdit] = useState<CameraData | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [liveDialogOpen, setLiveDialogOpen] = useState(false);
-  const [cameraForLive, setCameraForLive] = useState<CameraData | null>(null);
   
   const { buildings } = useBuildings();
   const { floors } = useFloors(selectedBuildingId);
@@ -586,19 +584,6 @@ export default function CameraMap() {
                       <Edit className="w-4 h-4 mr-2" />
                       Editar
                     </Button>
-                    {notes.live_url && (
-                      <Button 
-                        variant="secondary"
-                        onClick={() => {
-                          setCameraForLive(selectedCamera);
-                          setSelectedCamera(null); // Close details dialog first
-                          setLiveDialogOpen(true);
-                        }}
-                      >
-                        <Play className="w-4 h-4 mr-2" />
-                        Ao Vivo
-                      </Button>
-                    )}
                     <Button onClick={() => navigate(`/equipment/${selectedCamera.id}`)}>
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Detalhes
@@ -621,15 +606,6 @@ export default function CameraMap() {
           />
         )}
 
-        {/* Live Camera Dialog */}
-        {cameraForLive && (
-          <CameraLiveDialog
-            open={liveDialogOpen}
-            onOpenChange={setLiveDialogOpen}
-            cameraName={cameraForLive.name}
-            streamUrl={parseNotes(cameraForLive.notes)?.live_url || ''}
-          />
-        )}
       </div>
     </AppLayout>
   );

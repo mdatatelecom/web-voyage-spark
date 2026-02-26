@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Terminal, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Brain, Globe, ChevronDown, LucideIcon, Activity, Server, Monitor, LayoutDashboard, AlertCircle } from 'lucide-react';
+import { Building2, Network, LogOut, Home, Package, Cable, Tag, Users, Settings, Bell, QrCode, Loader2, Waypoints, Camera, Ticket, ChevronLeft, ChevronRight, MessageCircle, User, BarChart3, ClipboardCheck, Globe, ChevronDown, LucideIcon, Activity, Server, Monitor, LayoutDashboard, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,8 +16,6 @@ import { useMonitoringPanels } from '@/hooks/useMonitoringPanels';
 import { Breadcrumb } from './Breadcrumb';
 import { AlertBell } from '@/components/notifications/AlertBell';
 import { MobileViewerLayout } from './MobileViewerLayout';
-import { TerminalDialog } from '@/components/cli/TerminalDialog';
-import { SystemChatButton } from '@/components/ai/SystemChatButton';
 import { GlobalSearch } from './GlobalSearch';
 
 interface AppLayoutProps {
@@ -47,7 +45,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { roles, isAdmin, isTechnician, isNetworkViewer, isViewer } = useUserRole();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
   const { panels: monitoringPanels, isLoading: panelsLoading } = useMonitoringPanels();
-  const [terminalOpen, setTerminalOpen] = useState(false);
+  
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
@@ -194,8 +192,6 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         { label: 'Configurações', icon: Settings, path: '/system', visible: true },
         { label: 'Usuários', icon: Users, path: '/users', visible: true },
         { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: true },
-        { label: 'CLI', icon: Terminal, path: '#cli', visible: true, action: () => setTerminalOpen(true) },
-        { label: 'Base de Conhecimento', icon: Brain, path: '/knowledge-base', visible: true },
       ],
     },
     {
@@ -449,11 +445,6 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         </main>
       </div>
 
-      {/* Terminal Dialog */}
-      <TerminalDialog open={terminalOpen} onOpenChange={setTerminalOpen} />
-
-      {/* AI Chat Assistant */}
-      <SystemChatButton />
     </div>
   );
 };
