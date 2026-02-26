@@ -8,7 +8,7 @@ export interface DashboardStatsFilters {
   equipmentType?: string;
 }
 
-const getBuildingRackIds = async (buildingId: string): Promise<string[]> => {
+export const getBuildingRackIds = async (buildingId: string): Promise<string[]> => {
   const { data: floors } = await supabase
     .from('floors')
     .select('id')
@@ -31,7 +31,7 @@ const getBuildingRackIds = async (buildingId: string): Promise<string[]> => {
   return racks?.map(r => r.id) || [];
 };
 
-const getBuildingEquipmentIds = async (buildingId: string): Promise<string[]> => {
+export const getBuildingEquipmentIds = async (buildingId: string): Promise<string[]> => {
   const rackIds = await getBuildingRackIds(buildingId);
   if (!rackIds.length) return [];
 
@@ -206,5 +206,54 @@ export const usePortUsageStats = (filters?: DashboardStatsFilters) => {
       };
     },
     staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useDashboardCounts = (filters?: DashboardStatsFilters) => {
+  return useQuery({
+    queryKey: ['dashboard-stats', filters?.buildingId, filters?.connectionStatus, filters?.equipmentType],
+    queryFn: async () => {
+      if (!filters?.buildingId) {
+        const [buildings, racks, equipment, connections] = await Promise.all([
+          supabase.from('buildings').select('count', { count: 'exact', head: true }),
+          supabase.from('racks').select('count', { count: 'exact', head: true }),
+          supabase.from('equipment').select('count', { count: 'exact', head: true }),
+          supabase.from('connections').select('count', { count: 'exact', head: true }),
+        ]);
+        return {
+          buildings: buildings.count || 0,
+          racks: racks.count || 0,
+          equipment: equipment.count || 0,
+          connections: connections.count || 0,
+        };
+      }
+
+      const rackIds = await getBuildingRackIds(filters.buildingId);
+      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId);
+
+      let connectionsCount = 0;
+      if (equipmentIds.length > 0) {
+        const { data: ports } = await supabase
+          .from('ports')
+          .select('id')
+          .in('equipment_id', equipmentIds);
+        const portIds = ports?.map(p => p.id) || [];
+        if (portIds.length > 0) {
+          const { count } = await supabase
+            .from('connections')
+            .select('count', { count: 'exact', head: true })
+            .or(`port_a_id.in.(${portIds.join(',')}),port_b_id.in.(${portIds.join(',')})`);
+          connectionsCount = count || 0;
+        }
+      }
+
+      return {
+        buildings: 1,
+        racks: rackIds.length,
+        equipment: equipmentIds.length,
+        connections: connectionsCount,
+      };
+    },
+    staleTime: 30 * 1000,
   });
 };
