@@ -2055,6 +2055,8 @@ export type Database = {
         | "dslam"
         | "msan"
         | "fixed_shelf"
+        | "nvr_poe"
+        | "analog_camera"
       port_status: "available" | "in_use" | "reserved" | "disabled"
       port_type:
         | "rj45"
@@ -2293,6 +2295,8 @@ export const Constants = {
         "dslam",
         "msan",
         "fixed_shelf",
+        "nvr_poe",
+        "analog_camera",
       ],
       port_status: ["available", "in_use", "reserved", "disabled"],
       port_type: [
