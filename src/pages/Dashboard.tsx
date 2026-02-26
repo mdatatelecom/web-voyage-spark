@@ -152,6 +152,19 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* SEÇÃO: Acesso Rápido (movido para cima) */}
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Acesso Rápido
+            </h3>
+          </div>
+          <Card className="p-3 bg-card/50 border-border/50">
+            <QuickAccessWidget />
+          </Card>
+        </section>
+
         {/* Alerta de usuário sem função */}
         {roles.length === 0 && (
           <Card className="border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-yellow-500/10">
@@ -196,18 +209,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* SEÇÃO 3: Acesso Rápido (compacto) */}
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Acesso Rápido
-            </h3>
-          </div>
-          <Card className="p-3 bg-card/50 border-border/50">
-            <QuickAccessWidget />
-          </Card>
-        </section>
 
         {/* SEÇÃO 4: Análise de Infraestrutura (grid 2x2) */}
         <section>
