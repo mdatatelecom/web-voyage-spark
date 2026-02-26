@@ -139,10 +139,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
   const { data: nvrDevices, isLoading: loadingNvrs } = useQuery({
     queryKey: ['nvr-dvr-devices', connectionType],
     queryFn: async () => {
-      // Filter by camera type: analog → DVR only, IP → NVR only
-      const allowedTypes = isIPCamera 
-        ? ['nvr', 'nvr_poe'] 
-        : ['dvr'];
+      // Show all recorder types (NVR, NVR PoE, DVR)
+      const allowedTypes = ['nvr', 'nvr_poe', 'dvr'];
       
       const { data, error } = await supabase
         .from('equipment')
@@ -1144,8 +1142,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
               <Video className="w-4 h-4" />
               <span className="text-sm">
                 {isIPCamera 
-                  ? 'Associe a câmera a um NVR (opcional)' 
-                  : 'Selecione o DVR de destino (obrigatório)'}
+                  ? 'Associe a câmera a um NVR/DVR (opcional)' 
+                  : 'Selecione o DVR/NVR de destino (obrigatório para analógicas)'}
               </span>
             </div>
             
@@ -1171,7 +1169,7 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             {loadingNvrs ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                Buscando {isIPCamera ? 'NVRs' : 'DVRs'}...
+                Buscando NVRs/DVRs...
               </div>
             ) : nvrDevices && nvrDevices.length > 0 ? (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
@@ -1295,9 +1293,9 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             ) : (
               <div className="text-center py-8 border rounded-lg border-dashed">
                 <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="font-medium">Nenhum {isIPCamera ? 'NVR' : 'DVR'} cadastrado</p>
+              <p className="font-medium">Nenhum NVR/DVR cadastrado</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Cadastre um {isIPCamera ? 'NVR' : 'DVR'} primeiro na tela de Equipamentos
+                  Cadastre um NVR ou DVR primeiro na tela de Equipamentos
                 </p>
               </div>
             )}
