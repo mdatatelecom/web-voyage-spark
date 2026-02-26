@@ -1,55 +1,76 @@
 
 
-# Remover Funcionalidades de Cameras ao Vivo
+# Corrigir Logica de Alertas NVR - Canais Proximo do Limite
 
-## Contexto
+## Problemas Identificados
 
-As cameras no sistema passam a ser apenas para documentacao (fotos de localizacao, registro de instalacao). Toda funcionalidade de visualizacao ao vivo (streaming, snapshots dinamicos, indicadores LIVE) sera removida.
+### Bug 1: Tipo `nvr_poe` nao incluido na query
+Na linha 316 do `check-capacity-alerts`, a query filtra `.in('type', ['nvr', 'dvr'])` mas **ignora `nvr_poe`**. Equipamentos do tipo NVR com PoE integrado nunca sao verificados.
 
-## Arquivos e Alteracoes
+Mesmo problema na auto-resolucao (linha 810): `.in('type', ['nvr', 'dvr'])`.
 
-### 1. `src/components/equipment/CameraThumbnail.tsx`
-- Remover props `snapshotUrl`, `liveUrl`, `refreshInterval`
-- Remover estado `refreshKey` e funcao `handleRefresh`
-- Remover bloco "Live indicator for streams" (badge LIVE)
-- Remover botao de refresh
-- Simplificar para usar apenas `fallbackImage` (foto de localizacao) como fonte de imagem
-- O componente mostra apenas a foto estatica da camera ou o placeholder (icone Camera)
+### Bug 2: Contagem de canais inclui portas de rede (Uplink/LAN)
+A logica conta **todos** os ports do equipamento como canais:
+```
+const totalChannels = nvr.ports?.length || 0;
+```
+Porem NVRs possuem portas auxiliares (Uplink port_number=0, LAN/IPC port_number=-1) que **nao sao canais de video**. Isso infla o total e distorce a porcentagem.
 
-### 2. `src/components/equipment/EquipmentEditDialog.tsx`
-- Remover estado `liveUrl` e `setLiveUrl`
-- Remover campo "URL de Streaming ao Vivo" do formulario
-- Remover `live_url` do objeto de notas salvas
-- Manter campos de foto de localizacao e descricao (documentacao)
+- NVR padrao: tem 2 portas extras (Uplink + LAN/IPC) que nao sao canais
+- NVR PoE: tem 1 porta extra (Uplink) + portas PoE que **sao** canais
+- DVR: tem 1 porta extra (Uplink) + portas BNC que sao canais
 
-### 3. `src/pages/CameraMap.tsx`
-- Remover props `snapshotUrl` e `liveUrl` de todas as chamadas ao `CameraThumbnail`
-- Remover `refreshInterval` das chamadas
-- Manter `fallbackImage` (foto de localizacao) como unica fonte visual
+### Bug 3: NVR padrao nao tem portas de canal
+Para NVRs padrao (tipo `nvr`), a funcao `generateNvrPorts` cria apenas Uplink + LAN/IPC. **Nao cria portas de canal** porque cameras IP se conectam via switch externo. Portanto `totalChannels` sera 2 (portas de rede) e `usedChannels` sera 0 ou 1 -- nunca vai atingir o limite real.
 
-### 4. `src/pages/EquipmentDetails.tsx`
-- Remover funcao `extractLiveUrl`
-- Remover variavel `liveUrl` do bloco de camera
-- Nao ha mais referencia a streaming nessa pagina
+Para NVR padrao, o total de canais deve vir do campo `notes` (JSON com `total_channels`) e os canais usados devem ser contados a partir das `cameras` registradas no notes.
 
-### 5. `src/hooks/useCameras.ts`
-- Nenhuma alteracao necessaria - ja nao referencia live/snapshot URLs diretamente (usa `location_photo_url` de notes)
+## Plano de Correcao
 
-## O que permanece
+### Arquivo: `supabase/functions/check-capacity-alerts/index.ts`
 
-- Fotos de localizacao (upload e exibicao)
-- Descricao de localizacao
-- Status do equipamento (active/offline/planned)
-- Indicador de status (bolinha verde/vermelha)
-- Toda a topologia NVR/DVR e associacao de canais
-- Mapa de cameras com filtros
+**Secao de verificacao NVR (linhas 305-383):**
 
-## Resumo Tecnico
+1. Incluir `nvr_poe` na query: `.in('type', ['nvr', 'nvr_poe', 'dvr'])`
+2. Tambem buscar o campo `notes` do equipamento para obter `total_channels`
+3. Calcular canais corretamente por tipo:
+   - **DVR**: contar portas BNC (`port_number > 0`) como total; status `in_use` como usados
+   - **NVR PoE**: contar portas PoE (`port_number > 0`) como total; status `in_use` como usados
+   - **NVR padrao**: usar `total_channels` do JSON em `notes`; contar `cameras` do notes como usados
+4. Ignorar portas com `port_number <= 0` (Uplink, LAN/IPC)
 
-| Arquivo | Acao |
-|---------|------|
-| CameraThumbnail.tsx | Simplificar - remover live/snapshot/refresh |
-| EquipmentEditDialog.tsx | Remover campo live_url |
-| CameraMap.tsx | Remover props live/snapshot das chamadas |
-| EquipmentDetails.tsx | Remover extractLiveUrl e uso |
+**Secao de auto-resolucao NVR (linhas 771-798):**
+
+5. Incluir `nvr_poe` na query da linha 810
+6. Usar a mesma logica corrigida para calcular porcentagem
+
+**Secao de cameras orfas (linha 810):**
+
+7. Incluir `nvr_poe`: `.in('type', ['nvr', 'nvr_poe', 'dvr'])`
+
+### Logica corrigida (pseudocodigo):
+
+```text
+Para cada NVR/DVR:
+  Se tipo = 'dvr' ou 'nvr_poe':
+    totalChannels = portas com port_number > 0
+    usedChannels = portas com port_number > 0 E status = 'in_use'
+  Se tipo = 'nvr' (padrao):
+    parsedNotes = JSON.parse(notes)
+    totalChannels = parsedNotes.total_channels || 16
+    usedChannels = parsedNotes.cameras?.length || 0
+  
+  usagePercentage = (usedChannels / totalChannels) * 100
+  -- continua logica existente de threshold
+```
+
+### Resumo de alteracoes
+
+| Local | Alteracao |
+|-------|----------|
+| Linha 316 | Adicionar `nvr_poe` ao filtro de tipos |
+| Linha 310 | Adicionar `notes` ao select |
+| Linhas 325-329 | Reescrever calculo de canais por tipo |
+| Linha 781-783 | Aplicar mesma logica corrigida na auto-resolucao |
+| Linha 810 | Adicionar `nvr_poe` ao filtro de tipos |
 
