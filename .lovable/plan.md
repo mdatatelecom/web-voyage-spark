@@ -1,36 +1,72 @@
 
 
-# Fix Dashboard Filters
+# Corrigir Filtros do Dashboard - Conexao Completa
 
-## Problems Identified
+## Problema Identificado
 
-1. **Date range select value bug**: When selecting "7 dias", "30 dias", or "90 dias", the select value is computed as `filters.dateRange.from ? 'custom' : 'all'`. Since `'custom'` doesn't match any `SelectItem` value, the dropdown displays incorrectly and can't show the selected option.
+Os filtros do dashboard estao conectados apenas aos 4 graficos de infraestrutura (Rack Occupancy, Equipment Type, Connection Status, Port Usage). Os seguintes componentes **NAO reagem** aos filtros:
 
-2. **Stale state on callback**: `onFiltersChange?.(filters)` is called immediately after `updateDateRange(...)`, but React state updates are asynchronous -- so it passes the **old** filters, not the new ones.
+1. **MetricsWidget** - Os contadores (Predios, Racks, Equipamentos, Conexoes, Portas) usam uma query `dashboard-stats` que ignora os filtros
+2. **CriticalAlertsWidget** - Nao recebe filtros
+3. **ZabbixMonitoringWidget** - Nao recebe filtros
+4. **EpiMonitorWidget** - Nao recebe filtros
+5. **TicketStatsCards / SLAWidget / Ticket Charts** - Nao recebem filtros
 
-3. **Filters not connected**: In `Dashboard.tsx`, `<DashboardFilters />` is rendered without an `onFiltersChange` prop, so even if it worked, filter changes wouldn't affect any dashboard data.
+## Plano de Correcao
 
-4. **Visual mismatch**: The reference image shows a clean border style matching the app's orange/primary accent. Minor styling tweaks needed.
+### 1. Atualizar a query `dashboard-stats` para usar filtros
 
-## Plan
+A query na linha 76-92 do `Dashboard.tsx` faz `select('count')` sem nenhum filtro. Quando o usuario seleciona um predio, os contadores devem refletir apenas dados daquele predio.
 
-### 1. Fix DashboardFilters component (`src/components/dashboard/DashboardFilters.tsx`)
+- Extrair essa query para um hook `useDashboardCounts(filters)` no `useDashboardStats.ts`
+- Quando `buildingId` estiver definido, filtrar racks por predio (via floors/rooms), equipamentos por racks filtrados, conexoes por portas dos equipamentos filtrados
+- Incluir `statsFilters` na queryKey para re-fetch automatico
 
-- **Fix date range value**: Track the selected period as a separate string state (`'all' | '7days' | '30days' | '90days'`) instead of deriving it from the date object.
-- **Fix stale callback**: Use `useEffect` to call `onFiltersChange` whenever `filters` changes, or compute the new filters inline before calling the callback.
-- **Style tweaks**: Match the reference image border/accent styling (orange primary border on the filter panel).
+### 2. Passar filtros para widgets de monitoramento
 
-### 2. Wire filters to Dashboard (`src/pages/Dashboard.tsx`)
+- `CriticalAlertsWidget`, `ZabbixMonitoringWidget`, `EpiMonitorWidget`: Adicionar prop `filters` opcional
+- Quando `buildingId` estiver definido, filtrar alertas que pertencem a equipamentos/racks daquele predio
+- Se nao houver filtro, manter comportamento atual
 
-- Pass filter state down or lift it so charts can consume it. For now, ensure `onFiltersChange` prop is provided so the component works correctly when filters are applied.
+### 3. Garantir reatividade correta
+
+- Verificar que todas as queryKeys incluem os parametros de filtro relevantes
+- Remover `staleTime: 5 * 60 * 1000` ou reduzir para garantir atualizacao mais rapida quando filtros mudam
 
 ---
 
-**Technical Details**
+## Detalhes Tecnicos
 
-In `DashboardFilters.tsx`:
-- Add `const [selectedPeriod, setSelectedPeriod] = useState('all')` to track the dropdown value.
-- Use `selectedPeriod` as the `Select` value instead of the broken ternary.
-- On period change, update both `selectedPeriod` and call `updateDateRange`.
-- On `clearFilters`, also reset `selectedPeriod` to `'all'`.
+### Arquivo: `src/hooks/useDashboardStats.ts`
+
+Adicionar novo hook:
+```typescript
+export const useDashboardCounts = (filters?: DashboardStatsFilters) => {
+  return useQuery({
+    queryKey: ['dashboard-stats', filters?.buildingId, filters?.connectionStatus, filters?.equipmentType],
+    queryFn: async () => {
+      if (!filters?.buildingId) {
+        // Sem filtro: contagem total (comportamento atual)
+        const [buildings, racks, equipment, connections] = await Promise.all([...]);
+        return { buildings, racks, equipment, connections };
+      }
+      // Com filtro de predio: contar apenas recursos daquele predio
+      const rackIds = await getBuildingRackIds(filters.buildingId);
+      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId);
+      // Contar connections filtradas por portas dos equipamentos
+      return { buildings: 1, racks: rackIds.length, equipment: equipmentIds.length, connections: filteredCount };
+    }
+  });
+};
+```
+
+### Arquivo: `src/pages/Dashboard.tsx`
+
+- Substituir a query inline `dashboard-stats` pelo novo hook `useDashboardCounts(statsFilters)`
+- Passar `statsFilters` para `CriticalAlertsWidget`, `ZabbixMonitoringWidget`, `EpiMonitorWidget`
+
+### Arquivos de Widgets (CriticalAlertsWidget, ZabbixMonitoringWidget, EpiMonitorWidget)
+
+- Adicionar prop `filters?: DashboardStatsFilters`
+- Filtrar alertas pelo `buildingId` quando presente (via entity_id dos alertas que referenciam equipamentos/racks)
 
