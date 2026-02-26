@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,17 +14,18 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Filter, X, ChevronDown } from 'lucide-react';
-import { useDashboardFilters } from '@/hooks/useDashboardFilters';
+import { useDashboardFilters, DashboardFilters as DashboardFiltersType } from '@/hooks/useDashboardFilters';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
 interface DashboardFiltersProps {
-  onFiltersChange?: (filters: any) => void;
+  onFiltersChange?: (filters: DashboardFiltersType | null) => void;
 }
 
 export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const {
     filters,
     updateDateRange,
@@ -48,9 +49,18 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
     },
   });
 
+  // Notify parent whenever filters change
+  useEffect(() => {
+    if (hasActiveFilters) {
+      onFiltersChange?.(filters);
+    } else {
+      onFiltersChange?.(null);
+    }
+  }, [filters]);
+
   const handleClearFilters = () => {
     clearFilters();
-    onFiltersChange?.(null);
+    setSelectedPeriod('all');
   };
 
   return (
@@ -93,17 +103,14 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
       </div>
 
       <CollapsibleContent className="mt-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-lg border bg-card">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-lg border border-primary/30 bg-card">
           {/* Date Range Filter */}
           <div>
             <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Período</label>
             <Select
-              value={
-                filters.dateRange.from
-                  ? 'custom'
-                  : 'all'
-              }
+              value={selectedPeriod}
               onValueChange={(value) => {
+                setSelectedPeriod(value);
                 const today = new Date();
                 if (value === '7days') {
                   const from = new Date(today);
@@ -120,7 +127,6 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
                 } else {
                   updateDateRange(undefined, undefined);
                 }
-                onFiltersChange?.(filters);
               }}
             >
               <SelectTrigger className="h-9">
@@ -142,7 +148,6 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
               value={filters.location.buildingId || 'all'}
               onValueChange={(value) => {
                 updateLocation(value === 'all' ? {} : { buildingId: value });
-                onFiltersChange?.(filters);
               }}
             >
               <SelectTrigger className="h-9">
@@ -166,7 +171,6 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
               value={filters.connectionStatus || 'all'}
               onValueChange={(value) => {
                 updateConnectionStatus(value === 'all' ? undefined : value);
-                onFiltersChange?.(filters);
               }}
             >
               <SelectTrigger className="h-9">
@@ -190,7 +194,6 @@ export const DashboardFilters = ({ onFiltersChange }: DashboardFiltersProps) => 
               value={filters.equipmentType || 'all'}
               onValueChange={(value) => {
                 updateEquipmentType(value === 'all' ? undefined : value);
-                onFiltersChange?.(filters);
               }}
             >
               <SelectTrigger className="h-9">
