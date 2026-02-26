@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useDevToolsProtection } from "@/hooks/useDevToolsProtection";
-import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Buildings from "./pages/Buildings";
@@ -24,7 +23,7 @@ import Labels from "./pages/Labels";
 import Users from "./pages/Users";
 import System from "./pages/System";
 import ConnectionDetailsViewer from "./pages/ConnectionDetailsViewer";
-import ScanAnalytics from "./pages/ScanAnalytics";
+
 import NotificationSettings from "./pages/NotificationSettings";
 import RackOccupancy from "./pages/RackOccupancy";
 import Alerts from "./pages/Alerts";
@@ -48,7 +47,7 @@ import SubnetDetails from "./pages/SubnetDetails";
 import Vlans from "./pages/Vlans";
 import VlanDetails from "./pages/VlanDetails";
 import IPAMDashboard from "./pages/IPAMDashboard";
-import LandingScreenshots from "./pages/LandingScreenshots";
+
 import FloorPlanSelector from "./pages/FloorPlanSelector";
 import MonitoringDashboard from "./pages/MonitoringDashboard";
 import MonitoringSettings from "./pages/MonitoringSettings";
@@ -74,7 +73,7 @@ const App = () => (
           <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route 
               path="/dashboard" 
@@ -253,14 +252,6 @@ const App = () => (
               } 
             />
             <Route 
-              path="/analytics/scans" 
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <ScanAnalytics />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
               path="/settings/notifications"
               element={
                 <ProtectedRoute>
@@ -407,14 +398,6 @@ const App = () => (
                   }>
                     <FloorPlan />
                   </Suspense>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin/screenshots"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <LandingScreenshots />
                 </ProtectedRoute>
               } 
             />
