@@ -62,10 +62,6 @@ const extractLocationDescription = (notes: Record<string, any>): string | undefi
          undefined;
 };
 
-// Extract live URL from notes
-const extractLiveUrl = (notes: Record<string, any>): string | undefined => {
-  return notes.live_url || notes.liveUrl || undefined;
-};
 
 export default function EquipmentDetails() {
   const { id } = useParams();
@@ -476,7 +472,6 @@ const [portDialogOpen, setPortDialogOpen] = useState(false);
               const notes = parseEquipmentNotes(equipment.notes);
               const locationPhotoUrl = extractLocationPhotoUrl(notes);
               const locationDescription = extractLocationDescription(notes);
-              const liveUrl = extractLiveUrl(notes);
               
               return (
                 <Card className="p-6">
