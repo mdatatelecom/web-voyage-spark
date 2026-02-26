@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,12 +8,33 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { DashboardStatsFilters, getBuildingRackIds, getBuildingEquipmentIds } from '@/hooks/useDashboardStats';
 
-export function ZabbixMonitoringWidget() {
+interface ZabbixMonitoringWidgetProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function ZabbixMonitoringWidget({ filters }: ZabbixMonitoringWidgetProps) {
   const navigate = useNavigate();
   const { alerts } = useAlerts({ status: 'active', type: 'zabbix_alert' });
+  const [filteredEntityIds, setFilteredEntityIds] = useState<Set<string> | null>(null);
 
-  const zabbixAlerts = alerts || [];
+  useEffect(() => {
+    if (!filters?.buildingId) {
+      setFilteredEntityIds(null);
+      return;
+    }
+    const load = async () => {
+      const rackIds = await getBuildingRackIds(filters.buildingId!);
+      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId!);
+      setFilteredEntityIds(new Set([...rackIds, ...equipmentIds]));
+    };
+    load();
+  }, [filters?.buildingId]);
+
+  const zabbixAlerts = filteredEntityIds
+    ? (alerts || []).filter(a => a.related_entity_id && filteredEntityIds.has(a.related_entity_id))
+    : (alerts || []);
   const criticalCount = zabbixAlerts.filter(a => a.severity === 'critical').length;
   const warningCount = zabbixAlerts.filter(a => a.severity === 'warning').length;
 

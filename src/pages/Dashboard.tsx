@@ -8,15 +8,15 @@ import {
   Activity, Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { RackOccupancyChart } from '@/components/dashboard/RackOccupancyChart';
 import { EquipmentTypeChart } from '@/components/dashboard/EquipmentTypeChart';
 import { ConnectionStatusChart } from '@/components/dashboard/ConnectionStatusChart';
 import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { SLAWidget } from '@/components/dashboard/SLAWidget';
-import { usePortUsageStats } from '@/hooks/useDashboardStats';
+import { usePortUsageStats, useDashboardCounts } from '@/hooks/useDashboardStats';
 import { DashboardFilters as DashboardFiltersType } from '@/hooks/useDashboardFilters';
 import { useEffect, useMemo, useState } from 'react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
@@ -73,23 +73,7 @@ export default function Dashboard() {
     queryClient.invalidateQueries();
   };
 
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: async () => {
-      const [buildings, racks, equipment, connections] = await Promise.all([
-        supabase.from('buildings').select('count', { count: 'exact', head: true }),
-        supabase.from('racks').select('count', { count: 'exact', head: true }),
-        supabase.from('equipment').select('count', { count: 'exact', head: true }),
-        supabase.from('connections').select('count', { count: 'exact', head: true })
-      ]);
-      return {
-        buildings: buildings.count || 0,
-        racks: racks.count || 0,
-        equipment: equipment.count || 0,
-        connections: connections.count || 0
-      };
-    }
-  });
+  const { data: stats, isLoading: isLoadingStats } = useDashboardCounts(statsFilters);
 
   const { data: portStats } = usePortUsageStats(statsFilters);
 
@@ -214,9 +198,9 @@ export default function Dashboard() {
             </h3>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <CriticalAlertsWidget />
-            <ZabbixMonitoringWidget />
-            <EpiMonitorWidget />
+            <CriticalAlertsWidget filters={statsFilters} />
+            <ZabbixMonitoringWidget filters={statsFilters} />
+            <EpiMonitorWidget filters={statsFilters} />
           </div>
         </section>
 

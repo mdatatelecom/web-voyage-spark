@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,33 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { EpiImageDialog } from '@/components/alerts/EpiImageDialog';
+import { DashboardStatsFilters, getBuildingRackIds, getBuildingEquipmentIds } from '@/hooks/useDashboardStats';
 
-export function EpiMonitorWidget() {
+interface EpiMonitorWidgetProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function EpiMonitorWidget({ filters }: EpiMonitorWidgetProps) {
   const navigate = useNavigate();
   const { alerts } = useAlerts({ status: 'active', type: 'epi_alert' });
-  
-  const epiAlerts = alerts || [];
+  const [filteredEntityIds, setFilteredEntityIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!filters?.buildingId) {
+      setFilteredEntityIds(null);
+      return;
+    }
+    const load = async () => {
+      const rackIds = await getBuildingRackIds(filters.buildingId!);
+      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId!);
+      setFilteredEntityIds(new Set([...rackIds, ...equipmentIds]));
+    };
+    load();
+  }, [filters?.buildingId]);
+
+  const epiAlerts = filteredEntityIds
+    ? (alerts || []).filter(a => a.related_entity_id && filteredEntityIds.has(a.related_entity_id))
+    : (alerts || []);
   const [selectedAlert, setSelectedAlert] = useState<typeof epiAlerts[number] | null>(null);
 
   const criticalCount = epiAlerts.filter(a => a.severity === 'critical').length;

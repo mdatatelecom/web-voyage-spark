@@ -10,19 +10,44 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { DashboardStatsFilters, getBuildingRackIds, getBuildingEquipmentIds } from '@/hooks/useDashboardStats';
 
-export function CriticalAlertsWidget() {
+interface CriticalAlertsWidgetProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function CriticalAlertsWidget({ filters }: CriticalAlertsWidgetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { alerts, activeCount } = useAlerts({ status: 'active' });
   const [newAlertId, setNewAlertId] = useState<string | null>(null);
+  const [filteredEntityIds, setFilteredEntityIds] = useState<Set<string> | null>(null);
 
-  const criticalAlerts = alerts?.filter(a => a.severity === 'critical') || [];
-  const warningAlerts = alerts?.filter(a => a.severity === 'warning') || [];
-  const zabbixAlerts = alerts?.filter(a => a.type === 'zabbix_alert') || [];
+  // Load filtered entity IDs when building filter is active
+  useEffect(() => {
+    if (!filters?.buildingId) {
+      setFilteredEntityIds(null);
+      return;
+    }
+    const load = async () => {
+      const rackIds = await getBuildingRackIds(filters.buildingId!);
+      const equipmentIds = await getBuildingEquipmentIds(filters.buildingId!);
+      setFilteredEntityIds(new Set([...rackIds, ...equipmentIds]));
+    };
+    load();
+  }, [filters?.buildingId]);
+
+  const filteredAlerts = filteredEntityIds
+    ? (alerts || []).filter(a => a.related_entity_id && filteredEntityIds.has(a.related_entity_id))
+    : (alerts || []);
+
+  const criticalAlerts = filteredAlerts.filter(a => a.severity === 'critical');
+  const warningAlerts = filteredAlerts.filter(a => a.severity === 'warning');
+  const zabbixAlerts = filteredAlerts.filter(a => a.type === 'zabbix_alert');
   const criticalCount = criticalAlerts.length;
   const warningCount = warningAlerts.length;
   const zabbixCount = zabbixAlerts.length;
+  const filteredActiveCount = filteredAlerts.length;
 
   // Real-time subscription
   useEffect(() => {
@@ -69,7 +94,7 @@ export function CriticalAlertsWidget() {
 
   const displayAlerts = [...criticalAlerts, ...warningAlerts].slice(0, 5);
 
-  if (!activeCount || activeCount === 0) {
+  if (!filteredActiveCount || filteredActiveCount === 0) {
     return (
       <Card className="border-green-500/30 bg-green-500/5">
         <CardHeader className="pb-3">
@@ -173,7 +198,7 @@ export function CriticalAlertsWidget() {
           className="w-full mt-2"
           onClick={() => navigate('/alerts')}
         >
-          Ver Todos os Alertas ({activeCount})
+          Ver Todos os Alertas ({filteredActiveCount})
           <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </CardContent>
