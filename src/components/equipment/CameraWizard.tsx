@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ChevronRight, ChevronLeft, Camera, Zap, MapPin, Cable, Check, AlertCircle, Loader2, Upload, X, ImageIcon, Network } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Camera, Zap, MapPin, Cable, Check, AlertCircle, Loader2, Upload, X, ImageIcon, Network, Video, Monitor } from 'lucide-react';
 import { useBuildings } from '@/hooks/useBuildings';
 import { useFloors } from '@/hooks/useFloors';
 import { useRooms } from '@/hooks/useRooms';
@@ -93,7 +93,11 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
-  // Step 5: Power Source (PoE Switch, Injector, or External)
+  // Step 5: NVR/DVR Association
+  const [selectedNvrId, setSelectedNvrId] = useState('');
+  const [selectedChannel, setSelectedChannel] = useState<number | null>(null);
+  
+  // Step 6: Power Source (PoE Switch, Injector, or External) - IP only
   const [powerSource, setPowerSource] = useState<string>('switch_poe');
   const [selectedSwitchId, setSelectedSwitchId] = useState('');
   const [selectedPortId, setSelectedPortId] = useState('');
@@ -125,6 +129,53 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       return data || [];
     },
     enabled: connectionType === 'ip',
+  });
+  
+  // Fetch NVR/DVR equipment for association
+  const { data: nvrDevices, isLoading: loadingNvrs } = useQuery({
+    queryKey: ['nvr-dvr-devices'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select(`
+          id, name, type, ip_address, notes,
+          rack:racks(
+            name,
+            room:rooms(
+              name,
+              floor:floors(
+                name,
+                building:buildings(name)
+              )
+            )
+          )
+        `)
+        .in('type', ['nvr', 'nvr_poe', 'dvr'] as any[]);
+      if (error) throw error;
+      
+      // Parse notes to get channel info
+      return (data || []).map(nvr => {
+        let parsedNotes: any = {};
+        try {
+          if (nvr.notes) parsedNotes = JSON.parse(nvr.notes);
+        } catch { /* ignore */ }
+        
+        const totalChannels = parsedNotes.total_channels || (nvr.type === 'dvr' ? 8 : 16);
+        const cameras = parsedNotes.cameras || [];
+        const usedChannels = cameras.length;
+        
+        return {
+          ...nvr,
+          totalChannels,
+          usedChannels,
+          availableChannels: Math.max(0, totalChannels - usedChannels),
+          cameras,
+          location: nvr.rack 
+            ? `${(nvr.rack as any)?.room?.floor?.building?.name || ''} > ${(nvr.rack as any)?.room?.name || ''} > ${(nvr.rack as any)?.name || ''}`
+            : 'Sem localização',
+        };
+      });
+    },
   });
   
   const isIPCamera = connectionType === 'ip';
@@ -227,6 +278,11 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         throw new Error('Selecione um switch e porta PoE');
       }
       
+      // For analog cameras, require NVR/DVR association
+      if (!isIPCamera && !selectedNvrId) {
+        throw new Error('Câmeras convencionais precisam ser associadas a um DVR/NVR');
+      }
+      
       // Validar disponibilidade do IP se informado
       if (isIPCamera && cameraData.ipAddress) {
         const { data: existingIP } = await supabase
@@ -240,39 +296,16 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
         }
       }
       
-      let rackId: string;
-      
-      // Get rack ID based on power source
-      if (isIPCamera && powerSource === 'switch_poe' && selectedSwitchId) {
-        const { data: switchData, error: switchError } = await supabase
-          .from('equipment')
-          .select('rack_id')
-          .eq('id', selectedSwitchId)
-          .single();
-        
-        if (switchError || !switchData) throw new Error('Erro ao buscar rack do switch');
-        rackId = switchData.rack_id;
-      } else {
-        // Get first rack from the room
-        const { data: roomRacks, error: rackError } = await supabase
-          .from('racks')
-          .select('id')
-          .eq('room_id', locationData.roomId)
-          .limit(1);
-        
-        if (rackError || !roomRacks?.[0]) throw new Error('Nenhum rack encontrado na sala selecionada');
-        rackId = roomRacks[0].id;
-      }
-      
-      // Create camera equipment
+      // Create camera equipment WITHOUT rack
+      const equipmentType = isIPCamera ? 'ip_camera' : 'analog_camera';
       const { data: cameraEquipment, error: cameraError } = await supabase
         .from('equipment')
         .insert({
           name: cameraData.name,
-          type: 'ip_camera',
-          rack_id: rackId,
-          position_u_start: 0,
-          position_u_end: 0,
+          type: equipmentType as any,
+          rack_id: null as any, // Cameras don't go in racks
+          position_u_start: null,
+          position_u_end: null,
           manufacturer: cameraData.manufacturer,
           model: cameraData.model,
           ip_address: isIPCamera && cameraData.ipAddress ? cameraData.ipAddress : null,
@@ -288,6 +321,11 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
             locationDescription: cameraData.locationDescription,
             powerSource: isIPCamera ? powerSource : 'external',
             vlanUuid: isIPCamera ? cameraData.vlanUuid : null,
+            buildingId: locationData.buildingId,
+            floorId: locationData.floorId,
+            roomId: locationData.roomId,
+            nvrId: selectedNvrId || null,
+            nvrChannel: selectedChannel,
           }),
           power_consumption_watts: isIPCamera ? cameraData.powerConsumption : null,
           equipment_status: 'active',
@@ -374,6 +412,50 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
           .eq('id', cameraData.ipRecordId);
       }
       
+      // Associate with NVR/DVR if selected
+      if (selectedNvrId && selectedChannel !== null) {
+        // Update NVR notes with camera info
+        const { data: nvrData } = await supabase
+          .from('equipment')
+          .select('notes')
+          .eq('id', selectedNvrId)
+          .single();
+        
+        let nvrNotes: any = {};
+        try { if (nvrData?.notes) nvrNotes = JSON.parse(nvrData.notes); } catch { /* */ }
+        
+        const cameras = nvrNotes.cameras || [];
+        cameras.push({
+          channel: selectedChannel,
+          ip: cameraData.ipAddress || null,
+          location: cameraData.locationDescription || cameraData.name,
+          status: 'active',
+          equipmentId: cameraEquipment.id,
+        });
+        nvrNotes.cameras = cameras;
+        nvrNotes.used_channels = cameras.length;
+        
+        await supabase
+          .from('equipment')
+          .update({ notes: JSON.stringify(nvrNotes) })
+          .eq('id', selectedNvrId);
+        
+        // Update the NVR port for this channel to in_use
+        const { data: nvrPort } = await supabase
+          .from('ports')
+          .select('id')
+          .eq('equipment_id', selectedNvrId)
+          .eq('port_number', selectedChannel)
+          .maybeSingle();
+        
+        if (nvrPort) {
+          await supabase
+            .from('ports')
+            .update({ status: 'in_use', notes: `Câmera: ${cameraData.name}` })
+            .eq('id', nvrPort.id);
+        }
+      }
+      
       return cameraEquipment;
     },
     onSuccess: (data) => {
@@ -417,6 +499,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       ipRecordId: '',
     });
     setLocationData({ buildingId: '', floorId: '', roomId: '' });
+    setSelectedNvrId('');
+    setSelectedChannel(null);
     setPowerSource('switch_poe');
     setSelectedSwitchId('');
     setSelectedPortId('');
@@ -425,7 +509,8 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
     onOpenChange(false);
   };
   
-  const getTotalSteps = () => isIPCamera ? 5 : 4;
+  // Steps: 1-Type, 2-Manufacturer, 3-Specs, 4-Location, 5-NVR/DVR, 6-Power(IP only)
+  const getTotalSteps = () => isIPCamera ? 6 : 5;
   
   const canProceed = () => {
     switch (step) {
@@ -434,6 +519,11 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
       case 3: return cameraData.name && cameraData.resolution;
       case 4: return locationData.roomId;
       case 5: {
+        // NVR/DVR step - required for analog, optional for IP
+        if (!isIPCamera) return selectedNvrId && selectedChannel !== null;
+        return true; // optional for IP
+      }
+      case 6: {
         if (!isIPCamera) return true;
         if (powerSource === 'switch_poe') return selectedPortId;
         if (powerSource === 'poe_injector') return selectedInjectorId || (createNewInjector && newInjectorData.name);
@@ -979,8 +1069,139 @@ export function CameraWizard({ open, onOpenChange }: CameraWizardProps) {
           </div>
         )}
         
-        {/* Step 5: Power Source (IP cameras only) */}
-        {step === 5 && isIPCamera && (() => {
+        {/* Step 5: NVR/DVR Association */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-muted-foreground mb-4">
+              <Video className="w-4 h-4" />
+              <span className="text-sm">
+                {isIPCamera 
+                  ? 'Associe a câmera a um NVR/DVR (opcional)' 
+                  : 'Selecione o DVR/NVR de destino (obrigatório)'}
+              </span>
+            </div>
+            
+            {!isIPCamera && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Câmeras convencionais precisam estar conectadas a um DVR ou NVR para gravação.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {loadingNvrs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                Buscando NVRs/DVRs...
+              </div>
+            ) : nvrDevices && nvrDevices.length > 0 ? (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {isIPCamera && (
+                  <Button 
+                    variant={!selectedNvrId ? 'default' : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => { setSelectedNvrId(''); setSelectedChannel(null); }}
+                  >
+                    <Monitor className="w-4 h-4 mr-2" />
+                    Sem NVR (standalone - apenas rede)
+                  </Button>
+                )}
+                {nvrDevices.map(nvr => (
+                  <Card
+                    key={nvr.id}
+                    className={cn(
+                      "cursor-pointer transition-all",
+                      selectedNvrId === nvr.id ? 'ring-2 ring-primary' : 'hover:bg-accent/50',
+                      nvr.availableChannels === 0 && 'opacity-50 cursor-not-allowed'
+                    )}
+                    onClick={() => {
+                      if (nvr.availableChannels === 0) {
+                        toast.error(`${nvr.name} não tem canais disponíveis`);
+                        return;
+                      }
+                      setSelectedNvrId(nvr.id);
+                      setSelectedChannel(null);
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Video className="w-4 h-4 text-primary" />
+                            <span className="font-semibold">{nvr.name}</span>
+                            <Badge variant="secondary">{(nvr.type as string).toUpperCase()}</Badge>
+                            {nvr.availableChannels === 0 && (
+                              <Badge variant="destructive">Lotado</Badge>
+                            )}
+                          </div>
+                          {nvr.ip_address && (
+                            <p className="text-sm text-muted-foreground mt-1">IP: {nvr.ip_address}</p>
+                          )}
+                          <p className="text-sm text-muted-foreground">📍 {nvr.location}</p>
+                          <div className="flex items-center gap-4 mt-2 text-sm">
+                            <span className={nvr.availableChannels > 0 ? "text-green-600" : "text-destructive"}>
+                              📹 {nvr.usedChannels}/{nvr.totalChannels} canais usados
+                            </span>
+                            <span className="text-muted-foreground">
+                              {nvr.availableChannels} disponíveis
+                            </span>
+                          </div>
+                        </div>
+                        {selectedNvrId === nvr.id && (
+                          <Check className="w-5 h-5 text-primary" />
+                        )}
+                      </div>
+                      
+                      {/* Channel selection */}
+                      {selectedNvrId === nvr.id && (
+                        <div className="mt-4 pt-4 border-t">
+                          <Label className="text-xs mb-2 block">Selecione o Canal:</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {Array.from({ length: nvr.totalChannels }, (_, i) => i + 1).map(ch => {
+                              const isUsed = nvr.cameras.some((c: any) => c.channel === ch);
+                              return (
+                                <Button
+                                  key={ch}
+                                  size="sm"
+                                  variant={selectedChannel === ch ? 'default' : 'outline'}
+                                  disabled={isUsed}
+                                  className={cn(
+                                    isUsed && 'opacity-40 cursor-not-allowed',
+                                    !isUsed && selectedChannel !== ch && 'border-green-500/50 hover:border-green-500'
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isUsed) setSelectedChannel(ch);
+                                  }}
+                                >
+                                  CH{ch}
+                                  {isUsed && <span className="ml-1 text-destructive">✗</span>}
+                                  {selectedChannel === ch && <span className="ml-1">✓</span>}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 border rounded-lg border-dashed">
+                <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="font-medium">Nenhum NVR/DVR cadastrado</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Cadastre um NVR ou DVR primeiro na tela de Equipamentos
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Step 6: Power Source (IP cameras only) */}
+        {step === 6 && isIPCamera && (() => {
           const poeRecommendation = getPoeRecommendation(selectedTemplate, cameraData.powerConsumption);
           
           return (

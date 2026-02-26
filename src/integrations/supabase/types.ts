@@ -299,7 +299,7 @@ export type Database = {
           position_u_start: number | null
           power_consumption_watts: number | null
           primary_mac_address: string | null
-          rack_id: string
+          rack_id: string | null
           serial_number: string | null
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at: string
@@ -325,7 +325,7 @@ export type Database = {
           position_u_start?: number | null
           power_consumption_watts?: number | null
           primary_mac_address?: string | null
-          rack_id: string
+          rack_id?: string | null
           serial_number?: string | null
           type: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string
@@ -351,7 +351,7 @@ export type Database = {
           position_u_start?: number | null
           power_consumption_watts?: number | null
           primary_mac_address?: string | null
-          rack_id?: string
+          rack_id?: string | null
           serial_number?: string | null
           type?: Database["public"]["Enums"]["equipment_type"]
           updated_at?: string

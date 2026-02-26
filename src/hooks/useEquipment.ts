@@ -17,9 +17,9 @@ interface PortGroup {
 interface EquipmentData {
   name: string;
   type: EquipmentType;
-  rack_id: string;
-  position_u_start: number;
-  position_u_end: number;
+  rack_id?: string | null;
+  position_u_start?: number | null;
+  position_u_end?: number | null;
   manufacturer?: string;
   model?: string;
   serial_number?: string;
@@ -101,25 +101,27 @@ export const useEquipment = (rackId?: string) => {
         }
       }
       
-      // 2. Validar posição no rack
-      const { data: existingEquipment } = await supabase
-        .from('equipment')
-        .select('position_u_start, position_u_end')
-        .eq('rack_id', values.equipment.rack_id);
-      
-      const hasOverlap = existingEquipment?.some(eq => {
-        return (
-          (values.equipment.position_u_start >= eq.position_u_start && 
-           values.equipment.position_u_start <= eq.position_u_end) ||
-          (values.equipment.position_u_end >= eq.position_u_start && 
-           values.equipment.position_u_end <= eq.position_u_end) ||
-          (values.equipment.position_u_start <= eq.position_u_start && 
-           values.equipment.position_u_end >= eq.position_u_end)
-        );
-      });
-      
-      if (hasOverlap) {
-        throw new Error('Posição já ocupada por outro equipamento');
+      // 2. Validar posição no rack (skip when no rack - e.g. cameras)
+      if (values.equipment.rack_id && values.equipment.position_u_start != null) {
+        const { data: existingEquipment } = await supabase
+          .from('equipment')
+          .select('position_u_start, position_u_end')
+          .eq('rack_id', values.equipment.rack_id);
+        
+        const hasOverlap = existingEquipment?.some(eq => {
+          return (
+            (values.equipment.position_u_start! >= eq.position_u_start! && 
+             values.equipment.position_u_start! <= eq.position_u_end!) ||
+            (values.equipment.position_u_end! >= eq.position_u_start! && 
+             values.equipment.position_u_end! <= eq.position_u_end!) ||
+            (values.equipment.position_u_start! <= eq.position_u_start! && 
+             values.equipment.position_u_end! >= eq.position_u_end!)
+          );
+        });
+        
+        if (hasOverlap) {
+          throw new Error('Posição já ocupada por outro equipamento');
+        }
       }
       
       // 3. Inserir equipamento
