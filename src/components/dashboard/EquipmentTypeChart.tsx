@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useEquipmentTypeStats } from '@/hooks/useDashboardStats';
+import { useEquipmentTypeStats, DashboardStatsFilters } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const COLORS = [
@@ -22,8 +22,12 @@ const TYPE_LABELS: Record<string, string> = {
   other: 'Outro'
 };
 
-export function EquipmentTypeChart() {
-  const { data: equipmentTypes, isLoading } = useEquipmentTypeStats();
+interface EquipmentTypeChartProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function EquipmentTypeChart({ filters }: EquipmentTypeChartProps) {
+  const { data: equipmentTypes, isLoading } = useEquipmentTypeStats(filters);
 
   if (isLoading) {
     return (

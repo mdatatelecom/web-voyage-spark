@@ -1,11 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
-import { useRackOccupancyStats } from '@/hooks/useDashboardStats';
+import { useRackOccupancyStats, DashboardStatsFilters } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function RackOccupancyChart() {
-  const { data: racks, isLoading } = useRackOccupancyStats();
+interface RackOccupancyChartProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function RackOccupancyChart({ filters }: RackOccupancyChartProps) {
+  const { data: racks, isLoading } = useRackOccupancyStats(filters);
 
   if (isLoading) {
     return (

@@ -17,7 +17,8 @@ import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { SLAWidget } from '@/components/dashboard/SLAWidget';
 import { usePortUsageStats } from '@/hooks/useDashboardStats';
-import { useEffect, useState } from 'react';
+import { DashboardFilters as DashboardFiltersType } from '@/hooks/useDashboardFilters';
+import { useEffect, useMemo, useState } from 'react';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { TicketStatsCards } from '@/components/tickets/TicketStatsCards';
 import { TicketsByCategoryChart } from '@/components/tickets/TicketsByCategoryChart';
@@ -39,6 +40,16 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { branding, isLoading: brandingLoading } = useSystemSettings();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeFilters, setActiveFilters] = useState<DashboardFiltersType | null>(null);
+
+  const statsFilters = useMemo(() => {
+    if (!activeFilters) return undefined;
+    return {
+      buildingId: activeFilters.location.buildingId,
+      connectionStatus: activeFilters.connectionStatus,
+      equipmentType: activeFilters.equipmentType,
+    };
+  }, [activeFilters]);
 
   // Update time every minute
   useEffect(() => {
@@ -80,7 +91,7 @@ export default function Dashboard() {
     }
   });
 
-  const { data: portStats } = usePortUsageStats();
+  const { data: portStats } = usePortUsageStats(statsFilters);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -180,7 +191,7 @@ export default function Dashboard() {
         )}
 
         {/* Filtros Colapsíveis */}
-        <DashboardFilters />
+        <DashboardFilters onFiltersChange={setActiveFilters} />
 
         {/* SEÇÃO 1: Métricas Rápidas (5 colunas) */}
         <section>
@@ -219,10 +230,10 @@ export default function Dashboard() {
             </h3>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <RackOccupancyChart />
-            <EquipmentTypeChart />
-            <ConnectionStatusChart />
-            <PortUsageChart />
+            <RackOccupancyChart filters={statsFilters} />
+            <EquipmentTypeChart filters={statsFilters} />
+            <ConnectionStatusChart filters={statsFilters} />
+            <PortUsageChart filters={statsFilters} />
           </div>
         </section>
 

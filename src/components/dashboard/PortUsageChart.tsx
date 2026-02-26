@@ -1,11 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
-import { usePortUsageStats } from '@/hooks/useDashboardStats';
+import { usePortUsageStats, DashboardStatsFilters } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function PortUsageChart() {
-  const { data: portStats, isLoading } = usePortUsageStats();
+interface PortUsageChartProps {
+  filters?: DashboardStatsFilters;
+}
+
+export function PortUsageChart({ filters }: PortUsageChartProps) {
+  const { data: portStats, isLoading } = usePortUsageStats(filters);
 
   if (isLoading) {
     return (
