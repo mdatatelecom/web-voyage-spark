@@ -304,7 +304,20 @@ function generateNvrPorts(
     notes: 'Porta de rede para conexão ao switch'
   });
   
-  // Para NVR com PoE, adicionar portas PoE
+  // NVR Padrão: adicionar segunda porta LAN/IPC
+  if (equipmentType === 'nvr') {
+    ports.push({
+      equipment_id: equipmentId,
+      name: 'LAN/IPC',
+      port_number: -1,
+      port_type: 'rj45' as PortType,
+      speed: '1Gbps',
+      status: 'available',
+      notes: 'Porta Ethernet secundária para rede de câmeras'
+    });
+  }
+  
+  // NVR PoE: portas PoE dedicadas para câmeras
   if (equipmentType === 'nvr_poe' && poePorts > 0) {
     for (let i = 1; i <= poePorts; i++) {
       ports.push({
@@ -315,6 +328,21 @@ function generateNvrPorts(
         speed: '100Mbps',
         status: 'available',
         notes: `Porta PoE integrada - Canal ${i}`
+      });
+    }
+  }
+  
+  // DVR: entradas BNC para câmeras analógicas
+  if (equipmentType === 'dvr') {
+    for (let i = 1; i <= totalChannels; i++) {
+      ports.push({
+        equipment_id: equipmentId,
+        name: `BNC${i}`,
+        port_number: i,
+        port_type: 'bnc' as PortType,
+        speed: null,
+        status: 'available',
+        notes: `Entrada BNC - Canal ${i}`
       });
     }
   }
