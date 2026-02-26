@@ -197,36 +197,6 @@ export type Database = {
         }
         Relationships: []
       }
-      chat_messages: {
-        Row: {
-          content: string
-          created_at: string | null
-          id: string
-          metadata: Json | null
-          role: string
-          session_id: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string | null
-          id?: string
-          metadata?: Json | null
-          role: string
-          session_id: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string | null
-          id?: string
-          metadata?: Json | null
-          role?: string
-          session_id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       connections: {
         Row: {
           cable_color: string | null
@@ -1602,42 +1572,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      system_knowledge: {
-        Row: {
-          category: string
-          content: string
-          created_at: string | null
-          created_by: string | null
-          id: string
-          keywords: string[] | null
-          topic: string
-          updated_at: string | null
-          version: number | null
-        }
-        Insert: {
-          category: string
-          content: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          keywords?: string[] | null
-          topic: string
-          updated_at?: string | null
-          version?: number | null
-        }
-        Update: {
-          category?: string
-          content?: string
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          keywords?: string[] | null
-          topic?: string
-          updated_at?: string | null
-          version?: number | null
-        }
-        Relationships: []
       }
       system_settings: {
         Row: {
