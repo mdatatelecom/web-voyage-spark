@@ -46,6 +46,8 @@ export const VLAN_CATEGORIES = [
   { value: 'guest', label: 'Visitantes', icon: 'Users', color: '#eab308' },
   { value: 'native', label: 'Nativa', icon: 'Link', color: '#6b7280' },
   { value: 'iot', label: 'IoT', icon: 'Cpu', color: '#f97316' },
+  { value: 'cameras', label: 'Câmeras', icon: 'Camera', color: '#ec4899' },
+  { value: 'cftv', label: 'CFTV', icon: 'Video', color: '#14b8a6' },
 ] as const;
 
 // Reserved VLAN IDs with warnings
