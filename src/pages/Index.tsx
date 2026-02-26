@@ -58,7 +58,7 @@ const features = [
   {
     icon: Camera,
     title: "Monitoramento Visual",
-    description: "Integração com câmeras IP, NVRs e go2rtc. Streaming HLS/WebRTC, mapa de câmeras e relatórios de canais"
+    description: "Cadastro de câmeras IP e NVRs com mapa interativo de posições. Relatórios de canais e topologia completa do sistema CFTV"
   },
   {
     icon: Headset,
