@@ -180,18 +180,26 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
         is_active: true,
       };
       
-      await createVlan(vlanData);
+      console.log('[VlanWizard] Creating VLAN...', vlanData);
+      const createdVlan = await createVlan(vlanData);
+      console.log('[VlanWizard] VLAN created successfully:', createdVlan);
       
       // Create subnet if requested - using the newly created VLAN's UUID
       if (createSubnet && cidr && subnetName) {
         const parsed = parseCIDR(cidr);
         if (parsed) {
-          // Fetch the newly created VLAN to get its UUID
-          const { data: newVlan } = await supabase
-            .from('vlans')
-            .select('id')
-            .eq('vlan_id', parseInt(vlanId, 10))
-            .single();
+          // Use the returned VLAN id directly, or fetch it
+          let vlanUuid = createdVlan?.id;
+          
+          if (!vlanUuid) {
+            console.log('[VlanWizard] Fetching VLAN UUID...');
+            const { data: newVlan } = await supabase
+              .from('vlans')
+              .select('id')
+              .eq('vlan_id', parseInt(vlanId, 10))
+              .maybeSingle();
+            vlanUuid = newVlan?.id;
+          }
           
           const subnetData: CreateSubnetData = {
             name: subnetName,
@@ -201,17 +209,22 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
             network_address: parsed.networkAddress,
             prefix_length: parsed.prefixLength,
             gateway_ip: parsed.gatewayAddress || undefined,
+            gateway_name: gatewayName || 'Gateway',
             broadcast_address: parsed.broadcastAddress || undefined,
             total_addresses: parsed.totalAddresses,
             usable_addresses: parsed.usableAddresses,
             vlan_id: parseInt(vlanId, 10),
-            vlan_uuid: newVlan?.id || undefined,
+            vlan_uuid: vlanUuid || undefined,
             building_id: buildingId || undefined,
           };
+          
+          console.log('[VlanWizard] Creating subnet...', subnetData);
           const createdSubnet = await createSubnetMutation(subnetData);
+          console.log('[VlanWizard] Subnet created:', createdSubnet);
           
           // Generate IPs if requested and subnet was created
           if (generateIPs && parsed.version === 'ipv4' && createdSubnet?.id) {
+            console.log('[VlanWizard] Generating IPs...');
             const result = await generateAndUpsertIPsForSubnet({
               subnetId: createdSubnet.id,
               cidr: parsed.cidr,
@@ -228,7 +241,7 @@ export function VlanWizard({ open, onOpenChange }: VlanWizardProps) {
       
       onOpenChange(false);
     } catch (error) {
-      console.error('Error creating VLAN:', error);
+      console.error('[VlanWizard] Error:', error);
     }
   };
   
