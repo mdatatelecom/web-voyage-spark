@@ -264,11 +264,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "connections_port_a_id_fkey"
+            columns: ["port_a_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["port_a_id"]
+          },
+          {
+            foreignKeyName: "connections_port_a_id_fkey"
+            columns: ["port_a_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["port_b_id"]
+          },
+          {
             foreignKeyName: "connections_port_b_id_fkey"
             columns: ["port_b_id"]
             isOneToOne: false
             referencedRelation: "ports"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_port_b_id_fkey"
+            columns: ["port_b_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["port_a_id"]
+          },
+          {
+            foreignKeyName: "connections_port_b_id_fkey"
+            columns: ["port_b_id"]
+            isOneToOne: false
+            referencedRelation: "v_connection_details"
+            referencedColumns: ["port_b_id"]
           },
           {
             foreignKeyName: "connections_vlan_uuid_fkey"
@@ -1916,13 +1944,9 @@ export type Database = {
           cable_type: Database["public"]["Enums"]["cable_type"] | null
           connection_code: string | null
           equipment_a_id: string | null
-          equipment_a_manufacturer: string | null
-          equipment_a_model: string | null
           equipment_a_name: string | null
           equipment_a_type: Database["public"]["Enums"]["equipment_type"] | null
           equipment_b_id: string | null
-          equipment_b_manufacturer: string | null
-          equipment_b_model: string | null
           equipment_b_name: string | null
           equipment_b_type: Database["public"]["Enums"]["equipment_type"] | null
           id: string | null
@@ -1941,22 +1965,7 @@ export type Database = {
           vlan_name: string | null
           vlan_tagging: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "connections_port_a_id_fkey"
-            columns: ["port_a_id"]
-            isOneToOne: false
-            referencedRelation: "ports"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "connections_port_b_id_fkey"
-            columns: ["port_b_id"]
-            isOneToOne: false
-            referencedRelation: "ports"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       v_port_availability: {
         Row: {
