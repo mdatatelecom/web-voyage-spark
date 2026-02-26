@@ -311,9 +311,10 @@ Deno.serve(async (req) => {
         id,
         name,
         type,
-        ports(id, status, port_type)
+        notes,
+        ports(id, status, port_type, port_number)
       `)
-      .in('type', ['nvr', 'dvr']);
+      .in('type', ['nvr', 'nvr_poe', 'dvr']);
 
     if (nvrError) {
       console.error('Error fetching NVR/DVR equipment:', nvrError);
@@ -321,11 +322,26 @@ Deno.serve(async (req) => {
       console.log(`Checking ${nvrDvrEquipment?.length || 0} NVR/DVR equipment...`);
 
       for (const nvr of nvrDvrEquipment || []) {
-        // For NVR/DVR, count video input ports (BNC for DVR, RJ45/other for NVR)
-        const totalChannels = nvr.ports?.length || 0;
+        let totalChannels = 0;
+        let usedChannels = 0;
+
+        if (nvr.type === 'dvr' || nvr.type === 'nvr_poe') {
+          // DVR/NVR_PoE: count physical ports with port_number > 0 (exclude Uplink/LAN)
+          const videoPorts = nvr.ports?.filter((p: any) => p.port_number > 0) || [];
+          totalChannels = videoPorts.length;
+          usedChannels = videoPorts.filter((p: any) => p.status === 'in_use').length;
+        } else {
+          // Standard NVR: channels come from notes JSON, not physical ports
+          let parsedNotes: any = {};
+          try {
+            if (nvr.notes) parsedNotes = JSON.parse(nvr.notes);
+          } catch { /* ignore */ }
+          totalChannels = parsedNotes.total_channels || 16;
+          usedChannels = parsedNotes.cameras?.length || 0;
+        }
+
         if (totalChannels === 0) continue;
 
-        const usedChannels = nvr.ports?.filter((p: any) => p.status === 'in_use').length || 0;
         const usagePercentage = (usedChannels / totalChannels) * 100;
 
         console.log(`NVR/DVR ${nvr.name}: ${usagePercentage.toFixed(1)}% channels in use (${usedChannels}/${totalChannels})`);
@@ -401,7 +417,7 @@ Deno.serve(async (req) => {
         const { data: nvrDvrIds } = await supabaseClient
           .from('equipment')
           .select('id')
-          .in('type', ['nvr', 'dvr']);
+          .in('type', ['nvr', 'nvr_poe', 'dvr']);
 
         const nvrDvrIdSet = new Set((nvrDvrIds || []).map(e => e.id));
 
@@ -778,8 +794,22 @@ Deno.serve(async (req) => {
     for (const alert of activeNvrAlerts || []) {
       const nvr = nvrDvrEquipment?.find(e => e.id === alert.related_entity_id);
       if (nvr) {
-        const totalChannels = nvr.ports?.length || 0;
-        const usedChannels = nvr.ports?.filter((p: any) => p.status === 'in_use').length || 0;
+        let totalChannels = 0;
+        let usedChannels = 0;
+
+        if (nvr.type === 'dvr' || nvr.type === 'nvr_poe') {
+          const videoPorts = nvr.ports?.filter((p: any) => p.port_number > 0) || [];
+          totalChannels = videoPorts.length;
+          usedChannels = videoPorts.filter((p: any) => p.status === 'in_use').length;
+        } else {
+          let parsedNotes: any = {};
+          try {
+            if (nvr.notes) parsedNotes = JSON.parse(nvr.notes);
+          } catch { /* ignore */ }
+          totalChannels = parsedNotes.total_channels || 16;
+          usedChannels = parsedNotes.cameras?.length || 0;
+        }
+
         const usagePercentage = totalChannels > 0 ? (usedChannels / totalChannels) * 100 : 0;
         
         if (usagePercentage < (settings.nvr_warning_threshold || 80)) {
@@ -807,7 +837,7 @@ Deno.serve(async (req) => {
     const { data: allNvrDvrIds } = await supabaseClient
       .from('equipment')
       .select('id')
-      .in('type', ['nvr', 'dvr']);
+      .in('type', ['nvr', 'nvr_poe', 'dvr']);
     const nvrDvrIdSet = new Set((allNvrDvrIds || []).map(e => e.id));
 
     for (const alert of activeCameraAlerts || []) {
