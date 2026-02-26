@@ -1916,9 +1916,13 @@ export type Database = {
           cable_type: Database["public"]["Enums"]["cable_type"] | null
           connection_code: string | null
           equipment_a_id: string | null
+          equipment_a_manufacturer: string | null
+          equipment_a_model: string | null
           equipment_a_name: string | null
           equipment_a_type: Database["public"]["Enums"]["equipment_type"] | null
           equipment_b_id: string | null
+          equipment_b_manufacturer: string | null
+          equipment_b_model: string | null
           equipment_b_name: string | null
           equipment_b_type: Database["public"]["Enums"]["equipment_type"] | null
           id: string | null
