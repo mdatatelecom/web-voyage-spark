@@ -27,7 +27,7 @@ CREATE POLICY "Admins can manage system settings"
 
 -- Inserir configurações padrão
 INSERT INTO public.system_settings (setting_key, setting_value) VALUES
-  ('branding', '{"systemName": "InfraConnexus", "logoUrl": null, "faviconUrl": null}'::jsonb),
+  ('branding', '{"systemName": "Mdata Telecom", "logoUrl": null, "faviconUrl": null}'::jsonb),
   ('theme_colors', '{
     "primary": "222.2 47.4% 11.2%",
     "primaryForeground": "210 40% 98%",
