@@ -99,7 +99,7 @@ function EquipmentMarkerComponent({
 
   // Hover state for tooltip
   const [isHovered, setIsHovered] = useState(false);
-  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [hoverTimeout, setHoverTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMouseEnter = useCallback((e: any) => {
     const timeout = setTimeout(() => {
