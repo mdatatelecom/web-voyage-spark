@@ -146,7 +146,7 @@ export default function TicketDetails() {
   const { sendTicketNotification, isEnabled: whatsAppEnabled } = useWhatsApp();
   const { technicians, refetch: refetchTechnicians } = useTechnicians();
   const { fetchAndUpdateProfilePicture, isLoading: isLoadingProfilePicture } = useWhatsAppProfilePicture();
-  
+  const { getCategoryLabel, getSubcategoryLabel } = useTicketCategories();
   const [newComment, setNewComment] = useState('');
   const [isInternalComment, setIsInternalComment] = useState(false);
   
