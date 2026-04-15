@@ -44,6 +44,7 @@ export default function SupportTickets() {
   const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
+  const { isAdmin } = useUserRole();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
