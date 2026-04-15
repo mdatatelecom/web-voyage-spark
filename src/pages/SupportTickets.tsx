@@ -43,7 +43,8 @@ export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const { activeCategories, getCategoryLabel } = useTicketCategories();
+  const { isAdmin } = useUserRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
