@@ -120,22 +120,6 @@ export default function SupportTickets() {
         </div>
 
         <TabsContent value="tickets" className="space-y-6">
-            </h1>
-            <p className="text-muted-foreground">
-              Gerencie os chamados de suporte técnico
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/tickets/metrics')}>
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Métricas
-            </Button>
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Chamado
-            </Button>
-          </div>
-        </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -372,12 +356,13 @@ export default function SupportTickets() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
 
-      <TicketCreateDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-      />
-    </AppLayout>
+        {isAdmin && (
+          <TabsContent value="categories">
+            <TicketCategoryManager />
+          </TabsContent>
+        )}
+      </Tabs>
   );
 }
