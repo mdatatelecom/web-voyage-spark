@@ -44,8 +44,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tickets, isLoading } = useTickets();
+  const { tickets, isLoading, updateTicket } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
+  const { isAdmin } = useUserRole();
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const { isAdmin } = useUserRole();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
