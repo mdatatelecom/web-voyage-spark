@@ -364,5 +364,11 @@ export default function SupportTickets() {
           </TabsContent>
         )}
       </Tabs>
+
+      <TicketCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
+    </AppLayout>
   );
 }
