@@ -118,6 +118,10 @@ export default function SupportTickets() {
               {isAdmin && <TabsTrigger value="categories">Categorias</TabsTrigger>}
             </TabsList>
           </div>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Abrir Chamado
+          </Button>
         </div>
 
         <TabsContent value="tickets" className="space-y-6">
