@@ -1,55 +1,52 @@
 
 
-# Visualização Kanban para Chamados
+# Agregar Anexos de Comentários na Seção Principal de Anexos
 
-## Situação Atual
+## Problema
 
-A página de Chamados (`SupportTickets.tsx`) possui apenas visualização em **lista/tabela**. Já usa `Tabs` para alternar entre "Chamados" e "Categorias" (admin). Os status existentes são: `open`, `in_progress`, `resolved`, `closed`.
+Atualmente, o ticket tem dois locais separados para anexos:
+1. **Anexos do Chamado** (`ticket.attachments`) — só mostra uploads diretos no ticket
+2. **Anexos em Comentários** — inline dentro de cada comentário (incluindo WhatsApp)
 
-O hook `useTickets` já expõe `updateTicket` para alterar status.
+Os anexos enviados via WhatsApp ficam salvos apenas no comentário, não aparecem na seção principal de anexos.
 
-## Proposta
+## Solução
 
-Adicionar um toggle **Lista / Kanban** dentro da aba "Chamados", sem alterar a estrutura de abas existente.
+Agregar todos os anexos (do ticket + de todos os comentários) em uma única seção "Anexos do Chamado", indicando a origem de cada um.
 
-### Kanban Board
+### Arquivo: `src/pages/TicketDetails.tsx`
 
-4 colunas correspondendo aos status:
+**Alterações:**
 
-```text
-┌──────────┐  ┌─────────────┐  ┌───────────┐  ┌──────────┐
-│  Aberto  │  │ Em Andamento│  │ Resolvido │  │ Fechado  │
-│ (open)   │  │(in_progress)│  │(resolved) │  │ (closed) │
-├──────────┤  ├─────────────┤  ├───────────┤  ├──────────┤
-│ Card     │  │ Card        │  │ Card      │  │ Card     │
-│ Card     │  │             │  │           │  │          │
-└──────────┘  └─────────────┘  └───────────┘  └──────────┘
-```
+1. **Criar lista agregada de anexos** combinando `ticket.attachments` e `comments[].attachments`:
+   - Cada item terá um campo `source` indicando origem ("ticket", "whatsapp", "web")
+   - Incluir nome do remetente e data para anexos de comentários
 
-Cada **card** mostra: número do ticket, título (truncado), badge de prioridade, badge de categoria, avatar do atribuído, e data.
+2. **Atualizar a seção "Anexos do Chamado"** para usar a lista agregada:
+   - Badge indicando origem (📎 Ticket / 💬 WhatsApp / 🌐 Web)
+   - Contagem total atualizada
+   - Botão de delete apenas para anexos do ticket (não de comentários)
 
-**Drag & Drop**: Arrastar um card entre colunas atualiza o status via `updateTicket`. Usar HTML5 drag-and-drop nativo (sem lib externa) para manter leve.
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/tickets/TicketKanbanBoard.tsx` | **Novo** — Componente Kanban com colunas e cards arrastáveis |
-| `src/pages/SupportTickets.tsx` | Adicionar toggle Lista/Kanban + renderizar condicionalmente |
+3. **Manter os anexos inline nos comentários** como estão — exibição dupla intencional para contexto
 
 ### Detalhes Técnicos
 
-1. **`TicketKanbanBoard.tsx`**
-   - Recebe `tickets` (filtrados), `onStatusChange(ticketId, newStatus)`, `onTicketClick(id)`
-   - 4 colunas com header colorido (azul/amarelo/verde/cinza)
-   - Cards com `draggable`, usando `onDragStart`/`onDragOver`/`onDrop`
-   - Contagem de tickets por coluna no header
-   - Indicador visual de drop zone ao arrastar
+```tsx
+// Agregar anexos
+const allAttachments = useMemo(() => {
+  const ticketAtts = ((ticket?.attachments as any[]) || []).map(a => ({
+    ...a, source: 'ticket', sourceLabel: 'Upload'
+  }));
+  const commentAtts = (comments || []).flatMap(c => 
+    ((c.attachments as any[]) || []).map(a => ({
+      ...a, source: c.source || 'web',
+      sourceLabel: c.source === 'whatsapp' ? c.whatsapp_sender_name || 'WhatsApp' : 'Comentário',
+      commentDate: c.created_at
+    }))
+  );
+  return [...ticketAtts, ...commentAtts];
+}, [ticket, comments]);
+```
 
-2. **`SupportTickets.tsx`**
-   - Novo state: `viewMode: 'list' | 'kanban'`
-   - Toggle com ícones `List` e `LayoutGrid` acima dos filtros
-   - Renderiza `Table` ou `TicketKanbanBoard` conforme o modo
-   - Os filtros (busca, prioridade, categoria, etc.) aplicam-se igualmente ao Kanban
-   - Ao dropar, chama `updateTicket({ id, status: newStatus })`
+A contagem no header mostrará o total agregado. Cada card de anexo terá um badge pequeno indicando a origem.
 
