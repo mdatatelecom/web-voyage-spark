@@ -1,39 +1,45 @@
 
 
-# Corrigir Listagem de Chamados via WhatsApp
+# Criar Chamado ao Responder/Marcar Mensagem no WhatsApp
 
-## Problemas Identificados
+## Funcionalidade
 
-### 1. Webhook possivelmente inativo
-Ultima interacao registrada: 09/02/2026. O webhook da Evolution API pode ter desconectado.
+Quando um usuario **responder (reply/marcar)** qualquer mensagem no WhatsApp com um comando como `abrir chamado` ou `criar chamado`, o bot usara o conteudo da mensagem original (quoted) como descricao do novo chamado.
 
-### 2. Telefone sem vinculo com chamados
-O telefone `5511953551207` nao possui:
-- Nenhum perfil cadastrado no sistema
-- Nenhum chamado com `contact_phone` ou `technician_phone` correspondente
-- Nenhum `assigned_to` vinculado
+## Como Funciona Hoje
 
-Mesmo que o comando funcione, o bot responderia "Voce nao possui chamados".
+O webhook ja extrai `contextInfo` e `quotedMessage` (linha 866-868) para detectar numeros de chamado em mensagens marcadas. Se encontra um ticket, adiciona comentario. Se nao encontra, ignora o contexto.
 
-## Plano de Acoes
+## Alteracao
 
-### Passo 1: Verificar conexao do webhook
-Invocar a edge function `send-whatsapp` com action `test` para confirmar que a instancia Evolution API esta conectada.
+### `supabase/functions/whatsapp-webhook/index.ts`
 
-### Passo 2: Reconfigurar webhook (se necessario)
-Invocar `send-whatsapp` com action `configure-webhook` para reativar o recebimento de mensagens.
+Na area de processamento de comandos, quando o comando for `novo`, `start_wizard`, ou variantes de criacao, verificar se existe uma `quotedMessage`. Se sim:
 
-### Passo 3: Cadastrar telefone no perfil
-O telefone `5511953551207` precisa ser associado a um perfil existente, ou os chamados precisam ter esse telefone no campo `contact_phone`. Opcoes:
-- Atualizar o perfil do usuario com esse telefone
-- Ou criar um novo perfil associado
+1. Usar o texto da mensagem marcada como **descricao** do chamado
+2. Gerar um titulo automatico (primeiras ~60 chars da mensagem marcada)
+3. Criar o chamado diretamente (categoria `other`, prioridade `medium`) sem wizard
+4. Confirmar ao usuario com o numero do chamado
 
-### Passo 4: Testar comando
-Apos vincular o telefone, enviar `meus chamados` e verificar se lista corretamente.
+**Logica a inserir** (no handler do comando `novo`/`start_wizard`, antes de iniciar o wizard):
 
-## Alteracoes Tecnicas
+```text
+Se quotedMessage nao esta vazio E comando e de criacao:
+  → titulo = primeiros 60 chars da quotedMessage
+  → descricao = quotedMessage completo
+  → Criar chamado com categoria 'other', prioridade 'medium'
+  → Responder: "Chamado TKT-XXXX-XXXXX criado a partir da mensagem marcada"
+  → Perguntar se quer ajustar categoria/prioridade
+```
 
-Nenhuma alteracao de codigo necessaria. O problema e de **configuracao/dados**:
-- Webhook pode estar desconectado
-- Telefone sem vinculo no banco de dados
+Se o reply nao contem comando de criacao, o comportamento atual permanece (adicionar comentario ou erro).
+
+**Tambem adicionar** deteccao na area de "unrecognized commands" (linha 4375): se a mensagem nao e um comando reconhecido MAS tem uma quotedMessage, oferecer a opcao de criar chamado a partir dela.
+
+## Resumo
+
+| Local | Alteracao |
+|-------|----------|
+| whatsapp-webhook ~L1200-1250 (comando `novo`) | Detectar quotedMessage e criar chamado direto |
+| whatsapp-webhook ~L4374-4400 (unrecognized) | Sugerir criacao quando reply sem comando |
 
