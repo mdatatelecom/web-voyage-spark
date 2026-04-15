@@ -1576,6 +1576,25 @@ serve(async (req) => {
           break;
         }
 
+        case 'submenu_comentar': {
+          const msg = 
+            `💬 *COMENTAR CHAMADO*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Adicione um comentário a um chamado existente:\n\n` +
+            `📌 *Como usar:*\n` +
+            `• *comentar 00001 [texto]*\n` +
+            `• Ou simplesmente: *00001 [texto]*\n\n` +
+            `📌 *Exemplos:*\n` +
+            `• *comentar 00001 Problema resolvido*\n` +
+            `• *00001 Aguardando peça chegar*\n\n` +
+            `💡 _Você também pode responder uma notificação de chamado para comentar automaticamente!_\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
         // =============== PROMPTS ===============
 
         case 'status_prompt': {
