@@ -1,59 +1,39 @@
 
 
-# Corrigir Notificacoes de Grupo WhatsApp - Chamados
+# Corrigir Listagem de Chamados via WhatsApp
 
-## Problema Identificado
+## Problemas Identificados
 
-Todas as notificacoes de grupo WhatsApp estao falhando com `error_message: [object Object]`. Isso afeta:
-- Notificacoes de criacao/atualizacao de chamados
-- Alertas Zabbix enviados para grupo
-- Qualquer envio para grupo via `send-group`
+### 1. Webhook possivelmente inativo
+Ultima interacao registrada: 09/02/2026. O webhook da Evolution API pode ter desconectado.
 
-O envio individual funciona (teste para numero individual teve sucesso).
+### 2. Telefone sem vinculo com chamados
+O telefone `5511953551207` nao possui:
+- Nenhum perfil cadastrado no sistema
+- Nenhum chamado com `contact_phone` ou `technician_phone` correspondente
+- Nenhum `assigned_to` vinculado
 
-## Causa Raiz
+Mesmo que o comando funcione, o bot responderia "Voce nao possui chamados".
 
-Na edge function `send-whatsapp/index.ts`, o tratamento de erros no bloco `send-group` nao serializa corretamente todos os cenarios de erro da Evolution API. Quando a API retorna um erro com estrutura inesperada, o objeto de erro e convertido para string via coercao implicita, resultando em `[object Object]`.
+## Plano de Acoes
 
-## Alteracoes
+### Passo 1: Verificar conexao do webhook
+Invocar a edge function `send-whatsapp` com action `test` para confirmar que a instancia Evolution API esta conectada.
 
-### 1. `supabase/functions/send-whatsapp/index.ts` - Bloco `send-group`
+### Passo 2: Reconfigurar webhook (se necessario)
+Invocar `send-whatsapp` com action `configure-webhook` para reativar o recebimento de mensagens.
 
-**Adicionar safeguard de serializacao no error_message (linha ~1175):**
-```typescript
-error_message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
-```
+### Passo 3: Cadastrar telefone no perfil
+O telefone `5511953551207` precisa ser associado a um perfil existente, ou os chamados precisam ter esse telefone no campo `contact_phone`. Opcoes:
+- Atualizar o perfil do usuario com esse telefone
+- Ou criar um novo perfil associado
 
-**Adicionar logging detalhado para diagnostico (antes do parse de erro):**
-```typescript
-console.error('Evolution API send-group FULL error response:', JSON.stringify(errorData));
-```
+### Passo 4: Testar comando
+Apos vincular o telefone, enviar `meus chamados` e verificar se lista corretamente.
 
-**Adicionar fallback para erros nao cobertos pelo parse atual:**
-Apos a cadeia de `if/else if` (linha ~1165), adicionar:
-```typescript
-} else {
-  // Fallback: serialize entire error response
-  errorMsg = JSON.stringify(errorData) || `Erro ao enviar para grupo: ${response.status}`;
-}
-```
+## Alteracoes Tecnicas
 
-**Mesmo fix no catch block (linha ~1216):**
-```typescript
-error_message: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
-```
-
-### 2. Mesma correcao no `send-group-media` (ja tem o safeguard na linha 1362, apenas validar)
-
-### 3. Verificar envio real
-
-Apos o deploy, invocar manualmente a edge function com action `test` para validar que a instancia `Mdata` esta conectada, e depois testar `send-group` com o grupo `120363424359487701@g.us`.
-
-## Resumo
-
-| Local | Alteracao |
-|-------|----------|
-| send-whatsapp L1175 | Safeguard `typeof` no error_message |
-| send-whatsapp L1129-1165 | Log completo + fallback JSON.stringify |
-| send-whatsapp L1216 | Safeguard no catch block |
+Nenhuma alteracao de codigo necessaria. O problema e de **configuracao/dados**:
+- Webhook pode estar desconectado
+- Telefone sem vinculo no banco de dados
 
