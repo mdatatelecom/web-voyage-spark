@@ -1,45 +1,75 @@
 
 
-# Criar Chamado ao Responder/Marcar Mensagem no WhatsApp
+# Categorias e Subcategorias Dinâmicas para Chamados
 
-## Funcionalidade
+## Objetivo
+Migrar as categorias de chamados de constantes hardcoded (`src/constants/ticketTypes.ts`) para tabelas no banco de dados, permitindo criar/editar/excluir categorias e subcategorias via interface administrativa.
 
-Quando um usuario **responder (reply/marcar)** qualquer mensagem no WhatsApp com um comando como `abrir chamado` ou `criar chamado`, o bot usara o conteudo da mensagem original (quoted) como descricao do novo chamado.
+## Banco de Dados
 
-## Como Funciona Hoje
+### Novas tabelas
 
-O webhook ja extrai `contextInfo` e `quotedMessage` (linha 866-868) para detectar numeros de chamado em mensagens marcadas. Se encontra um ticket, adiciona comentario. Se nao encontra, ignora o contexto.
+**`ticket_categories`**
+- `id` (uuid, PK)
+- `name` (text) - ex: "Hardware"
+- `slug` (text, unique) - ex: "hardware" (para compatibilidade com dados existentes)
+- `color` (text) - ex: "#3b82f6"
+- `icon` (text, nullable) - emoji ou nome de icone
+- `display_order` (integer, default 0)
+- `is_active` (boolean, default true)
+- `created_at`, `updated_at`
 
-## Alteracao
+**`ticket_subcategories`**
+- `id` (uuid, PK)
+- `category_id` (uuid, FK -> ticket_categories)
+- `name` (text) - ex: "Impressora"
+- `slug` (text)
+- `display_order` (integer, default 0)
+- `is_active` (boolean, default true)
+- `created_at`, `updated_at`
 
-### `supabase/functions/whatsapp-webhook/index.ts`
+**Migração de dados**: INSERT das 7 categorias existentes (hardware, software, network, access, maintenance, installation, other) com seus slugs.
 
-Na area de processamento de comandos, quando o comando for `novo`, `start_wizard`, ou variantes de criacao, verificar se existe uma `quotedMessage`. Se sim:
+**Coluna nova em `support_tickets`**: `subcategory_id` (uuid, nullable, FK -> ticket_subcategories).
 
-1. Usar o texto da mensagem marcada como **descricao** do chamado
-2. Gerar um titulo automatico (primeiras ~60 chars da mensagem marcada)
-3. Criar o chamado diretamente (categoria `other`, prioridade `medium`) sem wizard
-4. Confirmar ao usuario com o numero do chamado
+**RLS**: Todos autenticados podem ler. Apenas admins podem criar/editar/deletar.
 
-**Logica a inserir** (no handler do comando `novo`/`start_wizard`, antes de iniciar o wizard):
+## Frontend
 
-```text
-Se quotedMessage nao esta vazio E comando e de criacao:
-  → titulo = primeiros 60 chars da quotedMessage
-  → descricao = quotedMessage completo
-  → Criar chamado com categoria 'other', prioridade 'medium'
-  → Responder: "Chamado TKT-XXXX-XXXXX criado a partir da mensagem marcada"
-  → Perguntar se quer ajustar categoria/prioridade
-```
+### 1. Hook `useTicketCategories`
+- Busca categorias e subcategorias do banco
+- Mutations para CRUD
+- Exporta `getCategoryLabel` e `getSubcategoryLabel` dinâmicos
 
-Se o reply nao contem comando de criacao, o comportamento atual permanece (adicionar comentario ou erro).
+### 2. Página de Gestão (nova aba em Chamados ou seção em System)
+- Acessível apenas para admins
+- Lista categorias com drag-to-reorder ou setas de ordenação
+- Botao para criar categoria (nome, cor, icone)
+- Expandir categoria para ver/criar subcategorias
+- Editar/desativar categorias e subcategorias
 
-**Tambem adicionar** deteccao na area de "unrecognized commands" (linha 4375): se a mensagem nao e um comando reconhecido MAS tem uma quotedMessage, oferecer a opcao de criar chamado a partir dela.
+### 3. Atualizar dependências
+- **`TicketCreateDialog`**: Usar categorias do banco + selector de subcategoria condicional
+- **`SupportTickets.tsx`**: Filtro de categoria dinâmico do banco
+- **`TicketDetails.tsx`**: Exibir subcategoria se presente
+- **`TicketMetrics / charts`**: Adaptar labels dinâmicos
+- **`useTicketStats.ts`**: Usar labels do banco
+- **`ticketTypes.ts`**: Manter prioridades/status hardcoded, remover categorias hardcoded (substituir por fallback ao hook)
+- **`whatsapp-webhook`**: Buscar categorias do banco ao invés de array hardcoded
+- **`backend webhook.controller.ts`**: Buscar categorias do banco
 
-## Resumo
+## Resumo de arquivos
 
-| Local | Alteracao |
-|-------|----------|
-| whatsapp-webhook ~L1200-1250 (comando `novo`) | Detectar quotedMessage e criar chamado direto |
-| whatsapp-webhook ~L4374-4400 (unrecognized) | Sugerir criacao quando reply sem comando |
+| Arquivo | Alteracao |
+|---------|----------|
+| Migration SQL | Criar tabelas + seed + alter support_tickets |
+| `src/hooks/useTicketCategories.ts` | Novo hook CRUD |
+| `src/components/tickets/TicketCategoryManager.tsx` | Nova UI de gestao |
+| `src/pages/SupportTickets.tsx` | Filtro dinamico |
+| `src/components/tickets/TicketCreateDialog.tsx` | Categorias + subcategorias do banco |
+| `src/pages/TicketDetails.tsx` | Exibir subcategoria |
+| `src/constants/ticketTypes.ts` | Remover TICKET_CATEGORIES, manter prioridades/status |
+| `src/hooks/useTicketStats.ts` | Labels dinamicos |
+| `supabase/functions/whatsapp-webhook/index.ts` | Buscar categorias do banco |
+| `backend/src/controllers/webhook.controller.ts` | Buscar categorias do banco |
 
