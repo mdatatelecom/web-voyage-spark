@@ -1412,6 +1412,7 @@ export type Database = {
           related_room_id: string | null
           resolved_at: string | null
           status: string
+          subcategory_id: string | null
           technician_phone: string | null
           ticket_number: string
           title: string
@@ -1435,6 +1436,7 @@ export type Database = {
           related_room_id?: string | null
           resolved_at?: string | null
           status?: string
+          subcategory_id?: string | null
           technician_phone?: string | null
           ticket_number: string
           title: string
@@ -1458,6 +1460,7 @@ export type Database = {
           related_room_id?: string | null
           resolved_at?: string | null
           status?: string
+          subcategory_id?: string | null
           technician_phone?: string | null
           ticket_number?: string
           title?: string
@@ -1527,6 +1530,13 @@ export type Database = {
             referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "support_tickets_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_subcategories"
+            referencedColumns: ["id"]
+          },
         ]
       }
       system_settings: {
@@ -1553,6 +1563,42 @@ export type Database = {
           setting_value?: Json
           updated_at?: string | null
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ticket_categories: {
+        Row: {
+          color: string
+          created_at: string
+          display_order: number
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1637,6 +1683,47 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_categories"
             referencedColumns: ["id"]
           },
         ]
