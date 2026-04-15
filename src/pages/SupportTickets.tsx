@@ -243,12 +243,6 @@ export default function SupportTickets() {
                   ))}
                 </SelectContent>
               </Select>
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger>
                   <Calendar className="h-4 w-4 mr-2" />
