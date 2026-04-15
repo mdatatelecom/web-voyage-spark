@@ -1,52 +1,50 @@
 
 
-# Agregar Anexos de Comentários na Seção Principal de Anexos
+# 3 Melhorias no Sistema de Comentários WhatsApp
 
-## Problema
+## 1. Adicionar "comentar" ao menu de ajuda
 
-Atualmente, o ticket tem dois locais separados para anexos:
-1. **Anexos do Chamado** (`ticket.attachments`) — só mostra uploads diretos no ticket
-2. **Anexos em Comentários** — inline dentro de cada comentário (incluindo WhatsApp)
+O comando `comentar` **já está listado** no submenu `help_chamados` (linha 1642: `• *comentar 00001 [texto]*`). Porém **não aparece no menu principal** (opções 1-8) nem no submenu 6 (Anexar Arquivos).
 
-Os anexos enviados via WhatsApp ficam salvos apenas no comentário, não aparecem na seção principal de anexos.
+**Ação**: Adicionar uma opção **9 - 💬 COMENTAR** ao menu principal, com submenu explicando o uso. Também adicionar a dica no submenu de Anexar (opção 6).
 
-## Solução
+## 2. Permitir comentar digitando apenas número + texto
 
-Agregar todos os anexos (do ticket + de todos os comentários) em uma única seção "Anexos do Chamado", indicando a origem de cada um.
+Atualmente precisa do prefixo `comentar`. A ideia é detectar automaticamente mensagens no formato `00001 texto qualquer` (5 dígitos seguidos de espaço e texto) como comentário.
 
-### Arquivo: `src/pages/TicketDetails.tsx`
+**Ação**: Adicionar no `extractCommand` uma detecção para o padrão `/^\d{5}\s+.+/` que retorna `{ command: 'comment', args: texto }`. Deve ficar **após** todos os comandos explícitos para não conflitar.
 
-**Alterações:**
+## 3. Notificação visual em tempo real
 
-1. **Criar lista agregada de anexos** combinando `ticket.attachments` e `comments[].attachments`:
-   - Cada item terá um campo `source` indicando origem ("ticket", "whatsapp", "web")
-   - Incluir nome do remetente e data para anexos de comentários
+O realtime já está configurado: `ticket_comments` está na publicação e `useTicket` já invalida o cache quando um novo comentário chega. Porém **não há toast/notificação visual** para alertar o usuário.
 
-2. **Atualizar a seção "Anexos do Chamado"** para usar a lista agregada:
-   - Badge indicando origem (📎 Ticket / 💬 WhatsApp / 🌐 Web)
-   - Contagem total atualizada
-   - Botão de delete apenas para anexos do ticket (não de comentários)
+**Ação**: No callback do realtime de comentários (useTickets.ts ~linha 716), quando `event === 'INSERT'` e `payload.new.source === 'whatsapp'`, exibir um toast com som/vibração informando que chegou um comentário via WhatsApp.
 
-3. **Manter os anexos inline nos comentários** como estão — exibição dupla intencional para contexto
+## Arquivos Alterados
 
-### Detalhes Técnicos
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/whatsapp-webhook/index.ts` | Menu principal: opção 9 (Comentar). Submenu 9 com instruções. `extractCommand`: detectar padrão `NNNNN texto` como comment shortcut |
+| `src/hooks/useTickets.ts` | No realtime de comentários, adicionar toast para novos comentários WhatsApp |
 
-```tsx
-// Agregar anexos
-const allAttachments = useMemo(() => {
-  const ticketAtts = ((ticket?.attachments as any[]) || []).map(a => ({
-    ...a, source: 'ticket', sourceLabel: 'Upload'
-  }));
-  const commentAtts = (comments || []).flatMap(c => 
-    ((c.attachments as any[]) || []).map(a => ({
-      ...a, source: c.source || 'web',
-      sourceLabel: c.source === 'whatsapp' ? c.whatsapp_sender_name || 'WhatsApp' : 'Comentário',
-      commentDate: c.created_at
-    }))
-  );
-  return [...ticketAtts, ...commentAtts];
-}, [ticket, comments]);
+## Detalhes Técnicos
+
+### extractCommand - novo pattern (antes do `return null`)
+```typescript
+// Shortcut: 5 dígitos + espaço + texto = comentar
+const shortcutMatch = text.match(/^(\d{5})\s+(.+)/s);
+if (shortcutMatch) {
+  return { command: 'comment', args: `${shortcutMatch[1]} ${shortcutMatch[2]}` };
+}
 ```
 
-A contagem no header mostrará o total agregado. Cada card de anexo terá um badge pequeno indicando a origem.
+### Realtime toast (useTickets.ts)
+```typescript
+(payload) => {
+  queryClient.invalidateQueries({ queryKey: ['ticket-comments', ticketId] });
+  if (payload.eventType === 'INSERT' && payload.new?.source === 'whatsapp') {
+    toast.info(`💬 Novo comentário via WhatsApp de ${payload.new.whatsapp_sender_name || 'WhatsApp'}`);
+  }
+}
+```
 
