@@ -945,6 +945,13 @@ export default function TicketDetails() {
                 <div>
                   <div className="text-sm font-medium mb-1">Categoria</div>
                   <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
+                  {(ticket as any).subcategory_id && (
+                    <div className="mt-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {getSubcategoryLabel((ticket as any).subcategory_id)}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 <div>
