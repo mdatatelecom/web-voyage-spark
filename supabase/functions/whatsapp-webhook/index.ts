@@ -2269,6 +2269,53 @@ serve(async (req) => {
             'other': 'other'
           };
           
+          // If no args but has quoted message, create ticket from it
+          if (!command.args && quotedMessage && quotedMessage.trim().length > 0) {
+            const quotedText = quotedMessage.trim();
+            const autoTitle = quotedText.length > 60 ? quotedText.substring(0, 57) + '...' : quotedText;
+            
+            const { data: newTicketFromQuote, error: quoteCreateError } = await supabase
+              .from('support_tickets')
+              .insert({
+                title: autoTitle,
+                description: quotedText,
+                category: 'other',
+                priority: 'medium',
+                status: 'open',
+                contact_phone: senderPhone || null,
+                created_by: '00000000-0000-0000-0000-000000000000'
+              })
+              .select()
+              .single();
+
+            if (quoteCreateError) {
+              console.error('❌ Error creating ticket from quote:', quoteCreateError);
+              await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+            } else {
+              const successMsg = `✅ *Chamado Criado a partir da Mensagem Marcada!*\n\n` +
+                `📋 Número: *${newTicketFromQuote.ticket_number}*\n` +
+                `📝 Título: ${newTicketFromQuote.title}\n` +
+                `🏷️ Categoria: Outros\n` +
+                `${getStatusEmoji('open')} Status: Aberto\n\n` +
+                `💡 Para ajustar categoria ou prioridade, use:\n` +
+                `• *categoria ${newTicketFromQuote.ticket_number.split('-')[2]} rede*\n` +
+                `• *prioridade ${newTicketFromQuote.ticket_number.split('-')[2]} alta*`;
+              
+              await sendResponse(successMsg);
+
+              await supabase
+                .from('whatsapp_message_mapping')
+                .insert({
+                  ticket_id: newTicketFromQuote.id,
+                  message_id: messageId,
+                  group_id: groupId,
+                  phone_number: senderPhone,
+                  direction: 'inbound'
+                });
+            }
+            break;
+          }
+
           // If no args, show category menu
           if (!command.args) {
             const categoryMenu = `📝 *Abrir Novo Chamado*\n\n` +
@@ -2464,6 +2511,53 @@ serve(async (req) => {
         }
 
         case 'start_wizard': {
+          // Check if user is replying to a message - create ticket from quoted message directly
+          if (quotedMessage && quotedMessage.trim().length > 0) {
+            const quotedText = quotedMessage.trim();
+            const autoTitle = quotedText.length > 60 ? quotedText.substring(0, 57) + '...' : quotedText;
+            
+            const { data: newTicketFromQuote, error: quoteCreateError } = await supabase
+              .from('support_tickets')
+              .insert({
+                title: autoTitle,
+                description: quotedText,
+                category: 'other',
+                priority: 'medium',
+                status: 'open',
+                contact_phone: senderPhone || null,
+                created_by: '00000000-0000-0000-0000-000000000000'
+              })
+              .select()
+              .single();
+
+            if (quoteCreateError) {
+              console.error('❌ Error creating ticket from quote:', quoteCreateError);
+              await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+            } else {
+              const successMsg = `✅ *Chamado Criado a partir da Mensagem Marcada!*\n\n` +
+                `📋 Número: *${newTicketFromQuote.ticket_number}*\n` +
+                `📝 Título: ${newTicketFromQuote.title}\n` +
+                `🏷️ Categoria: Outros\n` +
+                `${getStatusEmoji('open')} Status: Aberto\n\n` +
+                `💡 Para ajustar categoria ou prioridade, use:\n` +
+                `• *categoria ${newTicketFromQuote.ticket_number.split('-')[2]} rede*\n` +
+                `• *prioridade ${newTicketFromQuote.ticket_number.split('-')[2]} alta*`;
+              
+              await sendResponse(successMsg);
+
+              await supabase
+                .from('whatsapp_message_mapping')
+                .insert({
+                  ticket_id: newTicketFromQuote.id,
+                  message_id: messageId,
+                  group_id: groupId,
+                  phone_number: senderPhone,
+                  direction: 'inbound'
+                });
+            }
+            break;
+          }
+
           // Start the guided ticket creation wizard
           await supabase.from('whatsapp_sessions').upsert({
             phone: senderPhone,
@@ -4375,6 +4469,29 @@ serve(async (req) => {
     if (!command && !ticket && messageContent && messageContent.trim().length >= 2) {
       console.log('❓ Unrecognized command:', messageContent);
       
+      // If user replied to a message (has quotedMessage), suggest creating a ticket from it
+      if (quotedMessage && quotedMessage.trim().length > 0) {
+        const quotedPreview = quotedMessage.length > 80 
+          ? quotedMessage.substring(0, 77) + '...' 
+          : quotedMessage;
+        
+        const suggestionMessage = 
+          `💡 *Criar chamado a partir desta mensagem?*\n\n` +
+          `📝 _"${quotedPreview}"_\n\n` +
+          `Para criar um chamado, marque a mensagem e envie:\n` +
+          `• *criar chamado*\n` +
+          `• *abrir chamado*\n` +
+          `• *novo*`;
+        
+        await sendResponse(suggestionMessage);
+        await saveInteraction(suggestionMessage, 'suggestion');
+        
+        return new Response(
+          JSON.stringify({ success: true, message: 'Quote ticket suggestion sent' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       const truncatedMessage = messageContent.length > 50 
         ? messageContent.substring(0, 50) + '...' 
         : messageContent;
@@ -4388,8 +4505,8 @@ serve(async (req) => {
         `🔤 Digite *menu* para ver opções\n` +
         `❓ Digite *ajuda* para comandos\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `📌 *Dica:* Responda uma notificação\n` +
-        `de chamado para adicionar comentário.`;
+        `📌 *Dica:* Marque uma mensagem e envie\n` +
+        `*criar chamado* para abrir um ticket.`;
       
       await sendResponse(errorMessage);
       await saveInteraction(errorMessage, 'error');
