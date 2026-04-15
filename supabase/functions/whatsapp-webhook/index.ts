@@ -34,7 +34,8 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     '5': 'submenu_estatisticas',
     '6': 'submenu_anexar',
     '7': 'submenu_prioridade',
-    '8': 'submenu_infra'
+    '8': 'submenu_infra',
+    '9': 'submenu_comentar'
   };
 
   if (menuMainMap[lowerText]) {
@@ -290,6 +291,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'help_status', args: '' };
   }
   
+  // Shortcut: 5 dígitos + espaço + texto = comentar (ex: "00001 problema resolvido")
+  const shortcutMatch = text.match(/^(\d{5})\s+(.+)/s);
+  if (shortcutMatch) {
+    return { command: 'comment', args: `${shortcutMatch[1]} ${shortcutMatch[2]}` };
+  }
+
   return null;
 };
 
@@ -1384,6 +1391,9 @@ serve(async (req) => {
             `*8* - 🏗️ INFRAESTRUTURA\n` +
             `      _Racks, plantas, câmeras, NVRs_\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*9* - 💬 COMENTAR\n` +
+            `      _Adicionar comentário a chamado_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `💡 _Digite *0* ou *menu* a qualquer momento para voltar_`;
 
           await sendResponse(menuMessage);
@@ -1559,6 +1569,25 @@ serve(async (req) => {
             `• *cameras* / *camera [nome]*\n` +
             `• *nvrs* / *nvr [nome]*\n` +
             `• *localizar [termo]*\n\n` +
+            `↩️ Digite *0* ou *menu* para voltar`;
+          
+          await sendResponse(msg);
+          await saveInteraction(msg);
+          break;
+        }
+
+        case 'submenu_comentar': {
+          const msg = 
+            `💬 *COMENTAR CHAMADO*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Adicione um comentário a um chamado existente:\n\n` +
+            `📌 *Como usar:*\n` +
+            `• *comentar 00001 [texto]*\n` +
+            `• Ou simplesmente: *00001 [texto]*\n\n` +
+            `📌 *Exemplos:*\n` +
+            `• *comentar 00001 Problema resolvido*\n` +
+            `• *00001 Aguardando peça chegar*\n\n` +
+            `💡 _Você também pode responder uma notificação de chamado para comentar automaticamente!_\n\n` +
             `↩️ Digite *0* ou *menu* para voltar`;
           
           await sendResponse(msg);
