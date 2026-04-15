@@ -48,7 +48,6 @@ export default function SupportTickets() {
   const { activeCategories, getCategoryLabel } = useTicketCategories();
   const { isAdmin } = useUserRole();
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
-  const { isAdmin } = useUserRole();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
