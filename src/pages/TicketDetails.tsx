@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,6 +161,29 @@ export default function TicketDetails() {
   // Delete attachment state
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Aggregate all attachments from ticket + comments
+  const allAttachments = useMemo(() => {
+    const ticketAtts = ((ticket?.attachments as any[]) || []).map((a: any, idx: number) => ({
+      ...a,
+      source: 'ticket' as const,
+      sourceLabel: 'Upload',
+      sourceIcon: '📎',
+      canDelete: true,
+      originalIndex: idx,
+    }));
+    const commentAtts = (comments || []).flatMap((c: any) =>
+      ((c.attachments as any[]) || []).map((a: any) => ({
+        ...a,
+        source: (c.source || 'web') as string,
+        sourceLabel: c.source === 'whatsapp' ? (c.whatsapp_sender_name || 'WhatsApp') : 'Comentário',
+        sourceIcon: c.source === 'whatsapp' ? '💬' : '🌐',
+        canDelete: false,
+        commentDate: c.created_at,
+      }))
+    );
+    return [...ticketAtts, ...commentAtts];
+  }, [ticket, comments]);
 
   // Handle file upload with compression
   const handleFileUpload = async (files: FileList | null) => {
