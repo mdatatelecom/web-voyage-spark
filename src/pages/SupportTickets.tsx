@@ -20,22 +20,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
+import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
+import { TicketCategoryManager } from '@/components/tickets/TicketCategoryManager';
 import {
-  TICKET_CATEGORIES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
-  getCategoryLabel,
   getPriorityLabel,
   getStatusLabel,
   getStatusVariant,
 } from '@/constants/ticketTypes';
 import { format, isToday, isAfter, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useUserRole } from '@/hooks/useUserRole';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function SupportTickets() {
   const navigate = useNavigate();
