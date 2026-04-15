@@ -44,7 +44,7 @@ export default function SupportTickets() {
   const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
-  const { isAdmin } = useUserRole();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -236,7 +236,13 @@ export default function SupportTickets() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as Categorias</SelectItem>
-                  {TICKET_CATEGORIES.map((category) => (
+                  {activeCategories.map((category) => (
+                    <SelectItem key={category.slug} value={category.slug}>
+                      {category.icon && `${category.icon} `}{category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
                     <SelectItem key={category.value} value={category.value}>
                       {category.label}
                     </SelectItem>
