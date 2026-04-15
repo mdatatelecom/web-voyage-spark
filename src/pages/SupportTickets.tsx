@@ -105,12 +105,21 @@ export default function SupportTickets() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <Tabs defaultValue="tickets" className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="space-y-1">
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Ticket className="h-8 w-8" />
               Chamados
+            </h1>
+            <TabsList>
+              <TabsTrigger value="tickets">Chamados</TabsTrigger>
+              {isAdmin && <TabsTrigger value="categories">Categorias</TabsTrigger>}
+            </TabsList>
+          </div>
+        </div>
+
+        <TabsContent value="tickets" className="space-y-6">
             </h1>
             <p className="text-muted-foreground">
               Gerencie os chamados de suporte técnico
