@@ -34,7 +34,8 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     '5': 'submenu_estatisticas',
     '6': 'submenu_anexar',
     '7': 'submenu_prioridade',
-    '8': 'submenu_infra'
+    '8': 'submenu_infra',
+    '9': 'submenu_comentar'
   };
 
   if (menuMainMap[lowerText]) {
@@ -290,6 +291,12 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'help_status', args: '' };
   }
   
+  // Shortcut: 5 dígitos + espaço + texto = comentar (ex: "00001 problema resolvido")
+  const shortcutMatch = text.match(/^(\d{5})\s+(.+)/s);
+  if (shortcutMatch) {
+    return { command: 'comment', args: `${shortcutMatch[1]} ${shortcutMatch[2]}` };
+  }
+
   return null;
 };
 
@@ -1383,6 +1390,9 @@ serve(async (req) => {
             `━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `*8* - 🏗️ INFRAESTRUTURA\n` +
             `      _Racks, plantas, câmeras, NVRs_\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `*9* - 💬 COMENTAR\n` +
+            `      _Adicionar comentário a chamado_\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `💡 _Digite *0* ou *menu* a qualquer momento para voltar_`;
 

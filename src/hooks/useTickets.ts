@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 import { getCategoryLabel, getPriorityLabel, getStatusLabel } from '@/constants/ticketTypes';
 import { format } from 'date-fns';
@@ -716,6 +717,14 @@ export const useTicket = (ticketId: string) => {
         (payload) => {
           console.log('🔔 Comment added/updated via realtime:', payload);
           queryClient.invalidateQueries({ queryKey: ['ticket-comments', ticketId] });
+          
+          // Show toast for new WhatsApp comments
+          if (payload.eventType === 'INSERT' && (payload.new as any)?.source === 'whatsapp') {
+            const senderName = (payload.new as any)?.whatsapp_sender_name || 'WhatsApp';
+            sonnerToast.info(`💬 Novo comentário via WhatsApp de ${senderName}`, {
+              duration: 6000,
+            });
+          }
         }
       )
       .subscribe();
