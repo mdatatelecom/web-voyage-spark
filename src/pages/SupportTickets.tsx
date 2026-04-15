@@ -20,13 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings, List, LayoutGrid } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
 import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
 import { TicketCategoryManager } from '@/components/tickets/TicketCategoryManager';
+import { TicketKanbanBoard } from '@/components/tickets/TicketKanbanBoard';
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -38,13 +39,15 @@ import { format, isToday, isAfter, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tickets, isLoading } = useTickets();
+  const { tickets, isLoading, updateTicket } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
   const { isAdmin } = useUserRole();
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -171,7 +174,17 @@ export default function SupportTickets() {
           </Card>
         </div>
 
-        {/* Filters */}
+        {/* View Toggle + Filters */}
+        <div className="flex items-center justify-between">
+          <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'list' | 'kanban')}>
+            <ToggleGroupItem value="list" aria-label="Lista">
+              <List className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban">
+              <LayoutGrid className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -257,110 +270,120 @@ export default function SupportTickets() {
           </CardContent>
         </Card>
 
-        {/* Tickets Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Atribuído a</TableHead>
-                  <TableHead>Criado em</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+        {/* Tickets View */}
+        {viewMode === 'kanban' ? (
+          <TicketKanbanBoard
+            tickets={filteredTickets || []}
+            onStatusChange={(ticketId, newStatus) => {
+              updateTicket.mutate({ id: ticketId, status: newStatus });
+            }}
+            onTicketClick={(id) => navigate(`/tickets/${id}`)}
+          />
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      Carregando...
-                    </TableCell>
+                    <TableHead>Número</TableHead>
+                    <TableHead>Título</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Prioridade</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Atribuído a</TableHead>
+                    <TableHead>Criado em</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
-                ) : filteredTickets?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Nenhum chamado encontrado
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTickets?.map((ticket) => (
-                    <TableRow
-                      key={ticket.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/tickets/${ticket.id}`)}
-                    >
-                      <TableCell className="font-mono font-medium">
-                        {ticket.ticket_number}
-                      </TableCell>
-                      <TableCell className="max-w-[300px]">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{ticket.title}</span>
-                          {ticket.attachments && (ticket.attachments as any[]).length > 0 && (
-                            <Badge variant="outline" className="flex-shrink-0 gap-1 px-1.5 py-0.5">
-                              <Paperclip className="h-3 w-3" />
-                              <span className="text-xs">{(ticket.attachments as any[]).length}</span>
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getPriorityBadgeVariant(ticket.priority)}>
-                          {getPriorityLabel(ticket.priority)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusVariant(ticket.status)}>
-                          {getStatusLabel(ticket.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {ticket.assignee_name ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={ticket.assignee_avatar_url || undefined} alt={ticket.assignee_name} />
-                              <AvatarFallback className="text-xs bg-muted">
-                                <UserIcon className="h-3 w-3" />
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="truncate">{ticket.assignee_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground italic text-sm">
-                            Não atribuído
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(ticket.created_at!), "dd/MM/yyyy HH:mm", {
-                          locale: ptBR,
-                        })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/tickets/${ticket.id}`);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        Carregando...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                  ) : filteredTickets?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Nenhum chamado encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTickets?.map((ticket) => (
+                      <TableRow
+                        key={ticket.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/tickets/${ticket.id}`)}
+                      >
+                        <TableCell className="font-mono font-medium">
+                          {ticket.ticket_number}
+                        </TableCell>
+                        <TableCell className="max-w-[300px]">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate">{ticket.title}</span>
+                            {ticket.attachments && (ticket.attachments as any[]).length > 0 && (
+                              <Badge variant="outline" className="flex-shrink-0 gap-1 px-1.5 py-0.5">
+                                <Paperclip className="h-3 w-3" />
+                                <span className="text-xs">{(ticket.attachments as any[]).length}</span>
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getPriorityBadgeVariant(ticket.priority)}>
+                            {getPriorityLabel(ticket.priority)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusVariant(ticket.status)}>
+                            {getStatusLabel(ticket.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {ticket.assignee_name ? (
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={ticket.assignee_avatar_url || undefined} alt={ticket.assignee_name} />
+                                <AvatarFallback className="text-xs bg-muted">
+                                  <UserIcon className="h-3 w-3" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="truncate">{ticket.assignee_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic text-sm">
+                              Não atribuído
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(ticket.created_at!), "dd/MM/yyyy HH:mm", {
+                            locale: ptBR,
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/tickets/${ticket.id}`);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
         </TabsContent>
 
         {isAdmin && (
