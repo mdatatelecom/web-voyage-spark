@@ -68,11 +68,11 @@ import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
 import {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
-  getCategoryLabel,
   getPriorityLabel,
   getStatusLabel,
   getStatusVariant,
 } from '@/constants/ticketTypes';
+import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
