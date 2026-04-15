@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,6 +161,29 @@ export default function TicketDetails() {
   // Delete attachment state
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Aggregate all attachments from ticket + comments
+  const allAttachments = useMemo(() => {
+    const ticketAtts = ((ticket?.attachments as any[]) || []).map((a: any, idx: number) => ({
+      ...a,
+      source: 'ticket' as const,
+      sourceLabel: 'Upload',
+      sourceIcon: '📎',
+      canDelete: true,
+      originalIndex: idx,
+    }));
+    const commentAtts = (comments || []).flatMap((c: any) =>
+      ((c.attachments as any[]) || []).map((a: any) => ({
+        ...a,
+        source: (c.source || 'web') as string,
+        sourceLabel: c.source === 'whatsapp' ? (c.whatsapp_sender_name || 'WhatsApp') : 'Comentário',
+        sourceIcon: c.source === 'whatsapp' ? '💬' : '🌐',
+        canDelete: false,
+        commentDate: c.created_at,
+      }))
+    );
+    return [...ticketAtts, ...commentAtts];
+  }, [ticket, comments]);
 
   // Handle file upload with compression
   const handleFileUpload = async (files: FileList | null) => {
@@ -421,7 +444,7 @@ export default function TicketDetails() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <Paperclip className="h-5 w-5" />
-                    Anexos do Chamado ({((ticket.attachments as any[]) || []).length})
+                    Anexos do Chamado ({allAttachments.length})
                   </CardTitle>
                   <div>
                     <input
@@ -453,7 +476,7 @@ export default function TicketDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                {((ticket.attachments as any[]) || []).length === 0 ? (
+                {allAttachments.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Upload className="h-10 w-10 mx-auto mb-2 opacity-50" />
                     <p>Nenhum anexo</p>
@@ -461,7 +484,7 @@ export default function TicketDetails() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {((ticket.attachments as any[]) || []).map((attachment: any, idx: number) => {
+                    {allAttachments.map((attachment: any, idx: number) => {
                       const getFileIcon = (type: string) => {
                         if (type?.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
                         if (type?.includes('word') || type?.includes('document')) return <FileText className="h-8 w-8 text-blue-600" />;
@@ -482,14 +505,25 @@ export default function TicketDetails() {
 
                       return (
                         <div key={idx} className="relative group">
-                          {/* Delete button */}
-                          <button
-                            onClick={() => setDeleteIndex(idx)}
-                            className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-destructive/90"
-                            title="Remover anexo"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {/* Delete button - only for ticket attachments */}
+                          {attachment.canDelete && (
+                            <button
+                              onClick={() => setDeleteIndex(attachment.originalIndex)}
+                              className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-destructive/90"
+                              title="Remover anexo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          {/* Source badge */}
+                          {attachment.source !== 'ticket' && (
+                            <div className="absolute top-1 left-1 z-10">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-background/80 backdrop-blur-sm">
+                                {attachment.sourceIcon} {attachment.sourceLabel}
+                              </Badge>
+                            </div>
+                          )}
 
                           {isImage ? (
                             <button
