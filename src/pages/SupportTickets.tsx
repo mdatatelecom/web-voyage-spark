@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings, List, LayoutGrid } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
