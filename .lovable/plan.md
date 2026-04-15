@@ -1,76 +1,59 @@
 
 
-# Corrigir Logica de Alertas NVR - Canais Proximo do Limite
+# Corrigir Notificacoes de Grupo WhatsApp - Chamados
 
-## Problemas Identificados
+## Problema Identificado
 
-### Bug 1: Tipo `nvr_poe` nao incluido na query
-Na linha 316 do `check-capacity-alerts`, a query filtra `.in('type', ['nvr', 'dvr'])` mas **ignora `nvr_poe`**. Equipamentos do tipo NVR com PoE integrado nunca sao verificados.
+Todas as notificacoes de grupo WhatsApp estao falhando com `error_message: [object Object]`. Isso afeta:
+- Notificacoes de criacao/atualizacao de chamados
+- Alertas Zabbix enviados para grupo
+- Qualquer envio para grupo via `send-group`
 
-Mesmo problema na auto-resolucao (linha 810): `.in('type', ['nvr', 'dvr'])`.
+O envio individual funciona (teste para numero individual teve sucesso).
 
-### Bug 2: Contagem de canais inclui portas de rede (Uplink/LAN)
-A logica conta **todos** os ports do equipamento como canais:
-```
-const totalChannels = nvr.ports?.length || 0;
-```
-Porem NVRs possuem portas auxiliares (Uplink port_number=0, LAN/IPC port_number=-1) que **nao sao canais de video**. Isso infla o total e distorce a porcentagem.
+## Causa Raiz
 
-- NVR padrao: tem 2 portas extras (Uplink + LAN/IPC) que nao sao canais
-- NVR PoE: tem 1 porta extra (Uplink) + portas PoE que **sao** canais
-- DVR: tem 1 porta extra (Uplink) + portas BNC que sao canais
+Na edge function `send-whatsapp/index.ts`, o tratamento de erros no bloco `send-group` nao serializa corretamente todos os cenarios de erro da Evolution API. Quando a API retorna um erro com estrutura inesperada, o objeto de erro e convertido para string via coercao implicita, resultando em `[object Object]`.
 
-### Bug 3: NVR padrao nao tem portas de canal
-Para NVRs padrao (tipo `nvr`), a funcao `generateNvrPorts` cria apenas Uplink + LAN/IPC. **Nao cria portas de canal** porque cameras IP se conectam via switch externo. Portanto `totalChannels` sera 2 (portas de rede) e `usedChannels` sera 0 ou 1 -- nunca vai atingir o limite real.
+## Alteracoes
 
-Para NVR padrao, o total de canais deve vir do campo `notes` (JSON com `total_channels`) e os canais usados devem ser contados a partir das `cameras` registradas no notes.
+### 1. `supabase/functions/send-whatsapp/index.ts` - Bloco `send-group`
 
-## Plano de Correcao
-
-### Arquivo: `supabase/functions/check-capacity-alerts/index.ts`
-
-**Secao de verificacao NVR (linhas 305-383):**
-
-1. Incluir `nvr_poe` na query: `.in('type', ['nvr', 'nvr_poe', 'dvr'])`
-2. Tambem buscar o campo `notes` do equipamento para obter `total_channels`
-3. Calcular canais corretamente por tipo:
-   - **DVR**: contar portas BNC (`port_number > 0`) como total; status `in_use` como usados
-   - **NVR PoE**: contar portas PoE (`port_number > 0`) como total; status `in_use` como usados
-   - **NVR padrao**: usar `total_channels` do JSON em `notes`; contar `cameras` do notes como usados
-4. Ignorar portas com `port_number <= 0` (Uplink, LAN/IPC)
-
-**Secao de auto-resolucao NVR (linhas 771-798):**
-
-5. Incluir `nvr_poe` na query da linha 810
-6. Usar a mesma logica corrigida para calcular porcentagem
-
-**Secao de cameras orfas (linha 810):**
-
-7. Incluir `nvr_poe`: `.in('type', ['nvr', 'nvr_poe', 'dvr'])`
-
-### Logica corrigida (pseudocodigo):
-
-```text
-Para cada NVR/DVR:
-  Se tipo = 'dvr' ou 'nvr_poe':
-    totalChannels = portas com port_number > 0
-    usedChannels = portas com port_number > 0 E status = 'in_use'
-  Se tipo = 'nvr' (padrao):
-    parsedNotes = JSON.parse(notes)
-    totalChannels = parsedNotes.total_channels || 16
-    usedChannels = parsedNotes.cameras?.length || 0
-  
-  usagePercentage = (usedChannels / totalChannels) * 100
-  -- continua logica existente de threshold
+**Adicionar safeguard de serializacao no error_message (linha ~1175):**
+```typescript
+error_message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
 ```
 
-### Resumo de alteracoes
+**Adicionar logging detalhado para diagnostico (antes do parse de erro):**
+```typescript
+console.error('Evolution API send-group FULL error response:', JSON.stringify(errorData));
+```
+
+**Adicionar fallback para erros nao cobertos pelo parse atual:**
+Apos a cadeia de `if/else if` (linha ~1165), adicionar:
+```typescript
+} else {
+  // Fallback: serialize entire error response
+  errorMsg = JSON.stringify(errorData) || `Erro ao enviar para grupo: ${response.status}`;
+}
+```
+
+**Mesmo fix no catch block (linha ~1216):**
+```typescript
+error_message: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
+```
+
+### 2. Mesma correcao no `send-group-media` (ja tem o safeguard na linha 1362, apenas validar)
+
+### 3. Verificar envio real
+
+Apos o deploy, invocar manualmente a edge function com action `test` para validar que a instancia `Mdata` esta conectada, e depois testar `send-group` com o grupo `120363424359487701@g.us`.
+
+## Resumo
 
 | Local | Alteracao |
 |-------|----------|
-| Linha 316 | Adicionar `nvr_poe` ao filtro de tipos |
-| Linha 310 | Adicionar `notes` ao select |
-| Linhas 325-329 | Reescrever calculo de canais por tipo |
-| Linha 781-783 | Aplicar mesma logica corrigida na auto-resolucao |
-| Linha 810 | Adicionar `nvr_poe` ao filtro de tipos |
+| send-whatsapp L1175 | Safeguard `typeof` no error_message |
+| send-whatsapp L1129-1165 | Log completo + fallback JSON.stringify |
+| send-whatsapp L1216 | Safeguard no catch block |
 
