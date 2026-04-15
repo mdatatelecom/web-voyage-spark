@@ -2464,6 +2464,53 @@ serve(async (req) => {
         }
 
         case 'start_wizard': {
+          // Check if user is replying to a message - create ticket from quoted message directly
+          if (quotedMessage && quotedMessage.trim().length > 0) {
+            const quotedText = quotedMessage.trim();
+            const autoTitle = quotedText.length > 60 ? quotedText.substring(0, 57) + '...' : quotedText;
+            
+            const { data: newTicketFromQuote, error: quoteCreateError } = await supabase
+              .from('support_tickets')
+              .insert({
+                title: autoTitle,
+                description: quotedText,
+                category: 'other',
+                priority: 'medium',
+                status: 'open',
+                contact_phone: senderPhone || null,
+                created_by: '00000000-0000-0000-0000-000000000000'
+              })
+              .select()
+              .single();
+
+            if (quoteCreateError) {
+              console.error('❌ Error creating ticket from quote:', quoteCreateError);
+              await sendResponse('❌ Erro ao criar chamado. Tente novamente.');
+            } else {
+              const successMsg = `✅ *Chamado Criado a partir da Mensagem Marcada!*\n\n` +
+                `📋 Número: *${newTicketFromQuote.ticket_number}*\n` +
+                `📝 Título: ${newTicketFromQuote.title}\n` +
+                `🏷️ Categoria: Outros\n` +
+                `${getStatusEmoji('open')} Status: Aberto\n\n` +
+                `💡 Para ajustar categoria ou prioridade, use:\n` +
+                `• *categoria ${newTicketFromQuote.ticket_number.split('-')[2]} rede*\n` +
+                `• *prioridade ${newTicketFromQuote.ticket_number.split('-')[2]} alta*`;
+              
+              await sendResponse(successMsg);
+
+              await supabase
+                .from('whatsapp_message_mapping')
+                .insert({
+                  ticket_id: newTicketFromQuote.id,
+                  message_id: messageId,
+                  group_id: groupId,
+                  phone_number: senderPhone,
+                  direction: 'inbound'
+                });
+            }
+            break;
+          }
+
           // Start the guided ticket creation wizard
           await supabase.from('whatsapp_sessions').upsert({
             phone: senderPhone,
