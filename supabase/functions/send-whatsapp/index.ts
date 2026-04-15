@@ -1127,13 +1127,14 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error('Evolution API send-group FULL error response:', JSON.stringify(errorData));
           console.error('Evolution API send-group error:', {
             status: response.status,
             error: errorData?.error,
             response: errorData?.response
           });
           
-          let errorMsg = `Erro ao enviar para grupo: ${response.status}`;
+          let errorMsg: string = `Erro ao enviar para grupo: ${response.status}`;
           if (response.status === 401) {
             errorMsg = 'Erro de autenticação (401): Verifique a API Key.';
           } else if (errorData?.response?.message) {
@@ -1163,6 +1164,12 @@ serve(async (req) => {
             } else {
               errorMsg = String(messages);
             }
+          } else {
+            // Fallback: serialize entire error response
+            const serialized = JSON.stringify(errorData);
+            if (serialized && serialized !== '{}') {
+              errorMsg = serialized;
+            }
           }
           
           // Log failed message - use notification_type if provided
@@ -1172,7 +1179,7 @@ serve(async (req) => {
             message_content: message,
             message_type: notification_type || 'group_notification',
             status: 'error',
-            error_message: errorMsg,
+            error_message: typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
             sent_at: null,
             external_id: null,
           });
