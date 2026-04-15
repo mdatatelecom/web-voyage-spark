@@ -68,11 +68,11 @@ import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
 import {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
-  getCategoryLabel,
   getPriorityLabel,
   getStatusLabel,
   getStatusVariant,
 } from '@/constants/ticketTypes';
+import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -146,7 +146,7 @@ export default function TicketDetails() {
   const { sendTicketNotification, isEnabled: whatsAppEnabled } = useWhatsApp();
   const { technicians, refetch: refetchTechnicians } = useTechnicians();
   const { fetchAndUpdateProfilePicture, isLoading: isLoadingProfilePicture } = useWhatsAppProfilePicture();
-  
+  const { getCategoryLabel, getSubcategoryLabel } = useTicketCategories();
   const [newComment, setNewComment] = useState('');
   const [isInternalComment, setIsInternalComment] = useState(false);
   
@@ -945,6 +945,13 @@ export default function TicketDetails() {
                 <div>
                   <div className="text-sm font-medium mb-1">Categoria</div>
                   <Badge variant="outline">{getCategoryLabel(ticket.category)}</Badge>
+                  {(ticket as any).subcategory_id && (
+                    <div className="mt-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {getSubcategoryLabel((ticket as any).subcategory_id)}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -20,27 +20,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
+import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
+import { TicketCategoryManager } from '@/components/tickets/TicketCategoryManager';
 import {
-  TICKET_CATEGORIES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
-  getCategoryLabel,
   getPriorityLabel,
   getStatusLabel,
   getStatusVariant,
 } from '@/constants/ticketTypes';
 import { format, isToday, isAfter, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useUserRole } from '@/hooks/useUserRole';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { tickets, isLoading } = useTickets();
+  const { activeCategories, getCategoryLabel } = useTicketCategories();
+  const { isAdmin } = useUserRole();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -102,28 +106,21 @@ export default function SupportTickets() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <Tabs defaultValue="tickets" className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="space-y-1">
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Ticket className="h-8 w-8" />
               Chamados
             </h1>
-            <p className="text-muted-foreground">
-              Gerencie os chamados de suporte técnico
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/tickets/metrics')}>
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Métricas
-            </Button>
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Chamado
-            </Button>
+            <TabsList>
+              <TabsTrigger value="tickets">Chamados</TabsTrigger>
+              {isAdmin && <TabsTrigger value="categories">Categorias</TabsTrigger>}
+            </TabsList>
           </div>
         </div>
+
+        <TabsContent value="tickets" className="space-y-6">
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -233,9 +230,9 @@ export default function SupportTickets() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as Categorias</SelectItem>
-                  {TICKET_CATEGORIES.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
+                  {activeCategories.map((category) => (
+                    <SelectItem key={category.slug} value={category.slug}>
+                      {category.icon && `${category.icon} `}{category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -360,7 +357,14 @@ export default function SupportTickets() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="categories">
+            <TicketCategoryManager />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <TicketCreateDialog
         open={createDialogOpen}
