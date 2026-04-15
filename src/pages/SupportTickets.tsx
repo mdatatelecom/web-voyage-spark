@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTicketCategories } from '@/hooks/useTicketCategories';
 import { TicketCreateDialog } from '@/components/tickets/TicketCreateDialog';
 import { TicketCategoryManager } from '@/components/tickets/TicketCategoryManager';
+import { TicketKanbanBoard } from '@/components/tickets/TicketKanbanBoard';
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -38,6 +39,7 @@ import { format, isToday, isAfter, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export default function SupportTickets() {
   const navigate = useNavigate();
