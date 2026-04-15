@@ -384,6 +384,7 @@ export default function SupportTickets() {
             </CardContent>
           </Card>
         )}
+        </TabsContent>
 
         {isAdmin && (
           <TabsContent value="categories">
