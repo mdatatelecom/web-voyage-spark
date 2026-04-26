@@ -11,21 +11,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
-    // Get the user from the JWT token
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('No Authorization header provided');
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized: No authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -33,25 +20,40 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
-    if (userError || !user) {
-      console.error('Auth error:', userError?.message || 'No user found');
+    // Cliente para validar o JWT (via JWKS, não exige sessão server-side ativa)
+    const supabaseAuth = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error('Auth error:', claimsError?.message || 'No claims');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Authenticated user:', user.id);
+    const userId = claimsData.claims.sub;
+    console.log('Authenticated user:', userId);
 
-    // Check if user is admin
-    const { data: userRoles, error: rolesError } = await supabaseClient
+    // Cliente admin (service role) para operações privilegiadas
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Verificar se o usuário é admin
+    const { data: userRoles, error: rolesError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('role', 'admin')
-      .single();
+      .maybeSingle();
 
     if (rolesError || !userRoles) {
       return new Response(
@@ -60,12 +62,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // List all users from auth.users
-    const { data: { users }, error: listError } = await supabaseClient.auth.admin.listUsers();
-
-    if (listError) {
-      throw listError;
-    }
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) throw listError;
 
     return new Response(
       JSON.stringify({ users }),
