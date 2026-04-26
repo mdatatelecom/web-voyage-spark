@@ -220,6 +220,62 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave, onResetPasswo
               </p>
             </div>
           </div>
+
+          {onResetPassword && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                  <h4 className="text-sm font-semibold">Redefinir Senha</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Define uma nova senha para este usuário. Ele poderá entrar imediatamente com a nova senha.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">Nova senha</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleResetPassword}
+                  disabled={isResetting || !newPassword || !confirmPassword}
+                  className="w-full"
+                >
+                  {isResetting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Redefinindo...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      Redefinir Senha
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter>
