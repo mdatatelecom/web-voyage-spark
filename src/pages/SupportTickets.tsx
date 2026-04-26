@@ -65,6 +65,7 @@ export default function SupportTickets() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [ticketToDelete, setTicketToDelete] = useState<{ id: string; number: string } | null>(null);
 
   const filteredTickets = tickets?.filter((ticket) => {
     const matchesSearch =
