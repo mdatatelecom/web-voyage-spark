@@ -20,6 +20,13 @@ export const useUsers = () => {
 
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin-users'],
+    retry: (failureCount, err: any) => {
+      const msg = err?.message || '';
+      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('não autenticado')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
     queryFn: async () => {
       // Ensure user is authenticated before calling admin function
       const { data: { session } } = await supabase.auth.getSession();
@@ -30,7 +37,15 @@ export const useUsers = () => {
       // Call edge function to get users list
       const { data: usersData, error: usersError } = await supabase.functions.invoke('admin-list-users');
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        const errMsg = usersError.message || '';
+        if (errMsg.includes('401') || errMsg.includes('Unauthorized')) {
+          // Sessão inválida no servidor — limpar e redirecionar para login
+          await supabase.auth.signOut();
+          window.location.href = '/auth';
+        }
+        throw usersError;
+      }
 
       // Get roles for all users
       const { data: rolesData, error: rolesError } = await supabase
