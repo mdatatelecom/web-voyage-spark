@@ -1,34 +1,45 @@
-# Adicionar botão de exclusão na coluna "Ações" dos Chamados
+# 🤖 Melhorar Iniciação do Bot WhatsApp
 
-## Contexto
+## 🎯 Problema
+O bot só responde quando o usuário digita exatamente `menu`. Saudações comuns (`oi tudo bem?`, `bom diaa`, `eai`, `ajuda`, `start`) não disparam o menu inicial.
 
-Atualmente, a coluna **Ações** da tabela em `/tickets` (`src/pages/SupportTickets.tsx`, linhas 367-378) tem apenas o botão de visualizar (ícone `Eye`). O hook `useTickets()` já expõe `deleteTicket` (mutation funcional) e a RLS do `support_tickets` já permite que apenas **admins** apaguem chamados.
+## 📋 Causa Raiz (em `supabase/functions/whatsapp-webhook/index.ts`)
+1. **Linha 273-277**: lista pequena de palavras-gatilho e usando `===` (match exato).
+2. **Falta de fallback inteligente**: qualquer coisa fora da lista cai em "Comando não reconhecido".
+3. **Em grupos**, mensagens curtas/saudações nem disparam o menu.
 
-## Mudanças
+## 🛠️ Mudanças Propostas
 
-### `src/pages/SupportTickets.tsx`
+### 1. Expandir gatilhos de saudação (`extractCommand`, linha ~272)
+Substituir o bloco atual por uma lógica mais permissiva:
 
-1. **Import**: adicionar `Trash2` ao import do `lucide-react` e os componentes do `AlertDialog` (`AlertDialog`, `AlertDialogAction`, `AlertDialogCancel`, `AlertDialogContent`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogHeader`, `AlertDialogTitle`).
+- **Lista expandida de palavras de saudação:**  
+  `oi`, `oii`, `oie`, `olá`, `ola`, `alo`, `alô`, `e aí`, `eai`, `eaí`, `salve`, `opa`,  
+  `hi`, `hello`, `hey`, `start`, `iniciar`, `começar`, `comecar`,  
+  `bom dia`, `boa tarde`, `boa noite`, `dia`, `tarde`, `noite`,  
+  `ajuda`, `help`, `socorro`, `?`, `??`, `menu`, `inicio`, `início`, `home`
 
-2. **Hook**: extrair também `deleteTicket` de `useTickets()`.
+- **Match por `startsWith` ou `includes` ao invés de `===`:**  
+  Assim `"oi tudo bem?"`, `"bom diaa galera"`, `"ajuda por favor"` também disparam o menu.
 
-3. **Estado local**: `const [ticketToDelete, setTicketToDelete] = useState<{id: string; number: string} | null>(null);`
+- **Detecção de emojis comuns de saudação:**  
+  `👋`, `🙋`, `🙋‍♂️`, `🙋‍♀️` → menu.
 
-4. **Coluna Ações** (linhas 367-378): ao lado do botão `Eye`, renderizar — apenas se `isAdmin` — um botão `variant="ghost" size="icon"` com ícone `Trash2` em cor destrutiva (`text-destructive`) que chama `setTicketToDelete({ id, number })` (com `e.stopPropagation()` para não navegar).
+- **Mensagens curtas em chat individual** (≤ 3 caracteres como `oi`, `?`, `hi`, `eu`) → tratar como saudação e abrir o menu.
 
-5. **AlertDialog de confirmação** ao final do JSX (junto do `TicketCreateDialog`):
-   - Título: "Excluir chamado {ticket_number}?"
-   - Descrição: explica que a ação é irreversível e remove comentários/anexos vinculados.
-   - Botão confirmar: `variant: "destructive"`, chama `deleteTicket.mutate(ticketToDelete.id)` e fecha o dialog.
+### 2. Comportamento em grupos (linha ~4498)
+- Em **grupos**, NÃO enviar a mensagem `❓ Comando não reconhecido` para evitar poluir a conversa.
+- Apenas responder em grupos quando: comando explícito for detectado, ticket for citado, ou houver wizard ativo.
+- Em **chat individual**, manter a mensagem de erro mas sugerir digitar `menu` ou `ajuda`.
 
-## Comportamento
+### 3. Adicionar `ajuda` como atalho global
+Adicionar `ajuda` e `help` (sozinhos) como sinônimos de `menu` no `extractCommand`.
 
-- O botão de excluir só aparece para administradores (consistente com a política RLS `Admins can delete tickets`).
-- Confirmação obrigatória via `AlertDialog` para evitar exclusões acidentais.
-- Toast de sucesso/erro já é tratado dentro de `deleteTicket` no hook `useTickets`.
-- A lista é atualizada automaticamente via `invalidateQueries(['tickets'])` que já existe na mutation.
+## ✅ Resultado Esperado
+- Usuário digita `oi`, `bom dia`, `eai`, `ajuda`, `?` → bot já mostra o menu principal.
+- Variações com pontuação/typos (`oii`, `bom diaa`, `oi!`) funcionam.
+- Grupos ficam silenciosos para mensagens que não são comandos.
+- Apenas o webhook é alterado — sem mudanças no banco ou no frontend.
 
-## Não faz parte deste plano
-
-- Adicionar exclusão no Kanban (pode ser uma melhoria futura).
-- Alterar políticas de RLS (já estão corretas).
+## 📦 Arquivos Afetados
+- `supabase/functions/whatsapp-webhook/index.ts` (deploy automático)
