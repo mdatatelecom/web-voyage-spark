@@ -13,10 +13,12 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
-import { User, RefreshCw, Loader2, Zap, Clock, AlertCircle } from 'lucide-react';
+import { User, RefreshCw, Loader2, Zap, Clock, AlertCircle, KeyRound } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 interface UserEditDialogProps {
   open: boolean;
@@ -30,9 +32,10 @@ interface UserEditDialogProps {
     avatar_updated_at?: string;
   } | null;
   onSave: (userId: string, data: { full_name: string; phone: string }) => Promise<void>;
+  onResetPassword?: (userId: string, newPassword: string) => Promise<void>;
 }
 
-export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDialogProps) => {
+export const UserEditDialog = ({ open, onOpenChange, user, onSave, onResetPassword }: UserEditDialogProps) => {
   const queryClient = useQueryClient();
   const { fetchAndUpdateProfilePicture, isLoading: isFetchingPhoto } = useWhatsAppProfilePicture();
   const [fullName, setFullName] = useState('');
@@ -40,6 +43,9 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarUpdatedAt, setAvatarUpdatedAt] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -47,8 +53,30 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave }: UserEditDia
       setPhone(user.phone || '');
       setAvatarUrl(user.avatar_url || '');
       setAvatarUpdatedAt(user.avatar_updated_at || null);
+      setNewPassword('');
+      setConfirmPassword('');
     }
   }, [user]);
+
+  const handleResetPassword = async () => {
+    if (!user || !onResetPassword) return;
+    if (newPassword.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+    setIsResetting(true);
+    try {
+      await onResetPassword(user.id, newPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const getCacheStatus = () => {
     if (!avatarUrl) return null;
