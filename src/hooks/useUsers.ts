@@ -156,6 +156,23 @@ export const useUsers = () => {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: { userId, newPassword },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Senha redefinida com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao redefinir senha: ${error.message}`);
+    },
+  });
+
   const updateProfileMutation = useMutation({
     mutationFn: async ({ userId, data }: { userId: string; data: { full_name: string; phone: string } }) => {
       const { error } = await supabase
@@ -187,6 +204,8 @@ export const useUsers = () => {
     removeRole: removeRoleMutation.mutate,
     findUserByEmail: findUserByEmailMutation.mutateAsync,
     updateProfile: updateProfileMutation.mutateAsync,
+    resetPassword: resetPasswordMutation.mutateAsync,
+    isResettingPassword: resetPasswordMutation.isPending,
     isAssigning: assignRoleMutation.isPending,
   };
 };
