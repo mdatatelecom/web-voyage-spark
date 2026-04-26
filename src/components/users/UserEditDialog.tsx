@@ -123,15 +123,15 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave, onResetPasswo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
           <DialogTitle>Editar Usuário</DialogTitle>
           <DialogDescription>
             Editar informações do usuário {user?.email}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
           {/* Avatar Section */}
           <div className="flex flex-col items-center gap-4">
             <Avatar className="h-24 w-24">
@@ -278,7 +278,7 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave, onResetPasswo
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>

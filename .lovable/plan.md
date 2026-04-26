@@ -1,46 +1,30 @@
-# Editar Senha de Usuários (Admin)
+# Corrigir scroll do dialog de edição de usuário
 
-## Objetivo
+## Problema
 
-Permitir que administradores definam uma nova senha para qualquer usuário a partir da página de Gerenciamento de Usuários, sem precisar do fluxo de "esqueci minha senha".
+Conforme a captura de tela, o `UserEditDialog` exibe muito conteúdo (avatar, status de cache, botões de foto, nome, telefone, e a nova seção de redefinir senha com 2 campos + botão). Em viewports menores (como o atual 948x575), o conteúdo ultrapassa a altura da tela: os campos finais ("Confirmar senha") e o footer (Cancelar / Salvar) ficam inacessíveis, e não é possível rolar dentro do dialog.
 
-## Arquitetura
+## Causa
 
-A redefinição precisa rodar com privilégios de admin (`auth.admin.updateUserById`), por isso deve ser feita via **Edge Function** (não direto do client).
+O `DialogContent` atual não tem altura máxima nem área de scroll interna — apenas usa `sm:max-w-[500px]`. Com a adição recente da seção "Redefinir Senha", o conteúdo total passou a exceder a viewport.
 
-## Mudanças
+## Solução
 
-### 1. Nova Edge Function: `supabase/functions/admin-reset-password/index.ts`
-- Valida JWT e confere se quem chama tem role `admin` (mesmo padrão de `admin-create-user`).
-- Recebe `{ userId, newPassword }`.
-- Valida senha mínima de 6 caracteres.
-- Chama `supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })`.
-- Registra em `access_logs` a ação `password_reset` com `target_user_id`.
+Reestruturar o `DialogContent` em layout flex vertical com header e footer fixos e área central rolável.
 
-### 2. Hook `src/hooks/useUsers.ts`
-- Adicionar `resetPasswordMutation` que invoca a edge function.
-- Expor `resetPassword` no retorno do hook.
+### Arquivo: `src/components/users/UserEditDialog.tsx`
 
-### 3. Componente `src/components/users/UserEditDialog.tsx`
-- Adicionar nova seção "Redefinir Senha" dentro do dialog existente:
-  - Input `Nova senha` (type="password") + input `Confirmar senha`.
-  - Botão "Redefinir Senha" (separado do "Salvar" do perfil).
-  - Validação: ≥ 6 caracteres e senhas iguais.
-  - Ao concluir: toast de sucesso e limpa os campos.
-- Não interfere no fluxo de salvar nome/telefone.
+1. **`DialogContent`**: adicionar `max-h-[90vh] flex flex-col p-0` (limita altura à viewport, organiza em coluna, padding será aplicado nos filhos).
 
-### 4. `src/pages/Users.tsx`
-- Passa a função `resetPassword` para o `UserEditDialog`.
+2. **`DialogHeader`**: adicionar `px-6 pt-6 flex-shrink-0` para manter padding e não ser comprimido.
 
-## Segurança
-- Apenas admins (validado server-side na edge function).
-- Ação registrada em `access_logs`.
-- A label/badge do usuário "atualizado em" do auth refletirá a mudança automaticamente.
+3. **Wrapper do conteúdo central** (a `div` com `space-y-6 py-4`): trocar para `flex-1 overflow-y-auto px-6 py-4` — esta passa a ser a única área rolável.
 
-## Arquivos
-| Arquivo | Ação |
-|---|---|
-| `supabase/functions/admin-reset-password/index.ts` | Criar |
-| `src/hooks/useUsers.ts` | Adicionar mutation `resetPassword` |
-| `src/components/users/UserEditDialog.tsx` | Adicionar seção de redefinição de senha |
-| `src/pages/Users.tsx` | Passar nova prop ao dialog |
+4. **`DialogFooter`**: adicionar `px-6 pb-6 pt-4 border-t flex-shrink-0` para fixar o rodapé com separador visual sutil.
+
+## Resultado
+
+- Título sempre visível no topo
+- Avatar, campos e seção "Redefinir Senha" rolam internamente quando excedem a tela
+- Botões "Cancelar" e "Salvar" sempre visíveis no rodapé
+- Funciona em qualquer tamanho de viewport (incluindo 948x575 e telas menores)
