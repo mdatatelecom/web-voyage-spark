@@ -33,7 +33,7 @@ import { toast } from 'sonner';
 export default function Users() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile, assignRole, isAssigning } = useUsers();
+  const { users, isLoading, error, accessLogs, logsLoading, removeRole, updateProfile, assignRole, isAssigning, resetPassword } = useUsers();
   const { isAdmin, isLoading: roleLoading } = useUserRole();
   const { fetchAndUpdateProfilePicture } = useWhatsAppProfilePicture();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
@@ -399,6 +399,7 @@ export default function Users() {
           onOpenChange={setEditDialogOpen}
           user={selectedUser}
           onSave={handleSaveProfile}
+          onResetPassword={async (userId, newPassword) => { await resetPassword({ userId, newPassword }); }}
         />
       </div>
     </AppLayout>

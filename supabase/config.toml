@@ -9,6 +9,9 @@ verify_jwt = true
 [functions.admin-create-user]
 verify_jwt = true
 
+[functions.admin-reset-password]
+verify_jwt = true
+
 [functions.test-connection]
 verify_jwt = false
 
