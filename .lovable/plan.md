@@ -1,30 +1,34 @@
-# Corrigir scroll do dialog de edição de usuário
+# Adicionar botão de exclusão na coluna "Ações" dos Chamados
 
-## Problema
+## Contexto
 
-Conforme a captura de tela, o `UserEditDialog` exibe muito conteúdo (avatar, status de cache, botões de foto, nome, telefone, e a nova seção de redefinir senha com 2 campos + botão). Em viewports menores (como o atual 948x575), o conteúdo ultrapassa a altura da tela: os campos finais ("Confirmar senha") e o footer (Cancelar / Salvar) ficam inacessíveis, e não é possível rolar dentro do dialog.
+Atualmente, a coluna **Ações** da tabela em `/tickets` (`src/pages/SupportTickets.tsx`, linhas 367-378) tem apenas o botão de visualizar (ícone `Eye`). O hook `useTickets()` já expõe `deleteTicket` (mutation funcional) e a RLS do `support_tickets` já permite que apenas **admins** apaguem chamados.
 
-## Causa
+## Mudanças
 
-O `DialogContent` atual não tem altura máxima nem área de scroll interna — apenas usa `sm:max-w-[500px]`. Com a adição recente da seção "Redefinir Senha", o conteúdo total passou a exceder a viewport.
+### `src/pages/SupportTickets.tsx`
 
-## Solução
+1. **Import**: adicionar `Trash2` ao import do `lucide-react` e os componentes do `AlertDialog` (`AlertDialog`, `AlertDialogAction`, `AlertDialogCancel`, `AlertDialogContent`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogHeader`, `AlertDialogTitle`).
 
-Reestruturar o `DialogContent` em layout flex vertical com header e footer fixos e área central rolável.
+2. **Hook**: extrair também `deleteTicket` de `useTickets()`.
 
-### Arquivo: `src/components/users/UserEditDialog.tsx`
+3. **Estado local**: `const [ticketToDelete, setTicketToDelete] = useState<{id: string; number: string} | null>(null);`
 
-1. **`DialogContent`**: adicionar `max-h-[90vh] flex flex-col p-0` (limita altura à viewport, organiza em coluna, padding será aplicado nos filhos).
+4. **Coluna Ações** (linhas 367-378): ao lado do botão `Eye`, renderizar — apenas se `isAdmin` — um botão `variant="ghost" size="icon"` com ícone `Trash2` em cor destrutiva (`text-destructive`) que chama `setTicketToDelete({ id, number })` (com `e.stopPropagation()` para não navegar).
 
-2. **`DialogHeader`**: adicionar `px-6 pt-6 flex-shrink-0` para manter padding e não ser comprimido.
+5. **AlertDialog de confirmação** ao final do JSX (junto do `TicketCreateDialog`):
+   - Título: "Excluir chamado {ticket_number}?"
+   - Descrição: explica que a ação é irreversível e remove comentários/anexos vinculados.
+   - Botão confirmar: `variant: "destructive"`, chama `deleteTicket.mutate(ticketToDelete.id)` e fecha o dialog.
 
-3. **Wrapper do conteúdo central** (a `div` com `space-y-6 py-4`): trocar para `flex-1 overflow-y-auto px-6 py-4` — esta passa a ser a única área rolável.
+## Comportamento
 
-4. **`DialogFooter`**: adicionar `px-6 pb-6 pt-4 border-t flex-shrink-0` para fixar o rodapé com separador visual sutil.
+- O botão de excluir só aparece para administradores (consistente com a política RLS `Admins can delete tickets`).
+- Confirmação obrigatória via `AlertDialog` para evitar exclusões acidentais.
+- Toast de sucesso/erro já é tratado dentro de `deleteTicket` no hook `useTickets`.
+- A lista é atualizada automaticamente via `invalidateQueries(['tickets'])` que já existe na mutation.
 
-## Resultado
+## Não faz parte deste plano
 
-- Título sempre visível no topo
-- Avatar, campos e seção "Redefinir Senha" rolam internamente quando excedem a tela
-- Botões "Cancelar" e "Salvar" sempre visíveis no rodapé
-- Funciona em qualquer tamanho de viewport (incluindo 948x575 e telas menores)
+- Adicionar exclusão no Kanban (pode ser uma melhoria futura).
+- Alterar políticas de RLS (já estão corretas).

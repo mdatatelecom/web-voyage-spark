@@ -20,7 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings, List, LayoutGrid } from 'lucide-react';
+import { Plus, Search, Ticket, Filter, Eye, User as UserIcon, Calendar, BarChart3, Paperclip, Settings, List, LayoutGrid, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useTickets } from '@/hooks/useTickets';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,7 +54,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tickets, isLoading, updateTicket } = useTickets();
+  const { tickets, isLoading, updateTicket, deleteTicket } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
   const { isAdmin } = useUserRole();
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
@@ -55,6 +65,7 @@ export default function SupportTickets() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [ticketToDelete, setTicketToDelete] = useState<{ id: string; number: string } | null>(null);
 
   const filteredTickets = tickets?.filter((ticket) => {
     const matchesSearch =
@@ -365,16 +376,31 @@ export default function SupportTickets() {
                           })}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/tickets/${ticket.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/tickets/${ticket.id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTicketToDelete({ id: ticket.id, number: ticket.ticket_number });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -397,6 +423,31 @@ export default function SupportTickets() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />
+
+      <AlertDialog open={!!ticketToDelete} onOpenChange={(open) => !open && setTicketToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir chamado {ticketToDelete?.number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O chamado, comentários e anexos vinculados serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (ticketToDelete) {
+                  deleteTicket.mutate(ticketToDelete.id);
+                  setTicketToDelete(null);
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
