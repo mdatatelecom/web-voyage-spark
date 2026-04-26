@@ -269,11 +269,43 @@ const extractCommand = (text: string): { command: string; args: string } | null 
     return { command: 'equipamentos', args: '' };
   }
   
-  // Menu/Welcome command - responds to greetings
-  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || 
-      lowerText === 'menu' || lowerText === 'inicio' || lowerText === 'início' ||
-      lowerText === 'hi' || lowerText === 'hello' || lowerText === 'bom dia' ||
-      lowerText === 'boa tarde' || lowerText === 'boa noite' || lowerText === 'opa') {
+  // Menu/Welcome - detecção ampliada de saudações e pedidos de ajuda
+  // Normaliza: remove pontuação final, acentos básicos e caracteres repetidos
+  const normalized = lowerText
+    .replace(/[!?.,;:]+$/g, '')
+    .replace(/(.)\1{2,}/g, '$1$1') // "oiii" -> "oii", "diaaaa" -> "diaa"
+    .trim();
+
+  // Emojis comuns de saudação => menu
+  if (/^[\s]*(👋|🙋|🙋‍♂️|🙋‍♀️|🤚|✋)/u.test(text)) {
+    return { command: 'menu', args: '' };
+  }
+
+  // Palavras-chave de saudação / ajuda / início
+  const greetingTriggers = [
+    'menu', 'inicio', 'início', 'home', 'start', 'iniciar', 'comecar', 'começar',
+    'oi', 'oii', 'oie', 'ola', 'olá', 'alo', 'alô', 'opa', 'salve',
+    'eai', 'eaí', 'e ai', 'e aí',
+    'hi', 'hello', 'hey',
+    'bom dia', 'boa tarde', 'boa noite',
+    'dia', 'tarde', 'noite',
+    'ajuda', 'help', 'socorro', 'comandos'
+  ];
+
+  // Match exato
+  if (greetingTriggers.includes(normalized)) {
+    return { command: 'menu', args: '' };
+  }
+
+  // Match por início de frase (ex: "oi tudo bem", "bom dia pessoal", "ajuda por favor")
+  for (const trigger of greetingTriggers) {
+    if (normalized.startsWith(trigger + ' ') || normalized === trigger) {
+      return { command: 'menu', args: '' };
+    }
+  }
+
+  // Mensagem muito curta com "?" => provavelmente pedido de ajuda
+  if (normalized === '?' || normalized === '??' || normalized === '???') {
     return { command: 'menu', args: '' };
   }
   
