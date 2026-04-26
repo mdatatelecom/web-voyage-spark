@@ -54,7 +54,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 export default function SupportTickets() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tickets, isLoading, updateTicket } = useTickets();
+  const { tickets, isLoading, updateTicket, deleteTicket } = useTickets();
   const { activeCategories, getCategoryLabel } = useTicketCategories();
   const { isAdmin } = useUserRole();
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
