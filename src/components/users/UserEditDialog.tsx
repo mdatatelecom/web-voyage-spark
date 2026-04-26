@@ -278,7 +278,7 @@ export const UserEditDialog = ({ open, onOpenChange, user, onSave, onResetPasswo
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
