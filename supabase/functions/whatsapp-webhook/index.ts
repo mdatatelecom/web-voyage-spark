@@ -4527,7 +4527,8 @@ serve(async (req) => {
     }
 
     // Handle unrecognized commands - send error message with menu options
-    if (!command && !ticket && messageContent && messageContent.trim().length >= 2) {
+    // Em grupos, NÃO responder mensagens não reconhecidas (evita poluir a conversa)
+    if (!command && !ticket && !isGroup && messageContent && messageContent.trim().length >= 2) {
       console.log('❓ Unrecognized command:', messageContent);
       
       // If user replied to a message (has quotedMessage), suggest creating a ticket from it
