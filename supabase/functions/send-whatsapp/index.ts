@@ -215,6 +215,35 @@ serve(async (req) => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Evolution API list groups error:', errorText);
+
+          // Detect Baileys "zombie socket" — connectionState says open but real socket died
+          const isConnectionClosed = errorText.includes('Connection Closed') || errorText.includes('connection closed');
+
+          if (isConnectionClosed) {
+            console.log('Detected zombie socket. Triggering automatic restart of instance:', settings.evolutionInstance);
+            // Fire-and-forget restart
+            try {
+              const restartRes = await fetch(
+                `${apiUrl}/instance/restart/${settings.evolutionInstance}`,
+                { method: 'POST', headers: { 'apikey': settings.evolutionApiKey, 'Content-Type': 'application/json' } }
+              );
+              console.log('Auto-restart response status:', restartRes.status);
+            } catch (e) {
+              console.error('Auto-restart failed:', e);
+            }
+
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message: `A sessão do WhatsApp da instância "${settings.evolutionInstance}" travou no servidor (Connection Closed). Uma reinicialização automática foi disparada — aguarde alguns segundos e tente novamente. Se persistir, clique em Reconectar para escanear o QR Code.`,
+                groups: [],
+                connectionClosed: true,
+                autoRestartTriggered: true,
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
           return new Response(
             JSON.stringify({ 
               success: false, 
