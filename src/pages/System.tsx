@@ -598,6 +598,17 @@ export default function System() {
                           type="button"
                           variant="outline"
                           size="icon"
+                          onClick={handleRestartInstance}
+                          disabled={!localWhatsAppSettings.evolutionInstance}
+                          title="Reiniciar instância (destrava sessão Baileys sem perder pareamento)"
+                          className="text-amber-500 hover:text-amber-500"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
                           onClick={handleOpenDeleteDialog}
                           disabled={!localWhatsAppSettings.evolutionInstance}
                           title="Excluir ou desconectar instância"
@@ -607,7 +618,7 @@ export default function System() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Buscar (↻), Criar (+), Reconectar (📶) ou Excluir (🗑️) instâncias
+                        Buscar (↻), Criar (+), Reconectar (📶), Reiniciar (↺) ou Excluir (🗑️) instâncias
                       </p>
                       
                       {/* Auto-refresh indicator */}
