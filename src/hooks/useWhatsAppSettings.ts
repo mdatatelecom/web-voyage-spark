@@ -493,7 +493,57 @@ export const useWhatsAppSettings = () => {
     }
   };
 
-  const sendTestMessage = async (
+  const restartInstance = async (
+    instanceName: string,
+    apiUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!instanceName || !apiUrl || !apiKey) {
+      return { success: false, message: 'Preencha todos os campos' };
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp', {
+        body: {
+          action: 'restart-instance',
+          instanceName,
+          settings: {
+            evolutionApiUrl: apiUrl,
+            evolutionApiKey: apiKey,
+            evolutionInstance: '',
+            isEnabled: false,
+            defaultCountryCode: '55',
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Instância reiniciada',
+          description: data.message || `A instância "${instanceName}" foi reiniciada. Aguarde alguns segundos.`,
+        });
+        return { success: true, message: data.message };
+      } else {
+        toast({
+          title: 'Erro ao reiniciar',
+          description: data?.message || 'Erro desconhecido',
+          variant: 'destructive',
+        });
+        return { success: false, message: data?.message || 'Erro ao reiniciar instância' };
+      }
+    } catch (error) {
+      console.error('Erro ao reiniciar instância:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+      return { success: false, message: errorMsg };
+    }
+  };
     phone: string,
     message?: string,
     testSettings?: WhatsAppSettings
