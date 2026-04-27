@@ -33,6 +33,7 @@ import {
   Eye,
   EyeOff,
   Wifi,
+  RotateCcw,
   XCircle,
   MessageCircle,
   Plus,
