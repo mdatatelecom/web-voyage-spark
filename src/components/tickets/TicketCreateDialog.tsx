@@ -24,6 +24,8 @@ import { useBuildings } from '@/hooks/useBuildings';
 import { useEquipment } from '@/hooks/useEquipment';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import { useTicketCategories } from '@/hooks/useTicketCategories';
+import { useStoredWhatsAppGroups } from '@/hooks/useStoredWhatsAppGroups';
+import { Users } from 'lucide-react';
 import { TICKET_PRIORITIES } from '@/constants/ticketTypes';
 import { Loader2 } from 'lucide-react';
 
