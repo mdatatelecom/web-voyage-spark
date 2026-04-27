@@ -286,6 +286,38 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
                 </Select>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp_group" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Grupo do WhatsApp para Notificações
+              </Label>
+              <Select
+                value={formData.whatsapp_group_id || 'default'}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, whatsapp_group_id: value === 'default' ? '' : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Padrão (categoria ou configurações)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">
+                    Padrão (categoria ou configurações)
+                  </SelectItem>
+                  {whatsappGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.subject}
+                      {typeof g.size === 'number' ? ` · ${g.size} membros` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Se não escolher, será usado o grupo padrão da categoria ou das configurações globais.
+                A lista mostra grupos já sincronizados em <span className="font-medium">Sistema → WhatsApp</span>.
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
