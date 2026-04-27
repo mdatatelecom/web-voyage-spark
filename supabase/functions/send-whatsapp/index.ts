@@ -215,6 +215,35 @@ serve(async (req) => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Evolution API list groups error:', errorText);
+
+          // Detect Baileys "zombie socket" — connectionState says open but real socket died
+          const isConnectionClosed = errorText.includes('Connection Closed') || errorText.includes('connection closed');
+
+          if (isConnectionClosed) {
+            console.log('Detected zombie socket. Triggering automatic restart of instance:', settings.evolutionInstance);
+            // Fire-and-forget restart
+            try {
+              const restartRes = await fetch(
+                `${apiUrl}/instance/restart/${settings.evolutionInstance}`,
+                { method: 'POST', headers: { 'apikey': settings.evolutionApiKey, 'Content-Type': 'application/json' } }
+              );
+              console.log('Auto-restart response status:', restartRes.status);
+            } catch (e) {
+              console.error('Auto-restart failed:', e);
+            }
+
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message: `A sessão do WhatsApp da instância "${settings.evolutionInstance}" travou no servidor (Connection Closed). Uma reinicialização automática foi disparada — aguarde alguns segundos e tente novamente. Se persistir, clique em Reconectar para escanear o QR Code.`,
+                groups: [],
+                connectionClosed: true,
+                autoRestartTriggered: true,
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
           return new Response(
             JSON.stringify({ 
               success: false, 
@@ -554,6 +583,55 @@ serve(async (req) => {
         );
       } catch (fetchError: unknown) {
         console.error('Logout instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    if (action === 'restart-instance') {
+      // Restart Baileys session without losing pairing (no QR rescan needed)
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Restarting Evolution API instance:', instanceName);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/restart/${instanceName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API restart instance response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message?.[0] || errorData?.message || `Erro ${response.status}`;
+          console.error('Evolution API restart instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Instância reiniciada. Aguarde alguns segundos para reconectar.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Restart instance fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
         return new Response(
           JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),

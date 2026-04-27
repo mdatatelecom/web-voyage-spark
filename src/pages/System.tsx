@@ -33,6 +33,7 @@ import {
   Eye,
   EyeOff,
   Wifi,
+  RotateCcw,
   XCircle,
   MessageCircle,
   Plus,
@@ -102,6 +103,7 @@ export default function System() {
     deleteInstance: deleteWhatsAppInstance,
     logoutInstance: logoutWhatsAppInstance,
     connectInstance: connectWhatsAppInstance,
+    restartInstance: restartWhatsAppInstance,
     sendTestMessage: sendWhatsAppTestMessage,
     configureWebhook: configureWhatsAppWebhook,
     isConfiguringWebhook: whatsAppConfiguringWebhook
@@ -226,6 +228,15 @@ export default function System() {
     if (result.success && result.qrcode) {
       setReconnectQrCode(result.qrcode);
     }
+  };
+
+  const handleRestartInstance = async () => {
+    if (!localWhatsAppSettings.evolutionInstance) return;
+    await restartWhatsAppInstance(
+      localWhatsAppSettings.evolutionInstance,
+      localWhatsAppSettings.evolutionApiUrl,
+      localWhatsAppSettings.evolutionApiKey
+    );
   };
 
   const handleOpenReconnectDialog = () => {
@@ -587,6 +598,17 @@ export default function System() {
                           type="button"
                           variant="outline"
                           size="icon"
+                          onClick={handleRestartInstance}
+                          disabled={!localWhatsAppSettings.evolutionInstance}
+                          title="Reiniciar instância (destrava sessão Baileys sem perder pareamento)"
+                          className="text-amber-500 hover:text-amber-500"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
                           onClick={handleOpenDeleteDialog}
                           disabled={!localWhatsAppSettings.evolutionInstance}
                           title="Excluir ou desconectar instância"
@@ -596,7 +618,7 @@ export default function System() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Buscar (↻), Criar (+), Reconectar (📶) ou Excluir (🗑️) instâncias
+                        Buscar (↻), Criar (+), Reconectar (📶), Reiniciar (↺) ou Excluir (🗑️) instâncias
                       </p>
                       
                       {/* Auto-refresh indicator */}
