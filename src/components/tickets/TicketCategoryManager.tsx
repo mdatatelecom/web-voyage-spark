@@ -27,8 +27,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Tags, FolderTree, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Tags, FolderTree, Loader2, Users } from 'lucide-react';
 import { useTicketCategories, TicketCategory, TicketSubcategory } from '@/hooks/useTicketCategories';
+import { useStoredWhatsAppGroups } from '@/hooks/useStoredWhatsAppGroups';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const slugify = (text: string) =>
