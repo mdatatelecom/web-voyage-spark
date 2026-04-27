@@ -591,6 +591,55 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'restart-instance') {
+      // Restart Baileys session without losing pairing (no QR rescan needed)
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Nome da instância é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log('Restarting Evolution API instance:', instanceName);
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/instance/restart/${instanceName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': settings.evolutionApiKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Evolution API restart instance response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData?.response?.message?.[0] || errorData?.message || `Erro ${response.status}`;
+          console.error('Evolution API restart instance error:', errorMsg);
+          return new Response(
+            JSON.stringify({ success: false, message: errorMsg }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Instância reiniciada. Aguarde alguns segundos para reconectar.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fetchError: unknown) {
+        console.error('Restart instance fetch error:', fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro de conexão: ${errorMessage}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (action === 'connect-instance') {
       // Reconnect an existing instance to get QR code
       // instanceName comes from the initial body parse
