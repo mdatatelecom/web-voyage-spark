@@ -238,6 +238,8 @@ export default function System() {
       localWhatsAppSettings.evolutionApiKey
     );
   };
+
+  const handleOpenReconnectDialog = () => {
     if (localWhatsAppSettings.evolutionInstance) {
       setInstanceToReconnect(localWhatsAppSettings.evolutionInstance);
       setReconnectQrCode(null);
