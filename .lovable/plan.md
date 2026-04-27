@@ -1,69 +1,54 @@
-## Problema confirmado
+# Erro ao listar grupos do WhatsApp
 
-Consulta no banco mostra que em 2026 existem 3 tickets, mas o maior número é `TKT-2026-00023`. A função atual usa `COUNT(*)+1`, gerando `TKT-2026-00004`, o que pode colidir e provoca o erro de unique constraint ao cadastrar chamado.
+## Diagnóstico
 
-Não há duplicatas existentes nem números fora do padrão — não há limpeza retroativa a fazer.
+Pelos logs da edge function `send-whatsapp`, a chamada `GET /group/fetchAllGroups/Mdata` está retornando:
 
-## Estratégia escolhida
-
-Combinação de **três camadas de defesa** para zero colisão mesmo em alto volume:
-
-1. **Sequência dedicada por ano** (`ticket_number_seq_<ano>`), criada sob demanda.
-2. **Advisory lock** (`pg_advisory_xact_lock`) no escopo do ano para serializar a criação da sequência e a leitura do MAX inicial.
-3. **Inicialização por MAX existente**: ao criar a sequência do ano, ela é alinhada com `MAX(suffix)+1` para respeitar gaps históricos.
-4. **Retry no client** (até 3 tentativas) caso, em alguma transição, ainda ocorra `23505` (unique violation).
-
-## Mudanças
-
-### 1. Migration — reescrever `generate_ticket_number()`
-
-```text
-function generate_ticket_number() trigger:
-  ano = EXTRACT(YEAR FROM NOW())
-  seq_name = 'ticket_number_seq_' || ano
-  pg_advisory_xact_lock(hashtext(seq_name))
-  IF sequência não existe THEN
-    max_existente = COALESCE(MAX(suffix do ano), 0)
-    CREATE SEQUENCE seq_name START max_existente + 1
-  END IF
-  next_num = nextval(seq_name)
-  NEW.ticket_number = 'TKT-' || ano || '-' || LPAD(next_num, 5, '0')
+```
+status: 500
+{"status":500,"error":"Internal Server Error","response":{"message":"Connection Closed"}}
 ```
 
-Mantém o trigger `set_ticket_number` já existente (BEFORE INSERT).
+Importante notar:
+- O `connectionState` da instância **Mdata** retorna `state: "open"` (a UI mostra "Conectado" ✅)
+- Mas o endpoint `fetchAllGroups` falha com `Connection Closed` no servidor da Evolution API
+- A instância **Mdata** tem `disconnectionReasonCode: 401` histórico (device_removed em 28/03), porém foi reaberta. O Baileys interno provavelmente está num estado inconsistente onde aceita `connectionState` mas não consegue mais executar queries IQ no WhatsApp (typical Baileys "stream open mas socket morto").
 
-### 2. Cliente — retry + mensagem amigável (`src/hooks/useTickets.ts`)
+Ou seja: **não é bug do nosso código** — é a sessão Baileys da instância `Mdata` que está zumbi no servidor `chat.mdatatelecom.com.br`.
 
-No `createTicket.mutationFn`, encapsular o `insert` em loop de até 3 tentativas; só repete se erro for código `23505` em `support_tickets_ticket_number_key`. Em caso de falha final (ou outro erro), `onError` mostra:
+## Causa raiz
 
-- Duplicidade persistente: "Não foi possível gerar um número único para o chamado. Tente novamente em instantes."
-- Outros erros: mensagem genérica atual.
+Evolution API (Baileys) mantém o socket marcado como `open` mesmo quando a conexão WebSocket com o WhatsApp já caiu. Qualquer request que precise tráfego real (fetchAllGroups, sendMessage para grupo) retorna 500 "Connection Closed".
 
-### 3. Validação automatizada (script único, descartável)
+## Plano de correção
 
-Após aplicar a migration, rodar via `psql` no sandbox:
+### 1. Ação imediata (servidor Evolution API — manual)
+Reiniciar a instância `Mdata` no painel da Evolution API:
+- Logout da instância → reconectar via QR Code
+- Ou usar endpoint `POST /instance/restart/Mdata`
 
-- **Teste de gaps**: inserir 5 tickets, verificar que números seguem a sequência sem colidir com `TKT-2026-00023` existente.
-- **Teste de concorrência**: rodar 20 INSERTs paralelos (`xargs -P 20`) e confirmar `COUNT(DISTINCT ticket_number) = 20` e zero erros 23505.
-- **Auditoria final**: listar duplicatas (`GROUP BY ticket_number HAVING COUNT(*)>1`) e formato inválido — esperado vazio.
-- Limpar os tickets de teste ao final.
+### 2. Melhorias no código (`supabase/functions/send-whatsapp/index.ts`)
 
-### 4. Auditoria (já feita em modo leitura)
+**a) Detectar "Connection Closed" e tentar restart automático**
+Quando `list-groups` ou `send-group` recebem 500 com `Connection Closed`, chamar `POST /instance/restart/{instance}` automaticamente e reportar mensagem clara.
 
-- Duplicatas atuais: **0**
-- Tickets fora do padrão `TKT-YYYY-00000`: **0**
-- Não há correções retroativas necessárias.
+**b) Mensagem de erro amigável no toast**
+Em vez de "Erro ao listar grupos: 500", mostrar:
+> "A sessão do WhatsApp da instância **Mdata** está travada no servidor (Connection Closed). Clique em **Reconectar** ou tente novamente em alguns segundos — uma reinicialização automática foi disparada."
 
-## Arquivos afetados
+**c) Botão "Reiniciar instância" na UI de WhatsApp** (`/system`)
+Adicionar ação `restart-instance` na edge function + botão na tela de configuração do WhatsApp ao lado de Reconectar, para forçar restart sem precisar reescanear QR.
 
-- `supabase/migrations/<novo>.sql` — nova versão de `generate_ticket_number()`.
-- `src/hooks/useTickets.ts` — retry no `createTicket` + mensagem de erro específica para 23505.
+### 3. Validação
+- Após restart, testar `list-groups` novamente
+- Testar envio para grupo de chamado
+- Confirmar que notificações de novos chamados voltam a chegar
 
-Sem mudanças em `TicketCreateDialog.tsx` (a UI já mostra o toast de erro vindo do hook).
+## Resumo do que será alterado
 
-## Por que essa abordagem
+- **`supabase/functions/send-whatsapp/index.ts`**: tratar 500 "Connection Closed", auto-restart, novo action `restart-instance`, mensagens de erro melhores
+- **`src/components/system/WhatsAppSettings.tsx`** (ou equivalente): botão "Reiniciar instância" + toast amigável
+- **Sem mudanças no banco**
 
-- **Sequência por ano** é a forma idiomática Postgres para gerar IDs únicos sem race condition — `nextval` é atômico.
-- **Advisory lock** só é necessário no momento de criar a sequência do ano (uma vez por ano); depois disso, `nextval` sozinho garante unicidade sem bloqueio.
-- **Respeita gaps históricos** (ex.: o `TKT-2026-00023` existente) ao iniciar a sequência em `MAX+1`.
-- **Retry no client** é cinto-e-suspensórios para o caso raro de inserts fora do trigger ou condições de borda.
+## O que você precisa fazer agora
+Enquanto ajusto o código, reinicie a instância **Mdata** no painel Evolution API (`https://chat.mdatatelecom.com.br`) — Logout + reconectar via QR. Isso destrava as notificações imediatamente.
