@@ -42,13 +42,14 @@ export function TicketCategoryManager() {
     createCategory, updateCategory, deleteCategory,
     createSubcategory, updateSubcategory, deleteSubcategory,
   } = useTicketCategories();
+  const { data: whatsappGroups = [] } = useStoredWhatsAppGroups();
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [categoryDialog, setCategoryDialog] = useState<{ open: boolean; editing?: TicketCategory }>({ open: false });
   const [subcategoryDialog, setSubcategoryDialog] = useState<{ open: boolean; categoryId: string; editing?: TicketSubcategory }>({ open: false, categoryId: '' });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; type: 'category' | 'subcategory'; id: string; name: string }>({ open: false, type: 'category', id: '', name: '' });
 
-  const [catForm, setCatForm] = useState({ name: '', slug: '', color: '#3b82f6', icon: '' });
+  const [catForm, setCatForm] = useState({ name: '', slug: '', color: '#3b82f6', icon: '', whatsapp_group_id: '' });
   const [subForm, setSubForm] = useState({ name: '', slug: '' });
 
   const toggleExpand = (id: string) => {
