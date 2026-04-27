@@ -60,9 +60,9 @@ export function TicketCategoryManager() {
 
   const openCategoryDialog = (editing?: TicketCategory) => {
     if (editing) {
-      setCatForm({ name: editing.name, slug: editing.slug, color: editing.color, icon: editing.icon || '' });
+      setCatForm({ name: editing.name, slug: editing.slug, color: editing.color, icon: editing.icon || '', whatsapp_group_id: editing.whatsapp_group_id || '' });
     } else {
-      setCatForm({ name: '', slug: '', color: '#3b82f6', icon: '' });
+      setCatForm({ name: '', slug: '', color: '#3b82f6', icon: '', whatsapp_group_id: '' });
     }
     setCategoryDialog({ open: true, editing });
   };
@@ -78,10 +78,11 @@ export function TicketCategoryManager() {
 
   const handleSaveCategory = async () => {
     const slug = catForm.slug || slugify(catForm.name);
+    const wa = catForm.whatsapp_group_id || null;
     if (categoryDialog.editing) {
-      await updateCategory.mutateAsync({ id: categoryDialog.editing.id, name: catForm.name, slug, color: catForm.color, icon: catForm.icon || null });
+      await updateCategory.mutateAsync({ id: categoryDialog.editing.id, name: catForm.name, slug, color: catForm.color, icon: catForm.icon || null, whatsapp_group_id: wa });
     } else {
-      await createCategory.mutateAsync({ name: catForm.name, slug, color: catForm.color, icon: catForm.icon || undefined });
+      await createCategory.mutateAsync({ name: catForm.name, slug, color: catForm.color, icon: catForm.icon || undefined, whatsapp_group_id: wa });
     }
     setCategoryDialog({ open: false });
   };
