@@ -245,6 +245,29 @@ export function TicketCategoryManager() {
                 <Input value={catForm.icon} onChange={e => setCatForm(f => ({ ...f, icon: e.target.value }))} placeholder="🖥️" />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Grupo do WhatsApp padrão (opcional)
+              </Label>
+              <Select
+                value={catForm.whatsapp_group_id || 'none'}
+                onValueChange={(v) => setCatForm(f => ({ ...f, whatsapp_group_id: v === 'none' ? '' : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem grupo padrão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem grupo padrão</SelectItem>
+                  {whatsappGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.subject}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Usado quando o chamado não escolhe grupo específico.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCategoryDialog({ open: false })}>Cancelar</Button>
