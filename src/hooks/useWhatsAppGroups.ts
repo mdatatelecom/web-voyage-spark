@@ -147,20 +147,28 @@ export const useWhatsAppGroups = () => {
       } else {
         // Check if reconnection is needed
         const needsReconnect = data?.needsReconnect === true;
-        
-        if (!needsReconnect) {
+        const connectionClosed = data?.connectionClosed === true;
+
+        if (connectionClosed) {
+          toast({
+            title: 'Sessão WhatsApp travada',
+            description: data?.message || 'A sessão Baileys travou no servidor. Reinicialização automática disparada — aguarde alguns segundos e tente novamente.',
+            variant: 'destructive',
+          });
+        } else if (!needsReconnect) {
           toast({
             title: 'Aviso',
             description: data?.message || 'Nenhum grupo encontrado',
             variant: 'destructive',
           });
         }
-        
+
         setGroups([]);
-        return { 
-          groups: [], 
+        return {
+          groups: [],
           needsReconnect,
-          message: data?.message 
+          connectionClosed,
+          message: data?.message,
         };
       }
     } catch (error) {
