@@ -685,6 +685,7 @@ export const useWhatsAppSettings = () => {
     deleteInstance,
     logoutInstance,
     connectInstance,
+    restartInstance,
     sendTestMessage,
     configureWebhook,
   };
