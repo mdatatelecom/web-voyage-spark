@@ -102,6 +102,7 @@ export default function System() {
     deleteInstance: deleteWhatsAppInstance,
     logoutInstance: logoutWhatsAppInstance,
     connectInstance: connectWhatsAppInstance,
+    restartInstance: restartWhatsAppInstance,
     sendTestMessage: sendWhatsAppTestMessage,
     configureWebhook: configureWhatsAppWebhook,
     isConfiguringWebhook: whatsAppConfiguringWebhook
