@@ -1417,6 +1417,7 @@ export type Database = {
           ticket_number: string
           title: string
           updated_at: string | null
+          whatsapp_group_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -1441,6 +1442,7 @@ export type Database = {
           ticket_number: string
           title: string
           updated_at?: string | null
+          whatsapp_group_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -1465,6 +1467,7 @@ export type Database = {
           ticket_number?: string
           title?: string
           updated_at?: string | null
+          whatsapp_group_id?: string | null
         }
         Relationships: [
           {
@@ -1577,6 +1580,7 @@ export type Database = {
           name: string
           slug: string
           updated_at: string
+          whatsapp_group_id: string | null
         }
         Insert: {
           color?: string
@@ -1588,6 +1592,7 @@ export type Database = {
           name: string
           slug: string
           updated_at?: string
+          whatsapp_group_id?: string | null
         }
         Update: {
           color?: string
@@ -1599,6 +1604,7 @@ export type Database = {
           name?: string
           slug?: string
           updated_at?: string
+          whatsapp_group_id?: string | null
         }
         Relationships: []
       }
