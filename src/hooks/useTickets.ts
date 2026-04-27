@@ -537,7 +537,7 @@ export const useTicket = (ticketId: string) => {
           // Get ticket info
           const { data: ticketData } = await supabase
             .from('support_tickets')
-            .select('ticket_number, title, contact_phone')
+            .select('ticket_number, title, contact_phone, category, whatsapp_group_id')
             .eq('id', ticketId)
             .single();
 
@@ -561,34 +561,15 @@ export const useTicket = (ticketId: string) => {
             `💬 "${commentPreview}"\n\n` +
             `🔗 Para mais detalhes, acesse o sistema.`;
 
-          // Check WhatsApp settings for group notification
-          const { data: settingsData } = await supabase
-            .from('system_settings')
-            .select('setting_value')
-            .eq('setting_key', 'whatsapp_settings')
-            .maybeSingle();
-
-          const whatsAppSettings = settingsData?.setting_value as {
-            isEnabled?: boolean | string;
-            targetType?: 'individual' | 'group';
-            selectedGroupId?: string | null;
-          } | null;
-
-          const isEnabled = whatsAppSettings?.isEnabled === true || 
-                            whatsAppSettings?.isEnabled === 'true';
-
-          // Send to group if configured
-          if (isEnabled && 
-              whatsAppSettings?.targetType === 'group' && 
-              whatsAppSettings?.selectedGroupId) {
-            console.log('📨 [COMMENT] Sending notification to WhatsApp group');
+          // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
+          const groupId = await resolveTicketWhatsAppGroup({
+            whatsapp_group_id: (ticketData as any).whatsapp_group_id,
+            category: (ticketData as any).category,
+          });
+          if (groupId) {
+            console.log('📨 [COMMENT] Sending notification to WhatsApp group:', groupId);
             await supabase.functions.invoke('send-whatsapp', {
-              body: {
-                action: 'send-group',
-                groupId: whatsAppSettings.selectedGroupId,
-                message,
-                ticketId,
-              },
+              body: { action: 'send-group', groupId, message, ticketId },
             });
           }
 
