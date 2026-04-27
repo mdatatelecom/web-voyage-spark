@@ -249,11 +249,16 @@ export const useTickets = () => {
         }
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error creating ticket:', error);
+      const isDuplicate =
+        error?.code === '23505' &&
+        (error?.message?.includes('ticket_number') || error?.details?.includes('ticket_number'));
       toast({
         title: 'Erro ao criar chamado',
-        description: 'Não foi possível criar o chamado.',
+        description: isDuplicate
+          ? 'Não foi possível gerar um número único para o chamado. Aguarde alguns segundos e tente novamente.'
+          : 'Não foi possível criar o chamado.',
         variant: 'destructive',
       });
     },
