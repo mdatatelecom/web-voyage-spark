@@ -15,6 +15,7 @@ export interface WhatsAppGroup {
 export interface ListGroupsResult {
   groups: WhatsAppGroup[];
   needsReconnect?: boolean;
+  connectionClosed?: boolean;
   message?: string;
 }
 
