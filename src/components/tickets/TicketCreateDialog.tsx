@@ -41,6 +41,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
   const { equipment } = useEquipment();
   const { technicians } = useTechnicians();
   const { activeCategories, getSubcategoriesByCategory, getCategoryBySlug } = useTicketCategories();
+  const { data: whatsappGroups = [] } = useStoredWhatsAppGroups();
   
   const [formData, setFormData] = useState({
     title: '',
