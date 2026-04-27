@@ -86,6 +86,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
       status: 'open',
       ticket_number: '',
       subcategory_id: formData.subcategory_id || null,
+      whatsapp_group_id: formData.whatsapp_group_id || null,
     });
 
     setFormData({
@@ -99,6 +100,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
       related_equipment_id: '',
       due_date: '',
       assigned_to: '',
+      whatsapp_group_id: '',
     });
     onOpenChange(false);
   };
