@@ -84,6 +84,47 @@ const buildTicketMessage = (
   }
 };
 
+/**
+ * Resolve qual grupo do WhatsApp deve receber a notificação de um chamado.
+ * Ordem: 1) grupo do próprio chamado → 2) grupo padrão da categoria → 3) grupo padrão das configurações globais.
+ * Retorna null se WhatsApp estiver desabilitado ou nenhum grupo configurado.
+ */
+const resolveTicketWhatsAppGroup = async (
+  ticket: { whatsapp_group_id?: string | null; category?: string | null }
+): Promise<string | null> => {
+  // 1) Grupo escolhido no próprio chamado
+  if (ticket.whatsapp_group_id) return ticket.whatsapp_group_id;
+
+  // 2) Grupo padrão da categoria
+  if (ticket.category) {
+    const { data: cat } = await supabase
+      .from('ticket_categories')
+      .select('whatsapp_group_id')
+      .eq('slug', ticket.category)
+      .maybeSingle();
+    if ((cat as any)?.whatsapp_group_id) return (cat as any).whatsapp_group_id as string;
+  }
+
+  // 3) Configurações globais
+  const { data: settingsData } = await supabase
+    .from('system_settings')
+    .select('setting_value')
+    .eq('setting_key', 'whatsapp_settings')
+    .maybeSingle();
+
+  const ws = settingsData?.setting_value as {
+    isEnabled?: boolean | string;
+    targetType?: 'individual' | 'group';
+    selectedGroupId?: string | null;
+  } | null;
+
+  const isEnabled = ws?.isEnabled === true || ws?.isEnabled === 'true';
+  if (isEnabled && ws?.targetType === 'group' && ws.selectedGroupId) {
+    return ws.selectedGroupId;
+  }
+  return null;
+};
+
 export type Ticket = Tables<'support_tickets'> & {
   assignee_name?: string | null;
   assignee_avatar_url?: string | null;
