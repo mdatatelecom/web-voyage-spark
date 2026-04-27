@@ -10,6 +10,7 @@ export interface TicketCategory {
   icon: string | null;
   display_order: number;
   is_active: boolean;
+  whatsapp_group_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,7 +54,7 @@ export const useTicketCategories = () => {
   });
 
   const createCategory = useMutation({
-    mutationFn: async (category: { name: string; slug: string; color: string; icon?: string }) => {
+    mutationFn: async (category: { name: string; slug: string; color: string; icon?: string; whatsapp_group_id?: string | null }) => {
       const maxOrder = categoriesQuery.data?.reduce((max, c) => Math.max(max, c.display_order), 0) || 0;
       const { data, error } = await supabase
         .from('ticket_categories')

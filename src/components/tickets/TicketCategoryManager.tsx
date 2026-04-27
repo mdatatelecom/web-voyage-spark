@@ -27,8 +27,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Tags, FolderTree, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Tags, FolderTree, Loader2, Users } from 'lucide-react';
 import { useTicketCategories, TicketCategory, TicketSubcategory } from '@/hooks/useTicketCategories';
+import { useStoredWhatsAppGroups } from '@/hooks/useStoredWhatsAppGroups';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const slugify = (text: string) =>
@@ -40,13 +42,14 @@ export function TicketCategoryManager() {
     createCategory, updateCategory, deleteCategory,
     createSubcategory, updateSubcategory, deleteSubcategory,
   } = useTicketCategories();
+  const { data: whatsappGroups = [] } = useStoredWhatsAppGroups();
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [categoryDialog, setCategoryDialog] = useState<{ open: boolean; editing?: TicketCategory }>({ open: false });
   const [subcategoryDialog, setSubcategoryDialog] = useState<{ open: boolean; categoryId: string; editing?: TicketSubcategory }>({ open: false, categoryId: '' });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; type: 'category' | 'subcategory'; id: string; name: string }>({ open: false, type: 'category', id: '', name: '' });
 
-  const [catForm, setCatForm] = useState({ name: '', slug: '', color: '#3b82f6', icon: '' });
+  const [catForm, setCatForm] = useState({ name: '', slug: '', color: '#3b82f6', icon: '', whatsapp_group_id: '' });
   const [subForm, setSubForm] = useState({ name: '', slug: '' });
 
   const toggleExpand = (id: string) => {
@@ -57,9 +60,9 @@ export function TicketCategoryManager() {
 
   const openCategoryDialog = (editing?: TicketCategory) => {
     if (editing) {
-      setCatForm({ name: editing.name, slug: editing.slug, color: editing.color, icon: editing.icon || '' });
+      setCatForm({ name: editing.name, slug: editing.slug, color: editing.color, icon: editing.icon || '', whatsapp_group_id: editing.whatsapp_group_id || '' });
     } else {
-      setCatForm({ name: '', slug: '', color: '#3b82f6', icon: '' });
+      setCatForm({ name: '', slug: '', color: '#3b82f6', icon: '', whatsapp_group_id: '' });
     }
     setCategoryDialog({ open: true, editing });
   };
@@ -75,10 +78,11 @@ export function TicketCategoryManager() {
 
   const handleSaveCategory = async () => {
     const slug = catForm.slug || slugify(catForm.name);
+    const wa = catForm.whatsapp_group_id || null;
     if (categoryDialog.editing) {
-      await updateCategory.mutateAsync({ id: categoryDialog.editing.id, name: catForm.name, slug, color: catForm.color, icon: catForm.icon || null });
+      await updateCategory.mutateAsync({ id: categoryDialog.editing.id, name: catForm.name, slug, color: catForm.color, icon: catForm.icon || null, whatsapp_group_id: wa });
     } else {
-      await createCategory.mutateAsync({ name: catForm.name, slug, color: catForm.color, icon: catForm.icon || undefined });
+      await createCategory.mutateAsync({ name: catForm.name, slug, color: catForm.color, icon: catForm.icon || undefined, whatsapp_group_id: wa });
     }
     setCategoryDialog({ open: false });
   };
@@ -240,6 +244,29 @@ export function TicketCategoryManager() {
                 <Label>Ícone (emoji)</Label>
                 <Input value={catForm.icon} onChange={e => setCatForm(f => ({ ...f, icon: e.target.value }))} placeholder="🖥️" />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Grupo do WhatsApp padrão (opcional)
+              </Label>
+              <Select
+                value={catForm.whatsapp_group_id || 'none'}
+                onValueChange={(v) => setCatForm(f => ({ ...f, whatsapp_group_id: v === 'none' ? '' : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem grupo padrão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem grupo padrão</SelectItem>
+                  {whatsappGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.subject}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Usado quando o chamado não escolhe grupo específico.
+              </p>
             </div>
           </div>
           <DialogFooter>

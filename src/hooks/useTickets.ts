@@ -84,6 +84,47 @@ const buildTicketMessage = (
   }
 };
 
+/**
+ * Resolve qual grupo do WhatsApp deve receber a notificação de um chamado.
+ * Ordem: 1) grupo do próprio chamado → 2) grupo padrão da categoria → 3) grupo padrão das configurações globais.
+ * Retorna null se WhatsApp estiver desabilitado ou nenhum grupo configurado.
+ */
+const resolveTicketWhatsAppGroup = async (
+  ticket: { whatsapp_group_id?: string | null; category?: string | null }
+): Promise<string | null> => {
+  // 1) Grupo escolhido no próprio chamado
+  if (ticket.whatsapp_group_id) return ticket.whatsapp_group_id;
+
+  // 2) Grupo padrão da categoria
+  if (ticket.category) {
+    const { data: cat } = await supabase
+      .from('ticket_categories')
+      .select('whatsapp_group_id')
+      .eq('slug', ticket.category)
+      .maybeSingle();
+    if ((cat as any)?.whatsapp_group_id) return (cat as any).whatsapp_group_id as string;
+  }
+
+  // 3) Configurações globais
+  const { data: settingsData } = await supabase
+    .from('system_settings')
+    .select('setting_value')
+    .eq('setting_key', 'whatsapp_settings')
+    .maybeSingle();
+
+  const ws = settingsData?.setting_value as {
+    isEnabled?: boolean | string;
+    targetType?: 'individual' | 'group';
+    selectedGroupId?: string | null;
+  } | null;
+
+  const isEnabled = ws?.isEnabled === true || ws?.isEnabled === 'true';
+  if (isEnabled && ws?.targetType === 'group' && ws.selectedGroupId) {
+    return ws.selectedGroupId;
+  }
+  return null;
+};
+
 export type Ticket = Tables<'support_tickets'> & {
   assignee_name?: string | null;
   assignee_avatar_url?: string | null;
@@ -159,70 +200,19 @@ export const useTickets = () => {
 
       const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName);
 
-      // Check for WhatsApp settings to send to group
+      // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
       try {
-        console.log('🔍 [CREATE] Fetching WhatsApp settings for group notification...');
-        
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('system_settings')
-          .select('setting_value')
-          .eq('setting_key', 'whatsapp_settings')
-          .maybeSingle();
-
-        console.log('🔍 [CREATE] WhatsApp settings query result:', { 
-          settingsData, 
-          settingsError,
-          rawValue: settingsData?.setting_value 
+        const groupId = await resolveTicketWhatsAppGroup({
+          whatsapp_group_id: (data as any).whatsapp_group_id,
+          category: data.category,
         });
-
-        if (settingsError) {
-          console.error('❌ [CREATE] Error fetching WhatsApp settings:', settingsError);
-          return;
-        }
-
-        const whatsAppSettings = settingsData?.setting_value as {
-          isEnabled?: boolean | string;
-          targetType?: 'individual' | 'group';
-          selectedGroupId?: string | null;
-        } | null;
-
-        // Fix: Handle both boolean and string types for isEnabled
-        const isEnabled = whatsAppSettings?.isEnabled === true || 
-                          whatsAppSettings?.isEnabled === 'true';
-
-        console.log('🔍 [CREATE] Parsed WhatsApp settings:', {
-          isEnabled,
-          isEnabledRaw: whatsAppSettings?.isEnabled,
-          isEnabledType: typeof whatsAppSettings?.isEnabled,
-          targetType: whatsAppSettings?.targetType,
-          selectedGroupId: whatsAppSettings?.selectedGroupId,
-          shouldSendToGroup: !!(isEnabled && 
-            whatsAppSettings?.targetType === 'group' && 
-            whatsAppSettings?.selectedGroupId)
-        });
-
-        // Send to group if configured
-        if (isEnabled && 
-            whatsAppSettings?.targetType === 'group' && 
-            whatsAppSettings?.selectedGroupId) {
-          console.log('✅ [CREATE] Sending ticket notification to WhatsApp group:', whatsAppSettings.selectedGroupId);
-          
-          const result = await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              action: 'send-group',
-              groupId: whatsAppSettings.selectedGroupId,
-              message,
-              ticketId: data.id,
-            },
+        if (groupId) {
+          console.log('✅ [CREATE] Sending ticket notification to WhatsApp group:', groupId);
+          await supabase.functions.invoke('send-whatsapp', {
+            body: { action: 'send-group', groupId, message, ticketId: data.id },
           });
-          
-          console.log('📨 [CREATE] WhatsApp group notification result:', result);
         } else {
-          console.log('⚠️ [CREATE] Not sending to group. Conditions not met:', {
-            isEnabled,
-            targetType: whatsAppSettings?.targetType,
-            selectedGroupId: whatsAppSettings?.selectedGroupId,
-          });
+          console.log('⚠️ [CREATE] No WhatsApp group resolved for this ticket.');
         }
       } catch (err) {
         console.error('❌ [CREATE] Error sending WhatsApp group notification for new ticket:', err);
@@ -341,70 +331,19 @@ export const useTickets = () => {
         const statusText = changes.join('\n');
         const message = buildTicketMessage(data, 'update', statusText);
 
-        // Check for WhatsApp settings to send to group
+        // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
         try {
-          console.log('🔍 [UPDATE] Fetching WhatsApp settings for group notification...');
-          
-          const { data: settingsData, error: settingsError } = await supabase
-            .from('system_settings')
-            .select('setting_value')
-            .eq('setting_key', 'whatsapp_settings')
-            .maybeSingle();
-
-          console.log('🔍 [UPDATE] WhatsApp settings query result:', { 
-            settingsData, 
-            settingsError,
-            rawValue: settingsData?.setting_value 
+          const groupId = await resolveTicketWhatsAppGroup({
+            whatsapp_group_id: (data as any).whatsapp_group_id,
+            category: data.category,
           });
-
-          if (settingsError) {
-            console.error('❌ [UPDATE] Error fetching WhatsApp settings:', settingsError);
-            return;
-          }
-
-          const whatsAppSettings = settingsData?.setting_value as {
-            isEnabled?: boolean | string;
-            targetType?: 'individual' | 'group';
-            selectedGroupId?: string | null;
-          } | null;
-
-          // Fix: Handle both boolean and string types for isEnabled
-          const isEnabled = whatsAppSettings?.isEnabled === true || 
-                            whatsAppSettings?.isEnabled === 'true';
-
-          console.log('🔍 [UPDATE] Parsed WhatsApp settings:', {
-            isEnabled,
-            isEnabledRaw: whatsAppSettings?.isEnabled,
-            isEnabledType: typeof whatsAppSettings?.isEnabled,
-            targetType: whatsAppSettings?.targetType,
-            selectedGroupId: whatsAppSettings?.selectedGroupId,
-            shouldSendToGroup: !!(isEnabled && 
-              whatsAppSettings?.targetType === 'group' && 
-              whatsAppSettings?.selectedGroupId)
-          });
-
-          // Send to group if configured
-          if (isEnabled && 
-              whatsAppSettings?.targetType === 'group' && 
-              whatsAppSettings?.selectedGroupId) {
-            console.log('✅ [UPDATE] Sending ticket update notification to WhatsApp group:', whatsAppSettings.selectedGroupId);
-            
-            const result = await supabase.functions.invoke('send-whatsapp', {
-              body: {
-                action: 'send-group',
-                groupId: whatsAppSettings.selectedGroupId,
-                message,
-                ticketId: data.id,
-              },
+          if (groupId) {
+            console.log('✅ [UPDATE] Sending ticket update notification to WhatsApp group:', groupId);
+            await supabase.functions.invoke('send-whatsapp', {
+              body: { action: 'send-group', groupId, message, ticketId: data.id },
             });
-            
-            console.log('📨 [UPDATE] WhatsApp group notification result:', result);
           } else {
-            console.log('⚠️ [UPDATE] Not sending to group. Conditions not met:', {
-              isEnabled,
-              targetType: whatsAppSettings?.targetType,
-              selectedGroupId: whatsAppSettings?.selectedGroupId,
-            });
+            console.log('⚠️ [UPDATE] No WhatsApp group resolved for this ticket.');
           }
         } catch (err) {
           console.error('❌ [UPDATE] Error sending WhatsApp group notification for ticket update:', err);
@@ -598,7 +537,7 @@ export const useTicket = (ticketId: string) => {
           // Get ticket info
           const { data: ticketData } = await supabase
             .from('support_tickets')
-            .select('ticket_number, title, contact_phone')
+            .select('ticket_number, title, contact_phone, category, whatsapp_group_id')
             .eq('id', ticketId)
             .single();
 
@@ -622,34 +561,15 @@ export const useTicket = (ticketId: string) => {
             `💬 "${commentPreview}"\n\n` +
             `🔗 Para mais detalhes, acesse o sistema.`;
 
-          // Check WhatsApp settings for group notification
-          const { data: settingsData } = await supabase
-            .from('system_settings')
-            .select('setting_value')
-            .eq('setting_key', 'whatsapp_settings')
-            .maybeSingle();
-
-          const whatsAppSettings = settingsData?.setting_value as {
-            isEnabled?: boolean | string;
-            targetType?: 'individual' | 'group';
-            selectedGroupId?: string | null;
-          } | null;
-
-          const isEnabled = whatsAppSettings?.isEnabled === true || 
-                            whatsAppSettings?.isEnabled === 'true';
-
-          // Send to group if configured
-          if (isEnabled && 
-              whatsAppSettings?.targetType === 'group' && 
-              whatsAppSettings?.selectedGroupId) {
-            console.log('📨 [COMMENT] Sending notification to WhatsApp group');
+          // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
+          const groupId = await resolveTicketWhatsAppGroup({
+            whatsapp_group_id: (ticketData as any).whatsapp_group_id,
+            category: (ticketData as any).category,
+          });
+          if (groupId) {
+            console.log('📨 [COMMENT] Sending notification to WhatsApp group:', groupId);
             await supabase.functions.invoke('send-whatsapp', {
-              body: {
-                action: 'send-group',
-                groupId: whatsAppSettings.selectedGroupId,
-                message,
-                ticketId,
-              },
+              body: { action: 'send-group', groupId, message, ticketId },
             });
           }
 

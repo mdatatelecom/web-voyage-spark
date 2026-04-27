@@ -24,6 +24,8 @@ import { useBuildings } from '@/hooks/useBuildings';
 import { useEquipment } from '@/hooks/useEquipment';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import { useTicketCategories } from '@/hooks/useTicketCategories';
+import { useStoredWhatsAppGroups } from '@/hooks/useStoredWhatsAppGroups';
+import { Users } from 'lucide-react';
 import { TICKET_PRIORITIES } from '@/constants/ticketTypes';
 import { Loader2 } from 'lucide-react';
 
@@ -39,6 +41,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
   const { equipment } = useEquipment();
   const { technicians } = useTechnicians();
   const { activeCategories, getSubcategoriesByCategory, getCategoryBySlug } = useTicketCategories();
+  const { data: whatsappGroups = [] } = useStoredWhatsAppGroups();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -51,6 +54,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
     related_equipment_id: '',
     due_date: '',
     assigned_to: '',
+    whatsapp_group_id: '',
   });
 
   const selectedCategory = getCategoryBySlug(formData.category);
@@ -82,6 +86,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
       status: 'open',
       ticket_number: '',
       subcategory_id: formData.subcategory_id || null,
+      whatsapp_group_id: formData.whatsapp_group_id || null,
     });
 
     setFormData({
@@ -95,6 +100,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
       related_equipment_id: '',
       due_date: '',
       assigned_to: '',
+      whatsapp_group_id: '',
     });
     onOpenChange(false);
   };
@@ -279,6 +285,38 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp_group" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Grupo do WhatsApp para Notificações
+              </Label>
+              <Select
+                value={formData.whatsapp_group_id || 'default'}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, whatsapp_group_id: value === 'default' ? '' : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Padrão (categoria ou configurações)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">
+                    Padrão (categoria ou configurações)
+                  </SelectItem>
+                  {whatsappGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.subject}
+                      {typeof g.size === 'number' ? ` · ${g.size} membros` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Se não escolher, será usado o grupo padrão da categoria ou das configurações globais.
+                A lista mostra grupos já sincronizados em <span className="font-medium">Sistema → WhatsApp</span>.
+              </p>
             </div>
           </div>
 
