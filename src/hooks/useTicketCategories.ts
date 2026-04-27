@@ -10,6 +10,7 @@ export interface TicketCategory {
   icon: string | null;
   display_order: number;
   is_active: boolean;
+  whatsapp_group_id: string | null;
   created_at: string;
   updated_at: string;
 }
