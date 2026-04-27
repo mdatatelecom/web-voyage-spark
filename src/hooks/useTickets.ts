@@ -176,14 +176,28 @@ export const useTickets = () => {
 
   const createTicket = useMutation({
     mutationFn: async (ticket: TicketInsert) => {
-      const { data, error } = await supabase
-        .from('support_tickets')
-        .insert([ticket])
-        .select()
-        .single();
+      // Retry up to 3 times if a unique-violation on ticket_number sneaks through
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, error } = await supabase
+          .from('support_tickets')
+          .insert([ticket])
+          .select()
+          .single();
 
-      if (error) throw error;
-      return data;
+        if (!error) return data;
+
+        const isDuplicateTicketNumber =
+          (error as any)?.code === '23505' &&
+          ((error as any)?.message?.includes('ticket_number') ||
+            (error as any)?.details?.includes('ticket_number'));
+
+        lastError = error;
+        if (!isDuplicateTicketNumber) break;
+        // small backoff before retry
+        await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+      }
+      throw lastError;
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
