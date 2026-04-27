@@ -54,6 +54,7 @@ export function TicketCreateDialog({ open, onOpenChange }: TicketCreateDialogPro
     related_equipment_id: '',
     due_date: '',
     assigned_to: '',
+    whatsapp_group_id: '',
   });
 
   const selectedCategory = getCategoryBySlug(formData.category);
