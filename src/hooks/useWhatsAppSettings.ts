@@ -544,6 +544,8 @@ export const useWhatsAppSettings = () => {
       return { success: false, message: errorMsg };
     }
   };
+
+  const sendTestMessage = async (
     phone: string,
     message?: string,
     testSettings?: WhatsAppSettings
