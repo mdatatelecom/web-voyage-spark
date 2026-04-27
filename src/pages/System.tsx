@@ -230,7 +230,14 @@ export default function System() {
     }
   };
 
-  const handleOpenReconnectDialog = () => {
+  const handleRestartInstance = async () => {
+    if (!localWhatsAppSettings.evolutionInstance) return;
+    await restartWhatsAppInstance(
+      localWhatsAppSettings.evolutionInstance,
+      localWhatsAppSettings.evolutionApiUrl,
+      localWhatsAppSettings.evolutionApiKey
+    );
+  };
     if (localWhatsAppSettings.evolutionInstance) {
       setInstanceToReconnect(localWhatsAppSettings.evolutionInstance);
       setReconnectQrCode(null);
