@@ -1,45 +1,45 @@
-# 🤖 Melhorar Iniciação do Bot WhatsApp
+# 🔇 Desativar Respostas Automáticas do Bot WhatsApp
 
-## 🎯 Problema
-O bot só responde quando o usuário digita exatamente `menu`. Saudações comuns (`oi tudo bem?`, `bom diaa`, `eai`, `ajuda`, `start`) não disparam o menu inicial.
+## 🎯 Objetivo
+Silenciar o bot (sem menu, comandos, wizard ou "comando não reconhecido"), **mantendo** o webhook ativo apenas para captura de respostas em notificações de chamados (reply vira comentário no ticket).
 
-## 📋 Causa Raiz (em `supabase/functions/whatsapp-webhook/index.ts`)
-1. **Linha 273-277**: lista pequena de palavras-gatilho e usando `===` (match exato).
-2. **Falta de fallback inteligente**: qualquer coisa fora da lista cai em "Comando não reconhecido".
-3. **Em grupos**, mensagens curtas/saudações nem disparam o menu.
+## 🛠️ Alterações em `supabase/functions/whatsapp-webhook/index.ts`
 
-## 🛠️ Mudanças Propostas
+### 1. Adicionar flag no topo do handler
+```ts
+const BOT_RESPONSES_ENABLED = false;
+```
 
-### 1. Expandir gatilhos de saudação (`extractCommand`, linha ~272)
-Substituir o bloco atual por uma lógica mais permissiva:
+### 2. Curto-circuito antes do dispatcher de comandos
+Logo **após** a lógica de captura de reply em notificação (que cria comentário no ticket — manter intacta), e **antes** de:
+- `extractCommand`
+- handlers de wizard (`getSession`, `handleWizard*`)
+- handlers de comando (`handleMenu`, `handleHelp`, `handleStatus`, `handleNew`, `handlePrioridade`, etc.)
+- envio do fallback "❓ Comando não reconhecido"
 
-- **Lista expandida de palavras de saudação:**  
-  `oi`, `oii`, `oie`, `olá`, `ola`, `alo`, `alô`, `e aí`, `eai`, `eaí`, `salve`, `opa`,  
-  `hi`, `hello`, `hey`, `start`, `iniciar`, `começar`, `comecar`,  
-  `bom dia`, `boa tarde`, `boa noite`, `dia`, `tarde`, `noite`,  
-  `ajuda`, `help`, `socorro`, `?`, `??`, `menu`, `inicio`, `início`, `home`
+inserir:
+```ts
+if (!BOT_RESPONSES_ENABLED) {
+  return new Response(JSON.stringify({ ok: true, botDisabled: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+```
 
-- **Match por `startsWith` ou `includes` ao invés de `===`:**  
-  Assim `"oi tudo bem?"`, `"bom diaa galera"`, `"ajuda por favor"` também disparam o menu.
+## ✅ Continua funcionando
+- Recebimento do webhook (Evolution API segue entregando)
+- Captura de respostas em notificações de chamado → vira comentário no ticket
+- Envio de notificações (criar/atualizar ticket, alertas Zabbix/EPI, botão WhatsApp manual)
+- Templates, grupos, histórico, configurações em `/system`
 
-- **Detecção de emojis comuns de saudação:**  
-  `👋`, `🙋`, `🙋‍♂️`, `🙋‍♀️` → menu.
+## ❌ Para de funcionar
+- Menu inicial (oi, ajuda, menu, bom dia, etc.)
+- Comandos `status`, `novo`, `prioridade`, `#TKT-XXXX`
+- Wizard de criação de chamado via WhatsApp
+- Mensagem "comando não reconhecido"
 
-- **Mensagens curtas em chat individual** (≤ 3 caracteres como `oi`, `?`, `hi`, `eu`) → tratar como saudação e abrir o menu.
+## 🔁 Reversão
+Trocar `BOT_RESPONSES_ENABLED = true` e redeployar.
 
-### 2. Comportamento em grupos (linha ~4498)
-- Em **grupos**, NÃO enviar a mensagem `❓ Comando não reconhecido` para evitar poluir a conversa.
-- Apenas responder em grupos quando: comando explícito for detectado, ticket for citado, ou houver wizard ativo.
-- Em **chat individual**, manter a mensagem de erro mas sugerir digitar `menu` ou `ajuda`.
-
-### 3. Adicionar `ajuda` como atalho global
-Adicionar `ajuda` e `help` (sozinhos) como sinônimos de `menu` no `extractCommand`.
-
-## ✅ Resultado Esperado
-- Usuário digita `oi`, `bom dia`, `eai`, `ajuda`, `?` → bot já mostra o menu principal.
-- Variações com pontuação/typos (`oii`, `bom diaa`, `oi!`) funcionam.
-- Grupos ficam silenciosos para mensagens que não são comandos.
-- Apenas o webhook é alterado — sem mudanças no banco ou no frontend.
-
-## 📦 Arquivos Afetados
+## 📦 Arquivos afetados
 - `supabase/functions/whatsapp-webhook/index.ts` (deploy automático)
