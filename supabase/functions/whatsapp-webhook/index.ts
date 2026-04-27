@@ -1365,6 +1365,18 @@ serve(async (req) => {
       }
     }
 
+    // 🔇 Bot de respostas automáticas DESATIVADO.
+    // Mantemos o webhook ativo apenas para captura de respostas em notificações
+    // de chamados (lógica de reply acima continua funcionando e cria comentários).
+    // Para reativar menu/comandos/wizard, troque a flag para true.
+    const BOT_RESPONSES_ENABLED = false;
+    if (!BOT_RESPONSES_ENABLED) {
+      return new Response(
+        JSON.stringify({ ok: true, botDisabled: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Check for bot commands
     const command = extractCommand(messageContent);
     const commandStartTime = Date.now();
