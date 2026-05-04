@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type, mediaUrl, caption } = await req.json();
+    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type, mediaUrl, caption, _retryId } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
