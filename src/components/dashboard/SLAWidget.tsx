@@ -1,20 +1,36 @@
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useTicketStats } from '@/hooks/useTicketStats';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Gauge, 
-  AlertTriangle, 
-  Clock, 
+import {
+  Gauge,
+  AlertTriangle,
+  Clock,
   ArrowRight,
   TrendingDown,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  Info,
+  Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getSlaTarget, setSlaTarget, DEFAULT_SLA_TARGET } from '@/lib/sla-utils';
 
 interface SLAWidgetProps {
   className?: string;
@@ -23,20 +39,36 @@ interface SLAWidgetProps {
 export const SLAWidget = ({ className }: SLAWidgetProps) => {
   const { data: stats, isLoading } = useTicketStats();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [target, setTarget] = useState<number>(getSlaTarget());
+  const [targetDraft, setTargetDraft] = useState<string>(String(target));
+  const [targetOpen, setTargetOpen] = useState(false);
 
-  const sla = stats?.slaCompliance ?? 100;
+  const slaRaw = stats?.slaBreakdown?.complianceRaw ?? stats?.slaCompliance ?? 100;
+  const sla = stats?.slaCompliance ?? Math.round(slaRaw);
   const overdue = stats?.overdueTickets ?? 0;
   const critical = stats?.urgentTickets?.filter(t => t.deadlineStatus === 'critical').length ?? 0;
+  const breakdown = stats?.slaBreakdown;
 
-  // SLA status colors and alerts
+  const warningThreshold = Math.max(1, target - 10);
+
   const getSLAStatus = () => {
-    if (sla >= 90) return { color: 'text-green-500', bgColor: 'bg-green-500', status: 'good', label: 'Excelente' };
-    if (sla >= 80) return { color: 'text-amber-500', bgColor: 'bg-amber-500', status: 'warning', label: 'Atenção' };
-    return { color: 'text-red-500', bgColor: 'bg-red-500', status: 'critical', label: 'Crítico' };
+    if (sla >= target) return { color: 'text-green-500', bgColor: 'bg-green-500', status: 'good' as const, label: 'Excelente' };
+    if (sla >= warningThreshold) return { color: 'text-amber-500', bgColor: 'bg-amber-500', status: 'warning' as const, label: 'Atenção' };
+    return { color: 'text-red-500', bgColor: 'bg-red-500', status: 'critical' as const, label: 'Crítico' };
   };
 
   const slaStatus = getSLAStatus();
   const isCritical = slaStatus.status === 'critical';
+
+  const handleSaveTarget = () => {
+    const n = Number(targetDraft);
+    const saved = setSlaTarget(Number.isFinite(n) ? n : DEFAULT_SLA_TARGET);
+    setTarget(saved);
+    setTargetDraft(String(saved));
+    setTargetOpen(false);
+    queryClient.invalidateQueries({ queryKey: ['ticket-stats'] });
+  };
 
   if (isLoading) {
     return (
