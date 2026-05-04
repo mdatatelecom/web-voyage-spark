@@ -261,24 +261,24 @@ export const SLAWidget = ({ className }: SLAWidgetProps) => {
         {/* Progress Bar */}
         <div className="mt-6 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Meta: 90%</span>
+            <span className="text-muted-foreground">Meta: {target}%</span>
             <span className={cn(
               'font-medium',
-              sla >= 90 ? 'text-green-500' : 'text-muted-foreground'
+              sla >= target ? 'text-green-500' : 'text-muted-foreground'
             )}>
-              {sla >= 90 ? (
+              {sla >= target ? (
                 <span className="flex items-center gap-1">
                   <TrendingUp className="h-4 w-4" />
                   Meta atingida
                 </span>
               ) : (
-                `${90 - sla}% abaixo da meta`
+                `${Math.max(0, target - sla)}% abaixo da meta`
               )}
             </span>
           </div>
           <div className="relative h-3">
-            <Progress 
-              value={sla} 
+            <Progress
+              value={sla}
               className={cn(
                 'h-3',
                 slaStatus.status === 'good' && '[&>div]:bg-green-500',
@@ -288,13 +288,13 @@ export const SLAWidget = ({ className }: SLAWidgetProps) => {
             />
             <div
               className="absolute top-0 h-3 w-px bg-foreground/60"
-              style={{ left: '90%' }}
+              style={{ left: `${target}%` }}
               aria-hidden
             />
           </div>
           <div className="relative text-xs text-muted-foreground h-4">
             <span className="absolute left-0">0%</span>
-            <span className="absolute -translate-x-1/2" style={{ left: '90%' }}>90%</span>
+            <span className="absolute -translate-x-1/2" style={{ left: `${target}%` }}>{target}%</span>
             <span className="absolute right-0">100%</span>
           </div>
         </div>
