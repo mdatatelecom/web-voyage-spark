@@ -1,19 +1,28 @@
-## Usar imagem da IW Telecom como preview OG
+## Versionar OG image + validar prévia
 
-1. **Copiar imagem** `user-uploads://iw-2.png` para `public/og-image.png`.
+### 1. Versionar a imagem OG (busting de cache)
+- Copiar `public/og-image.png` → `public/og-image-v2.png` (já feito).
+- Atualizar `index.html` trocando as duas referências de `og-image.png` para `og-image-v2.png` nas tags `og:image` e `twitter:image`.
+- Sempre que a arte mudar no futuro, incrementar o sufixo (`-v3`, `-v4`...) — WhatsApp, Facebook e Telegram só refazem fetch quando a URL muda.
 
-2. **Atualizar `index.html`** — substituir as duas tags que apontam para `lovable.dev`:
-   ```html
-   <meta property="og:image" content="https://rede.iwtelecomeservicos.com.br/og-image.png" />
-   <meta property="og:image:width" content="1200" />
-   <meta property="og:image:height" content="630" />
-   <meta name="twitter:image" content="https://rede.iwtelecomeservicos.com.br/og-image.png" />
-   ```
-   (Também ajustar `twitter:card` para `summary_large_image` — já está.)
+### 2. Validação manual após o deploy
+Não posso executar essas validações automaticamente (são serviços externos com login/captcha). Após publicar na Vercel, faça:
 
-3. **Após deploy na Vercel**, limpar cache do WhatsApp:
-   - WhatsApp cacheia ~7 dias por URL. Use o [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) → cole a URL → "Scrape Again".
-   - Ou compartilhe com query string nova (`?v=2`) para forçar refetch imediato.
+**Facebook / WhatsApp** → https://developers.facebook.com/tools/debug/
+- Cole `https://rede.iwtelecomeservicos.com.br`
+- Clique em **"Depurar"** → **"Coletar Novamente"** (Scrape Again).
+- Confirme que `og:image` aponta para `og-image-v2.png` e que a prévia mostra a arte da IW Telecom.
+- WhatsApp usa o mesmo cache do Facebook na maioria dos casos — após o scrape, o preview no chat já vem atualizado.
 
-### Observação
-A imagem enviada é horizontal (~2:1), próxima do formato OG ideal (1200x630). Vai renderizar bem no WhatsApp/Facebook/Twitter sem corte significativo.
+**Twitter / X** → https://cards-dev.twitter.com/validator
+- (Atualmente requer login dev.) Alternativa: postar/preview em rascunho no X e verificar o card.
+- Confirme `summary_large_image` com a nova imagem.
+
+**LinkedIn** (bônus) → https://www.linkedin.com/post-inspector/
+- Cole a URL e clique em "Inspect" para forçar re-fetch.
+
+### 3. Checklist pós-deploy
+- [ ] `https://rede.iwtelecomeservicos.com.br/og-image-v2.png` retorna 200 e abre a imagem correta.
+- [ ] `view-source` da home mostra as meta tags `-v2`.
+- [ ] Facebook Debugger não reporta warnings (tamanho mínimo, formato).
+- [ ] Compartilhamento no WhatsApp em chat de teste mostra a nova arte.
