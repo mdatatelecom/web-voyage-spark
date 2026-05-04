@@ -237,15 +237,7 @@ export const useTicketStats = () => {
       const ticketsWithDueDate = allTickets.filter(t => t.due_date);
       const slaBreakdown = computeSLA(allTickets as any, now);
       const slaCompliance = slaBreakdown.compliance;
-      if (slaBreakdown.inconsistent > 0) {
-        console.warn(
-          '[SLA] Tickets resolvidos/fechados sem resolved_at:',
-          slaBreakdown.inconsistentTickets.map(t => t.ticket_number || t.id),
-        );
-      }
-      if (slaBreakdown.invalidDates > 0) {
-        console.warn('[SLA] Tickets com due_date inválido ignorados:', slaBreakdown.invalidDates);
-      }
+      // Inconsistencies are surfaced via SLAInconsistencyBanner (UI), not console.
 
       // Overdue tickets (open/in_progress with due_date in the past)
       const overdueTickets = allTickets.filter(t => {

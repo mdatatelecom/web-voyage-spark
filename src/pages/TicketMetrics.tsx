@@ -16,6 +16,8 @@ import { SLATrendChart } from '@/components/tickets/SLATrendChart';
 import { SLAByCategoryChart } from '@/components/tickets/SLAByCategoryChart';
 import { SLAByTechnicianChart } from '@/components/tickets/SLAByTechnicianChart';
 import { SLAReportExport } from '@/components/tickets/SLAReportExport';
+import { SLAComplianceCard } from '@/components/tickets/SLAComplianceCard';
+import { SLAInconsistencyBanner } from '@/components/tickets/SLAInconsistencyBanner';
 import { 
   BarChart3, 
   Clock, 
@@ -66,6 +68,9 @@ const TicketMetrics = () => {
           </div>
         </div>
 
+        {/* Inconsistency banner */}
+        <SLAInconsistencyBanner />
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {isLoading ? (
@@ -78,18 +83,11 @@ const TicketMetrics = () => {
             ))
           ) : stats ? (
             <>
-              <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">SLA Compliance</p>
-                      <p className="text-3xl font-bold text-green-500">{stats.slaCompliance}%</p>
-                    </div>
-                    <CheckCircle2 className="h-10 w-10 text-green-500/50" />
-                  </div>
-                </CardContent>
-              </Card>
-              
+              <SLAComplianceCard
+                compliance={stats.slaCompliance}
+                breakdown={stats.slaBreakdown}
+              />
+
               <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">

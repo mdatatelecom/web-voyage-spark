@@ -1,71 +1,70 @@
-# Hardening do SLA: testes, telemetria, configuração e UX
+## Goals
 
-Vou centralizar a lógica de SLA num utilitário puro, cobri-la com testes, expor um detalhamento no widget, tratar edge cases e permitir configurar a meta.
+1. Make `/tickets/metrics` SLA Compliance card consistent with the dashboard `SLAWidget` (configurable target, color thresholds, breakdown popover).
+2. Replace `console.warn` for SLA inconsistencies with a visible in-app warning.
+3. Add integration tests covering SLAWidget target dialog persistence, target marker, and breakdown popover.
 
-## 1. Novo utilitário puro `src/lib/sla-utils.ts`
+## 1. Refactor SLA Compliance card on `/tickets/metrics`
 
-Função `computeSLA(tickets, now)` retornando:
-```ts
-{ evaluable, onTime, breached, inconsistent, invalidDates, compliance, complianceRaw }
-```
-Regras:
-- Sem `due_date` → ignorado.
-- `due_date` inválido (parse falha) → conta em `invalidDates` e ignorado.
-- `status` resolved/closed sem `resolved_at` → conta em `inconsistent` **e** como breach (numerador correto).
-- Aberto/in_progress com prazo vencido → breach garantido.
-- Aberto dentro do prazo → ignorado.
-- `compliance = round(onTime / evaluable * 100)` (100% se denominador 0).
+Extract a shared component `src/components/tickets/SLAComplianceCard.tsx` containing:
+- The 3xl percentage with the same `getSLAStatus()` color logic from `SLAWidget` (good/warning/critical based on configurable target).
+- Info popover with the same evaluable / on-time / breached / inconsistent / invalid-dates / raw compliance breakdown.
+- Settings dialog to adjust the target (via `getSlaTarget`/`setSlaTarget`), invalidating the `ticket-stats` query on save.
 
-Helpers: `getSlaTarget()` / `setSlaTarget()` lendo de `localStorage` (default 90, clamp 1-100).
+Update `src/components/dashboard/SLAWidget.tsx` to consume the same color helper from a small extracted util `src/lib/sla-status.ts` (`getSlaStatus(sla, target)`) so both views stay in sync. Reuse `DEFAULT_SLA_TARGET` from `sla-utils.ts`.
 
-## 2. Refatorar `src/hooks/useTicketStats.ts`
+Update `src/pages/TicketMetrics.tsx`:
+- Replace the inline green "SLA Compliance" `<Card>` (lines 81–91) with `<SLAComplianceCard stats={stats} />`.
+- Card color (border/gradient) now reflects the threshold (green/amber/red), matching the widget.
 
-- Substituir o cálculo manual atual por `computeSLA(allTickets, now)`.
-- Expor no `TicketStats`:
-  ```ts
-  slaCompliance: number;
-  slaBreakdown: SLABreakdown;     // novo
-  inconsistentTickets: SLATicketLike[]; // resolved/closed sem resolved_at (max 20)
-  ```
-- Adicionar `console.warn` (uma vez por execução do query) listando IDs/`ticket_number` inconsistentes para depuração.
+## 2. In-app warning for SLA inconsistencies
 
-## 3. Atualizar `src/components/dashboard/SLAWidget.tsx`
+Remove the two `console.warn` calls in `useTicketStats.ts` (lines 240–248). Keep `slaBreakdown.inconsistent`, `inconsistentTickets`, and `invalidDates` in the returned data.
 
-- Ler meta com `getSlaTarget()` (default 90).
-- Status (good/warning/critical) e mensagem "X% abaixo da meta" passam a usar a meta configurada.
-- Marcador da régua passa a ficar em `${target}%` (já corrigi para 90 antes — agora dinâmico).
-- **Tooltip/popover "Ver detalhes do cálculo"** (botão pequeno no header do card) abrindo um `Popover` shadcn com:
-  - Total avaliável
-  - Resolvidos no prazo (verde)
-  - Fora do prazo / vencidos abertos (vermelho)
-  - Tickets inconsistentes (âmbar) com lista dos `ticket_number` (até 5)
-  - Datas inválidas ignoradas
-- Pequeno botão "Ajustar meta" abrindo dialog simples com input (1-100) que chama `setSlaTarget` e força refetch.
+Create `src/components/tickets/SLAInconsistencyBanner.tsx`:
+- Reads `useTicketStats()` and shows an inline amber `Alert` when `inconsistent > 0` or `invalidDates > 0`.
+- Message: "X chamados sem `resolved_at` e Y com `due_date` inválido foram tratados como fora do prazo."
+- Includes a "Ver detalhes" button that opens a `Dialog` listing the affected ticket numbers (from `slaBreakdown.inconsistentTickets`).
+- Adds a session-scoped dismiss (`sessionStorage` key `sla-inconsistency-dismissed`) and a one-time `toast.warning(...)` on first detection per session, gated by the same key, to avoid noise on every refetch.
 
-## 4. Testes unitários `src/lib/__tests__/sla-utils.test.ts`
+Mount the banner:
+- Inside `TicketMetrics.tsx` above the summary cards.
+- Inside `Dashboard.tsx` (top of the page) so admins see it on the main dashboard too.
 
-Cobrir:
-- Apenas resolvidos no prazo → 100%.
-- Resolvidos parte no prazo, parte fora → percentual correto + breakdown.
-- Aberto vencido → entra como breach.
-- Aberto dentro do prazo → ignorado.
-- Resolved sem `resolved_at` → `inconsistent` + breach.
-- `due_date` inválido → `invalidDates`, não afeta percentual.
-- Sem nenhum ticket avaliável → 100%.
-- `getSlaTarget` / `setSlaTarget`: default, clamp e persistência (mockando `localStorage`).
+## 3. Integration tests for SLAWidget
 
-Manter o setup atual de Vitest (`vitest.config.ts` + `__tests__`).
+New file `src/components/dashboard/__tests__/SLAWidget.test.tsx` using Vitest + React Testing Library.
 
-## 5. Telemetria de inconsistências
+Test setup:
+- Mock `useTicketStats` to return a fixed `stats` object including a populated `slaBreakdown` (evaluable, onTime, breached, inconsistent with two ticket numbers, invalidDates, complianceRaw).
+- Mock `react-router-dom`'s `useNavigate`.
+- Wrap in `QueryClientProvider` with a fresh `QueryClient`.
+- Reset `localStorage` before each test.
 
-- Em `useTicketStats`: `console.warn('[SLA] Tickets inconsistentes (resolved/closed sem resolved_at):', list)` quando `inconsistent > 0`.
-- Expor a lista no widget (tooltip) para o admin agir.
-- Sem novas tabelas no banco.
+Cases:
+1. **Target dialog persistence** — Open settings dialog, change input to `75`, click Salvar. Assert `localStorage.getItem('sla-target')` is `"75"`, dialog closes, "Meta: 75%" label renders, and re-mounting the widget reads `75` back.
+2. **Progress bar target marker** — With target persisted at `80`, assert the marker `<div>` inside the progress container has inline style `left: 80%`, and the bottom scale label shows `80%`.
+3. **Breakdown popover contents** — Click the Info button, assert popover contains "Avaliáveis" with the mocked count, "No prazo" / "Fora do prazo" / "Inconsistentes" / "Datas inválidas" rows with correct values, raw compliance formatted with two decimals, and the inconsistent ticket numbers from the mock are listed.
 
-## Arquivos afetados
-- novo: `src/lib/sla-utils.ts`
-- novo: `src/lib/__tests__/sla-utils.test.ts`
-- editar: `src/hooks/useTicketStats.ts`
-- editar: `src/components/dashboard/SLAWidget.tsx`
+Verify `vitest.config.ts` and `src/test/setup.ts` already exist (they do from earlier work) — no config changes needed.
 
-Sem migrações nem mudanças de policies.
+## Technical notes
+
+- `setSlaTarget` already clamps to 1–100 and persists to `localStorage`; both UIs invalidate `['ticket-stats']` on save so any derived rendering refreshes.
+- The shared `SLAComplianceCard` keeps `TicketMetrics.tsx`'s grid layout intact (single grid cell, same height).
+- Banner uses existing `@/components/ui/alert` and `sonner` `toast` (already in the project per shadcn-toast guidance).
+- No DB or edge-function changes.
+
+## Files
+
+Created:
+- `src/components/tickets/SLAComplianceCard.tsx`
+- `src/components/tickets/SLAInconsistencyBanner.tsx`
+- `src/lib/sla-status.ts`
+- `src/components/dashboard/__tests__/SLAWidget.test.tsx`
+
+Edited:
+- `src/pages/TicketMetrics.tsx` (replace SLA card, mount banner)
+- `src/pages/Dashboard.tsx` (mount banner)
+- `src/components/dashboard/SLAWidget.tsx` (use shared `getSlaStatus`)
+- `src/hooks/useTicketStats.ts` (remove `console.warn` calls)

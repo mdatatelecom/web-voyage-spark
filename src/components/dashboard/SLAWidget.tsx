@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSlaTarget, setSlaTarget, DEFAULT_SLA_TARGET } from '@/lib/sla-utils';
+import { getSlaStatus } from '@/lib/sla-status';
 
 interface SLAWidgetProps {
   className?: string;
@@ -50,15 +51,7 @@ export const SLAWidget = ({ className }: SLAWidgetProps) => {
   const critical = stats?.urgentTickets?.filter(t => t.deadlineStatus === 'critical').length ?? 0;
   const breakdown = stats?.slaBreakdown;
 
-  const warningThreshold = Math.max(1, target - 10);
-
-  const getSLAStatus = () => {
-    if (sla >= target) return { color: 'text-green-500', bgColor: 'bg-green-500', status: 'good' as const, label: 'Excelente' };
-    if (sla >= warningThreshold) return { color: 'text-amber-500', bgColor: 'bg-amber-500', status: 'warning' as const, label: 'Atenção' };
-    return { color: 'text-red-500', bgColor: 'bg-red-500', status: 'critical' as const, label: 'Crítico' };
-  };
-
-  const slaStatus = getSLAStatus();
+  const slaStatus = getSlaStatus(sla, target);
   const isCritical = slaStatus.status === 'critical';
 
   const handleSaveTarget = () => {
