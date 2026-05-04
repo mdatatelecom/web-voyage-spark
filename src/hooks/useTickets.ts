@@ -529,16 +529,8 @@ export const useTickets = () => {
 
         // Send direct notification to assigned technician
         if (updatedFields.assigned_to && updatedFields.technician_phone) {
-          const techCreatorName = await fetchCreatorName(data.created_by);
-          const technicianMessage = `🔧 *Chamado Atribuído a Você!*\n\n` +
-            `📋 Chamado: *${data.ticket_number}*\n` +
-            `📝 Título: ${data.title}\n` +
-            `🏷️ Categoria: ${getCategoryLabel(data.category)}\n` +
-            `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n` +
-            `👤 Criado por: ${techCreatorName}\n` +
-            `${data.contact_phone ? `📞 Contato: ${data.contact_phone}\n` : ''}` +
-            `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n` +
-            `⚡ Por favor, inicie o atendimento o mais breve possível!`;
+          // Reuses cached value resolved earlier in this onSuccess block
+          const technicianMessage = buildTechnicianAssignmentMessage(data, creatorName);
 
           try {
             const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
