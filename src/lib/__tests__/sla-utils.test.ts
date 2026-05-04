@@ -1,4 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+
+// Minimal window/localStorage shim for node test env (must run before importing module under test)
+beforeAll(() => {
+  if (typeof (globalThis as any).window === 'undefined') {
+    const store = new Map<string, string>();
+    (globalThis as any).window = {
+      localStorage: {
+        getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+        setItem: (k: string, v: string) => void store.set(k, String(v)),
+        removeItem: (k: string) => void store.delete(k),
+        clear: () => store.clear(),
+      },
+    };
+  }
+});
+
 import {
   computeSLA,
   getSlaTarget,
