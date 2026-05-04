@@ -266,12 +266,12 @@ export const useTickets = () => {
       });
 
       // Fetch related names for detailed message
-      const { buildingName, equipmentName } = await fetchRelatedNames(
-        data.related_building_id,
-        data.related_equipment_id
-      );
+      const [{ buildingName, equipmentName }, creatorName] = await Promise.all([
+        fetchRelatedNames(data.related_building_id, data.related_equipment_id),
+        fetchCreatorName(data.created_by),
+      ]);
 
-      const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName);
+      const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName, creatorName);
 
       // 2) Notificação para grupo do WhatsApp
       try {
