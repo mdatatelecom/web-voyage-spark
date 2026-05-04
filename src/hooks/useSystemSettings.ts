@@ -38,7 +38,7 @@ const getBrandingFromCache = (): BrandingSettings => {
     console.error("Erro ao ler cache de branding:", e);
   }
   return {
-    systemName: "Mdata Telecom",
+    systemName: "IW Telecom",
     logoUrl: null,
     faviconUrl: null,
   };
