@@ -167,13 +167,20 @@ export async function update(req: Request, res: Response) {
     } = req.body;
 
     // Atualizar campos de data de resolução/fechamento
-    let resolvedAt = null;
-    let closedAt = null;
-    
+    // Garante resolved_at sempre que o ticket entrar em resolved OU closed,
+    // evitando inconsistências no cálculo de SLA quando o status pula direto para closed
+    // ou é alterado por fluxos automáticos (ex.: WhatsApp/webhooks).
+    let resolvedAt: string | null = null;
+    let closedAt: string | null = null;
+    const nowIso = new Date().toISOString();
+
     if (status === 'resolved') {
-      resolvedAt = new Date().toISOString();
+      resolvedAt = nowIso;
     } else if (status === 'closed') {
-      closedAt = new Date().toISOString();
+      closedAt = nowIso;
+      // Se for fechado sem ter passado por resolved, registra resolved_at agora
+      // (o COALESCE no UPDATE preserva o valor anterior se já existir).
+      resolvedAt = nowIso;
     }
 
     const { rows } = await query(
