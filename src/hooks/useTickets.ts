@@ -170,6 +170,7 @@ export type TicketComment = Tables<'ticket_comments'>;
 export const useTickets = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const {
     data: tickets,
