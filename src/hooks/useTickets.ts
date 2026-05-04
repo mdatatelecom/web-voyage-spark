@@ -92,7 +92,8 @@ const buildTicketMessage = (
   type: 'new' | 'update',
   statusText?: string,
   buildingName?: string,
-  equipmentName?: string
+  equipmentName?: string,
+  creatorName?: string
 ): string => {
   if (type === 'new') {
     let message = `🔔 *Novo Chamado Aberto*\n\n`;
@@ -100,7 +101,10 @@ const buildTicketMessage = (
     message += `📝 Título: ${data.title}\n`;
     message += `🏷️ Categoria: ${getCategoryLabel(data.category)}\n`;
     message += `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n`;
-    
+    if (creatorName) {
+      message += `👤 Criado por: ${creatorName}\n`;
+    }
+
     if (buildingName) {
       message += `📍 Local: ${buildingName}\n`;
     }
@@ -113,18 +117,21 @@ const buildTicketMessage = (
     if (data.contact_phone) {
       message += `📞 Contato: ${data.contact_phone}\n`;
     }
-    
+
     message += `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n`;
     message += `🔗 Para mais detalhes, acesse o sistema.`;
-    
+
     return message;
   } else {
     let message = `🔔 *Atualização de Chamado*\n\n`;
     message += `📋 Chamado: *${data.ticket_number}*\n`;
     message += `📝 Título: ${data.title}\n`;
+    if (creatorName) {
+      message += `👤 Criado por: ${creatorName}\n`;
+    }
     message += `\n${statusText}\n\n`;
     message += `🔗 Para mais detalhes, acesse o sistema.`;
-    
+
     return message;
   }
 };
