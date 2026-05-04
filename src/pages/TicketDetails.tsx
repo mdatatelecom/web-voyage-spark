@@ -65,6 +65,7 @@ import { useWhatsApp } from '@/hooks/useWhatsApp';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
 import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
+import { TicketWhatsAppStatus } from '@/components/tickets/TicketWhatsAppStatus';
 import {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
@@ -766,6 +767,7 @@ export default function TicketDetails() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            <TicketWhatsAppStatus ticketId={ticket.id} />
             {/* Card Proeminente do Técnico Responsável */}
             {ticket.assigned_to && (
               <Card className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border-primary/20 shadow-lg">

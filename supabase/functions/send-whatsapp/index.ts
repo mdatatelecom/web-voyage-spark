@@ -67,6 +67,73 @@ function formatPhoneNumber(phone: string, defaultCountryCode: string = '55'): st
   return cleaned;
 }
 
+const MAX_ATTEMPTS = 5;
+
+// Returns true if it queued the message for retry, false otherwise.
+async function enqueueRetryOnTransientError(
+  supabase: any,
+  opts: {
+    retryId?: string;
+    ticketId?: string | null;
+    phoneOrGroup: string;
+    message: string;
+    messageType: string;
+    action: 'send' | 'send-group';
+    payload: Record<string, unknown>;
+    errorMessage: string;
+  }
+): Promise<{ queued: boolean; attempts: number }> {
+  let attempts = 1;
+  if (opts.retryId) {
+    const { data: existing } = await supabase
+      .from('whatsapp_notifications')
+      .select('attempts')
+      .eq('id', opts.retryId)
+      .maybeSingle();
+    attempts = (existing?.attempts || 0) + 1;
+  }
+  const failed = attempts >= MAX_ATTEMPTS;
+  const backoffMs = Math.min(5 * 60 * 1000, 15000 * Math.pow(2, attempts - 1));
+  const next_retry_at = failed ? null : new Date(Date.now() + backoffMs).toISOString();
+  const status = failed ? 'failed' : 'retrying';
+
+  if (opts.retryId) {
+    await supabase
+      .from('whatsapp_notifications')
+      .update({
+        status,
+        attempts,
+        next_retry_at,
+        last_attempt_at: new Date().toISOString(),
+        error_message: opts.errorMessage,
+      })
+      .eq('id', opts.retryId);
+  } else {
+    await supabase.from('whatsapp_notifications').insert({
+      ticket_id: opts.ticketId || null,
+      phone_number: opts.phoneOrGroup,
+      message_content: opts.message,
+      message_type: opts.messageType,
+      status,
+      error_message: opts.errorMessage,
+      sent_at: null,
+      external_id: null,
+      attempts,
+      next_retry_at,
+      last_attempt_at: new Date().toISOString(),
+      payload: { ...opts.payload, action: opts.action },
+    });
+  }
+  return { queued: !failed, attempts };
+}
+
+function isTransientError(err: unknown, status?: number): boolean {
+  const msg = err instanceof Error ? err.message : String(err || '');
+  if (/timeout|aborted|ECONN|ENOTFOUND|fetch failed|network|504|503|502|disconnect/i.test(msg)) return true;
+  if (status && (status === 502 || status === 503 || status === 504)) return true;
+  return false;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -74,7 +141,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type, mediaUrl, caption } = await req.json();
+    const { action, phone, message, ticketId, instanceName, groupId, settings: providedSettings, notification_type, mediaUrl, caption, _retryId } = await req.json();
 
     console.log('WhatsApp function called with action:', action);
 
@@ -1127,17 +1194,27 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully to:', formattedPhone, 'Data:', data);
 
-        // Log successful message - always log regardless of ticketId
-        await supabase.from('whatsapp_notifications').insert({
-          ticket_id: ticketId || null,
-          phone_number: formattedPhone,
-          message_content: message,
-          message_type: messageType,
-          status: 'sent',
-          error_message: null,
-          sent_at: new Date().toISOString(),
-          external_id: data?.key?.id || null,
-        });
+        // Log successful message - update queued row if retry, else insert
+        if (_retryId) {
+          await supabase.from('whatsapp_notifications').update({
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+            last_attempt_at: new Date().toISOString(),
+          }).eq('id', _retryId);
+        } else {
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: formattedPhone,
+            message_content: message,
+            message_type: messageType,
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+          });
+        }
 
         return new Response(
           JSON.stringify({ success: true, message: 'Mensagem enviada com sucesso', data }),
@@ -1146,8 +1223,32 @@ serve(async (req) => {
       } catch (fetchError: unknown) {
         console.error('Send fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
-        
-        // Log failed message
+
+        if (isTransientError(fetchError)) {
+          const { queued, attempts } = await enqueueRetryOnTransientError(supabase, {
+            retryId: _retryId,
+            ticketId,
+            phoneOrGroup: formattedPhone,
+            message,
+            messageType,
+            action: 'send',
+            payload: { phone: formattedPhone, message },
+            errorMessage: `Erro ao enviar: ${errorMessage}`,
+          });
+          return new Response(
+            JSON.stringify({
+              success: false,
+              queued,
+              attempts,
+              message: queued
+                ? `Em fila para retry (tentativa ${attempts}): ${errorMessage}`
+                : `Falha definitiva após ${attempts} tentativas: ${errorMessage}`,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Log failed message (non-transient)
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
           phone_number: formattedPhone,
@@ -1158,12 +1259,9 @@ serve(async (req) => {
           sent_at: null,
           external_id: null,
         });
-        
+
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            message: `Erro ao enviar: ${errorMessage}` 
-          }),
+          JSON.stringify({ success: false, message: `Erro ao enviar: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -1271,17 +1369,27 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully to group:', groupId, 'Data:', data);
 
-        // Log successful message - use notification_type if provided
-        await supabase.from('whatsapp_notifications').insert({
-          ticket_id: ticketId || null,
-          phone_number: groupId,
-          message_content: message,
-          message_type: notification_type || 'group_notification',
-          status: 'sent',
-          error_message: null,
-          sent_at: new Date().toISOString(),
-          external_id: data?.key?.id || null,
-        });
+        // Log successful message - update queued row if retry, else insert
+        if (_retryId) {
+          await supabase.from('whatsapp_notifications').update({
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+            last_attempt_at: new Date().toISOString(),
+          }).eq('id', _retryId);
+        } else {
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: groupId,
+            message_content: message,
+            message_type: notification_type || 'group_notification',
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+          });
+        }
 
         return new Response(
           JSON.stringify({ success: true, message: 'Mensagem enviada para o grupo com sucesso', data }),
@@ -1290,8 +1398,31 @@ serve(async (req) => {
       } catch (fetchError: unknown) {
         console.error('Send-group fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
-        
-        // Log failed message - use notification_type if provided
+
+        if (isTransientError(fetchError)) {
+          const { queued, attempts } = await enqueueRetryOnTransientError(supabase, {
+            retryId: _retryId,
+            ticketId,
+            phoneOrGroup: groupId,
+            message,
+            messageType: notification_type || 'group_notification',
+            action: 'send-group',
+            payload: { groupId, message },
+            errorMessage: `Erro ao enviar: ${errorMessage}`,
+          });
+          return new Response(
+            JSON.stringify({
+              success: false,
+              queued,
+              attempts,
+              message: queued
+                ? `Em fila para retry (tentativa ${attempts}): ${errorMessage}`
+                : `Falha definitiva após ${attempts} tentativas: ${errorMessage}`,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
           phone_number: groupId,
@@ -1302,7 +1433,7 @@ serve(async (req) => {
           sent_at: null,
           external_id: null,
         });
-        
+
         return new Response(
           JSON.stringify({ success: false, message: `Erro ao enviar: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
