@@ -44,20 +44,55 @@ const notifyWhatsAppResult = (
 
 // Helper to truncate description
 const truncateDescription = (text: string, maxLength: number = 200): string => {
-  if (!text) return 'Não informada';
+  if (!text || !text.trim()) return 'Não informada';
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
 };
 
-// Helper to fetch creator name
-const fetchCreatorName = async (userId?: string | null): Promise<string> => {
-  if (!userId) return 'Sistema';
-  const { data } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', userId)
-    .maybeSingle();
-  return data?.full_name?.trim() || 'Usuário';
+// Safe value helper for template fields
+const safeValue = (value: unknown, fallback = 'Não informado'): string => {
+  if (value === null || value === undefined) return fallback;
+  const str = String(value).trim();
+  return str.length > 0 ? str : fallback;
+};
+
+// Cache for creator name lookups (per-session, avoids duplicate fetches per event)
+const creatorNameCache = new Map<string, string>();
+
+/** Test helper — clears the in-memory cache. */
+export const __clearCreatorNameCache = () => creatorNameCache.clear();
+
+// Helper to fetch creator name with caching, fallback and debug logs
+export const fetchCreatorName = async (userId?: string | null): Promise<string> => {
+  if (!userId) {
+    console.debug('[useTickets] fetchCreatorName: created_by ausente, usando "Sistema"');
+    return 'Sistema';
+  }
+  if (creatorNameCache.has(userId)) {
+    return creatorNameCache.get(userId)!;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[useTickets] fetchCreatorName erro Supabase:', error.message);
+      return 'Sistema';
+    }
+    const name = data?.full_name?.trim();
+    if (!name) {
+      console.debug(`[useTickets] fetchCreatorName: profile ${userId} sem full_name, usando "Sistema"`);
+      creatorNameCache.set(userId, 'Sistema');
+      return 'Sistema';
+    }
+    creatorNameCache.set(userId, name);
+    return name;
+  } catch (err) {
+    console.warn('[useTickets] fetchCreatorName exception:', err);
+    return 'Sistema';
+  }
 };
 
 // Helper to fetch related entity names
@@ -86,8 +121,12 @@ const fetchRelatedNames = async (buildingId?: string | null, equipmentId?: strin
   return { buildingName, equipmentName };
 };
 
+/** Linha padronizada de "Criado por" — sempre presente, fallback "Sistema". */
+const creatorLine = (creatorName?: string | null): string =>
+  `👤 Criado por: ${safeValue(creatorName, 'Sistema')}\n`;
+
 // Build detailed WhatsApp message for ticket
-const buildTicketMessage = (
+export const buildTicketMessage = (
   data: Tables<'support_tickets'>,
   type: 'new' | 'update',
   statusText?: string,
@@ -95,45 +134,66 @@ const buildTicketMessage = (
   equipmentName?: string,
   creatorName?: string
 ): string => {
+  const ticketNumber = safeValue(data.ticket_number, 'sem número');
+  const title = safeValue(data.title, '(sem título)');
+  const category = safeValue(getCategoryLabel(data.category), 'Outro');
+  const priority = safeValue(getPriorityLabel(data.priority), 'Média');
+
   if (type === 'new') {
     let message = `🔔 *Novo Chamado Aberto*\n\n`;
-    message += `📋 Chamado: *${data.ticket_number}*\n`;
-    message += `📝 Título: ${data.title}\n`;
-    message += `🏷️ Categoria: ${getCategoryLabel(data.category)}\n`;
-    message += `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n`;
-    if (creatorName) {
-      message += `👤 Criado por: ${creatorName}\n`;
-    }
+    message += `📋 Chamado: *${ticketNumber}*\n`;
+    message += `📝 Título: ${title}\n`;
+    message += `🏷️ Categoria: ${category}\n`;
+    message += `⚠️ Prioridade: ${priority}\n`;
+    message += creatorLine(creatorName);
 
-    if (buildingName) {
-      message += `📍 Local: ${buildingName}\n`;
-    }
-    if (equipmentName) {
-      message += `🔧 Equipamento: ${equipmentName}\n`;
-    }
+    if (buildingName) message += `📍 Local: ${buildingName}\n`;
+    if (equipmentName) message += `🔧 Equipamento: ${equipmentName}\n`;
     if (data.due_date) {
-      message += `📅 Prazo: ${format(new Date(data.due_date), "dd/MM/yyyy", { locale: ptBR })}\n`;
+      try {
+        message += `📅 Prazo: ${format(new Date(data.due_date), 'dd/MM/yyyy', { locale: ptBR })}\n`;
+      } catch {
+        // ignore invalid date
+      }
     }
-    if (data.contact_phone) {
-      message += `📞 Contato: ${data.contact_phone}\n`;
-    }
+    if (data.contact_phone) message += `📞 Contato: ${data.contact_phone}\n`;
 
     message += `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n`;
     message += `🔗 Para mais detalhes, acesse o sistema.`;
-
-    return message;
-  } else {
-    let message = `🔔 *Atualização de Chamado*\n\n`;
-    message += `📋 Chamado: *${data.ticket_number}*\n`;
-    message += `📝 Título: ${data.title}\n`;
-    if (creatorName) {
-      message += `👤 Criado por: ${creatorName}\n`;
-    }
-    message += `\n${statusText}\n\n`;
-    message += `🔗 Para mais detalhes, acesse o sistema.`;
-
     return message;
   }
+
+  let message = `🔔 *Atualização de Chamado*\n\n`;
+  message += `📋 Chamado: *${ticketNumber}*\n`;
+  message += `📝 Título: ${title}\n`;
+  message += `🏷️ Categoria: ${category}\n`;
+  message += `⚠️ Prioridade: ${priority}\n`;
+  message += creatorLine(creatorName);
+  message += `\n${statusText ?? ''}\n\n`;
+  message += `🔗 Para mais detalhes, acesse o sistema.`;
+  return message;
+};
+
+// Standardized "assigned to technician" message
+export const buildTechnicianAssignmentMessage = (
+  data: Tables<'support_tickets'>,
+  creatorName?: string
+): string => {
+  const ticketNumber = safeValue(data.ticket_number, 'sem número');
+  const title = safeValue(data.title, '(sem título)');
+  const category = safeValue(getCategoryLabel(data.category), 'Outro');
+  const priority = safeValue(getPriorityLabel(data.priority), 'Média');
+
+  let msg = `🔧 *Chamado Atribuído a Você!*\n\n`;
+  msg += `📋 Chamado: *${ticketNumber}*\n`;
+  msg += `📝 Título: ${title}\n`;
+  msg += `🏷️ Categoria: ${category}\n`;
+  msg += `⚠️ Prioridade: ${priority}\n`;
+  msg += creatorLine(creatorName);
+  if (data.contact_phone) msg += `📞 Contato: ${data.contact_phone}\n`;
+  msg += `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n`;
+  msg += `⚡ Por favor, inicie o atendimento o mais breve possível!`;
+  return msg;
 };
 
 /**
