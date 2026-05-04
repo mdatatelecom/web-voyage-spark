@@ -67,6 +67,73 @@ function formatPhoneNumber(phone: string, defaultCountryCode: string = '55'): st
   return cleaned;
 }
 
+const MAX_ATTEMPTS = 5;
+
+// Returns true if it queued the message for retry, false otherwise.
+async function enqueueRetryOnTransientError(
+  supabase: any,
+  opts: {
+    retryId?: string;
+    ticketId?: string | null;
+    phoneOrGroup: string;
+    message: string;
+    messageType: string;
+    action: 'send' | 'send-group';
+    payload: Record<string, unknown>;
+    errorMessage: string;
+  }
+): Promise<{ queued: boolean; attempts: number }> {
+  let attempts = 1;
+  if (opts.retryId) {
+    const { data: existing } = await supabase
+      .from('whatsapp_notifications')
+      .select('attempts')
+      .eq('id', opts.retryId)
+      .maybeSingle();
+    attempts = (existing?.attempts || 0) + 1;
+  }
+  const failed = attempts >= MAX_ATTEMPTS;
+  const backoffMs = Math.min(5 * 60 * 1000, 15000 * Math.pow(2, attempts - 1));
+  const next_retry_at = failed ? null : new Date(Date.now() + backoffMs).toISOString();
+  const status = failed ? 'failed' : 'retrying';
+
+  if (opts.retryId) {
+    await supabase
+      .from('whatsapp_notifications')
+      .update({
+        status,
+        attempts,
+        next_retry_at,
+        last_attempt_at: new Date().toISOString(),
+        error_message: opts.errorMessage,
+      })
+      .eq('id', opts.retryId);
+  } else {
+    await supabase.from('whatsapp_notifications').insert({
+      ticket_id: opts.ticketId || null,
+      phone_number: opts.phoneOrGroup,
+      message_content: opts.message,
+      message_type: opts.messageType,
+      status,
+      error_message: opts.errorMessage,
+      sent_at: null,
+      external_id: null,
+      attempts,
+      next_retry_at,
+      last_attempt_at: new Date().toISOString(),
+      payload: { ...opts.payload, action: opts.action },
+    });
+  }
+  return { queued: !failed, attempts };
+}
+
+function isTransientError(err: unknown, status?: number): boolean {
+  const msg = err instanceof Error ? err.message : String(err || '');
+  if (/timeout|aborted|ECONN|ENOTFOUND|fetch failed|network|504|503|502|disconnect/i.test(msg)) return true;
+  if (status && (status === 502 || status === 503 || status === 504)) return true;
+  return false;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
