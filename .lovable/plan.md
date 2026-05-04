@@ -1,109 +1,85 @@
-## Objetivo
+## Escopo
 
-Tornar o feedback de criação/atualização de chamados consistente, visível e resiliente — com toasts padronizados, ação rápida para abrir o chamado, status do envio WhatsApp visível na própria página do ticket e fila de retry automático.
+Quatro itens pequenos e direcionados.
 
-## 1. Botão "Ver chamado" no toast
+## 1. Botão "Ver chamado" nos toasts
 
-Adicionar `action` no `sonnerToast.success` de criação e atualização para navegar até `/tickets/:id`.
+**Já está implementado** no turno anterior em `src/hooks/useTickets.ts` (createTicket e updateTicket usam `sonnerToast.success(..., { action: { label: 'Ver chamado', onClick: () => navigate(`/tickets/${id}`) } })`). Verificar visualmente e, se necessário, ajustar duração para 6s em ambos.
 
-- Em `useTickets.ts`, importar `useNavigate` no hook `useTickets`.
-- Atualizar o toast principal de `createTicket.onSuccess`:
-  - Título: `Chamado {ticket_number} aberto`
-  - Descrição: `data.title`
-  - `action: { label: 'Ver chamado', onClick: () => navigate(`/tickets/${data.id}`) }`
-  - `duration: 6000`
-- Mesmo padrão no `updateTicket.onSuccess` (título: `Chamado {ticket_number} atualizado`).
+## 2. Botão "Reenviar agora" em Notificações WhatsApp
 
-## 2. Status de WhatsApp visível no ticket
+Em `src/components/tickets/TicketWhatsAppStatus.tsx`:
 
-Exibir, na página do chamado, o status da última notificação enviada para grupo e contato (enviado / falhou + motivo + horário).
+- Trocar o `Button` ghost com ícone por um botão `variant="outline" size="sm"` com texto `Reenviar agora` + ícone `RefreshCw`.
+- Mostrar para qualquer linha com status `failed` ou `retrying`.
+- Comportamento já existente: chama `send-whatsapp` com o `payload` original; on-success o trigger do realtime atualiza a lista. Adicionar um `toast.info('Reenviando...')` imediato.
 
-### Backend (migration)
+## 3. Adicionar "Criado por" em Detalhes do chamado
 
-A tabela `whatsapp_notifications` já registra envios. Adicionar:
-- política RLS de SELECT para o `created_by` do ticket relacionado (além de admin/técnico que já têm).
-- Habilitar realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_notifications;`
+Em `src/pages/TicketDetails.tsx`, dentro do card "Detalhes" (após "Criado em"):
 
-### Frontend
+- Adicionar `useEffect` que busca em `profiles` o `full_name` e `avatar_url` pelo `ticket.created_by`.
+- Renderizar nova linha:
 
-- Novo componente `src/components/tickets/TicketWhatsAppStatus.tsx`:
-  - Recebe `ticketId`.
-  - Consulta `whatsapp_notifications` filtrando por `ticket_id`, ordenado por `created_at desc`.
-  - Agrupa por `message_type` (grupo vs contato) e mostra o último de cada:
-    - Badge verde "Enviado" quando `status='sent'`
-    - Badge vermelho "Falhou" + tooltip com `error_message`
-    - Badge amarelo "Pendente / Em fila"
-    - Horário relativo (`date-fns formatDistanceToNow`)
-  - Botão "Reenviar" em caso de falha (chama `send-whatsapp` novamente).
-  - Subscrição realtime no canal `whatsapp_notifications` filtrando `ticket_id=eq.{id}`.
-- Inserir o componente em `src/pages/TicketDetails.tsx` em um card "Notificações WhatsApp" abaixo dos metadados do chamado.
-
-## 3. Fila de notificações com retry automático
-
-Reaproveitar `whatsapp_notifications` como fila persistente.
-
-### Migration
-
-Adicionar colunas em `whatsapp_notifications`:
-- `attempts integer not null default 0`
-- `next_retry_at timestamptz`
-- `last_attempt_at timestamptz`
-- `payload jsonb` (action, groupId/phone, message, ticketId)
-
-Status passa a usar: `pending | sent | failed | retrying`.
-
-### Edge function `send-whatsapp` (mudanças mínimas)
-
-- Antes de cada `INSERT` em `whatsapp_notifications`, definir `payload` e atualizar `attempts`.
-- Em falhas de rede / timeout / `disconnectionReasonCode != null` / status HTTP 5xx ou 504:
-  - status `retrying`, `next_retry_at = now() + backoff` (15s, 60s, 5min — máx 5 tentativas).
-  - retorna ao cliente `{ success: false, queued: true, message }` para o toast informar "em fila".
-- Em sucesso: `status='sent'`, `sent_at=now()`.
-- Em falha definitiva (>5 tentativas ou erro permanente — instância removida): `status='failed'`.
-
-### Nova edge function `whatsapp-retry-worker`
-
-- Roda manualmente / via cron (configurável depois). Por enquanto:
-  - Seleciona até 20 registros com `status='retrying' AND next_retry_at <= now()`.
-  - Reenvia chamando a mesma lógica interna.
-- Adicionada também trigger client-side: quando `TicketWhatsAppStatus` carrega, dispara `whatsapp-retry-worker` (no-op se vazio).
-
-## 4. Padronização de toasts (createTicket vs updateTicket)
-
-Criar helper interno em `useTickets.ts` para uniformizar mensagens, ícones e durações:
-
-```ts
-const TOAST = {
-  ticketSuccess: 5000,
-  waSuccess: 3500,
-  waWarning: 7000,
-  waInfo: 4000,
-};
-
-const notifyWhatsApp = (
-  channel: 'grupo' | 'contato' | 'técnico',
-  result: { success: boolean; reason?: string; queued?: boolean }
-) => { /* warning/success/info padronizados */ };
+```
+<div className="flex items-center gap-3">
+  <Avatar className="h-7 w-7"><AvatarImage src={creator.avatar_url}/><AvatarFallback>...</AvatarFallback></Avatar>
+  <div>
+    <div className="text-sm font-medium">Criado por</div>
+    <div className="text-sm text-muted-foreground">{creator.full_name || 'Usuário'}</div>
+  </div>
+</div>
 ```
 
-Mensagens padrão:
-- Sucesso grupo: `Notificação enviada ao grupo WhatsApp`
-- Sucesso contato: `WhatsApp enviado a {phone}`
-- Em fila: `Notificação WhatsApp em fila — será reenviada automaticamente`
-- Falha: `Falha no WhatsApp ({canal}) — {motivo}`
+- Adicionar `useEffect` import.
 
-Aplicar o helper em todos os 4 pontos de envio (createTicket grupo+contato, updateTicket grupo+contato+técnico+cliente).
+## 4. Avisos do Supabase linter
+
+O scan retornou 20 itens; **nenhum** é introduzido pela migration recente da fila WhatsApp (a tabela `whatsapp_notifications` está com RLS + policies corretas). Os avisos são pré-existentes do projeto:
+
+| # | Tipo | Origem | Ação |
+|---|------|--------|------|
+| 1 | RLS Enabled No Policy (INFO) | `whatsapp_sessions` (sem policy) | Adicionar policy admin-only |
+| 2 | Security Definer View (ERROR) | view legada do projeto | **Fora de escopo** — memória do projeto requer `security_invoker=true` em views; recriar a view exige saber o nome — investigar |
+| 3 | Extension in Public (WARN) | extensão `pg_net`/similar | Ignorar (instalada por padrão no Supabase) |
+| 4-7 | Public Bucket Allows Listing (WARN×4) | buckets `public/avatars/floor-plans/landing-assets` | Aceito por design (assets públicos) — registrar como ignorado via `manage_security_finding` |
+| 8-13+ | SECURITY DEFINER executável por anon (WARN×N) | funções `update_updated_at_column`, `handle_new_user`, `has_role`, etc. | Revogar `EXECUTE` de `anon`/`public` em funções internas; manter para `has_role` (usada em RLS policies) |
+
+### Ações concretas (migration única)
+
+```sql
+-- 1) policy mínima para whatsapp_sessions (somente service role / admin)
+CREATE POLICY "Only admins can manage whatsapp sessions"
+ON public.whatsapp_sessions FOR ALL TO authenticated
+USING (has_role(auth.uid(), 'admin'::user_role))
+WITH CHECK (has_role(auth.uid(), 'admin'::user_role));
+
+-- 2) Revogar execução pública das funções SECURITY DEFINER internas
+REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.update_updated_at() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.update_alert_settings_updated_at() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.log_equipment_install() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.log_equipment_change() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.set_connection_code() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.cleanup_old_monitoring_data() FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.generate_ticket_number() FROM anon, public;
+-- has_role mantém EXECUTE pois é usada em RLS por authenticated.
+```
+
+### Findings registrados como ignorados
+
+- 4 buckets públicos (avatars, public, floor-plans, landing-assets): conteúdo intencionalmente público.
+- Extension in Public (`pg_net`): padrão Supabase.
+- Security Definer View: investigar separadamente; provavelmente view de monitoramento — sem impacto direto na fila WhatsApp.
+
+### Reexecutar
+
+Após aplicar a migration, rodar `supabase--linter` novamente e listar pendências restantes ao usuário.
 
 ## Arquivos afetados
 
-- `src/hooks/useTickets.ts` — toasts padronizados, `useNavigate`, action "Ver chamado", helper `notifyWhatsApp`.
-- `src/components/tickets/TicketWhatsAppStatus.tsx` — novo.
-- `src/pages/TicketDetails.tsx` — inserir o componente.
-- `supabase/functions/send-whatsapp/index.ts` — gravar `payload`, `attempts`, marcar `retrying` com backoff em vez de falha direta em timeouts.
-- `supabase/functions/whatsapp-retry-worker/index.ts` — nova função.
-- Migration: colunas extras em `whatsapp_notifications`, RLS extra, realtime publication.
-
-## Fora de escopo
-
-- Cron automático do worker (pode ser ativado depois via `pg_cron` se desejar).
-- Reescrita do tratamento de "instância zumbi" (continua funcionando como já implementado).
+- `src/components/tickets/TicketWhatsAppStatus.tsx` — botão "Reenviar agora" mais visível.
+- `src/pages/TicketDetails.tsx` — adicionar "Criado por".
+- Migration SQL única para os ajustes de policy/revogações.
+- `manage_security_finding` (ignore) para buckets públicos e extensão.
