@@ -410,7 +410,8 @@ export const useTickets = () => {
       // Only send notification if there are changes to report
       if (changes.length > 0) {
         const statusText = changes.join('\n');
-        const message = buildTicketMessage(data, 'update', statusText);
+        const creatorName = await fetchCreatorName(data.created_by);
+        const message = buildTicketMessage(data, 'update', statusText, undefined, undefined, creatorName);
 
         // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
         try {
