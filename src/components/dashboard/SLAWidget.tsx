@@ -157,19 +157,26 @@ export const SLAWidget = ({ className }: SLAWidgetProps) => {
               )}
             </span>
           </div>
-          <Progress 
-            value={sla} 
-            className={cn(
-              'h-3',
-              slaStatus.status === 'good' && '[&>div]:bg-green-500',
-              slaStatus.status === 'warning' && '[&>div]:bg-amber-500',
-              slaStatus.status === 'critical' && '[&>div]:bg-red-500'
-            )}
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>0%</span>
-            <span className="border-l border-muted-foreground/30 pl-1 ml-[80%]">90%</span>
-            <span>100%</span>
+          <div className="relative h-3">
+            <Progress 
+              value={sla} 
+              className={cn(
+                'h-3',
+                slaStatus.status === 'good' && '[&>div]:bg-green-500',
+                slaStatus.status === 'warning' && '[&>div]:bg-amber-500',
+                slaStatus.status === 'critical' && '[&>div]:bg-red-500'
+              )}
+            />
+            <div
+              className="absolute top-0 h-3 w-px bg-foreground/60"
+              style={{ left: '90%' }}
+              aria-hidden
+            />
+          </div>
+          <div className="relative text-xs text-muted-foreground h-4">
+            <span className="absolute left-0">0%</span>
+            <span className="absolute -translate-x-1/2" style={{ left: '90%' }}>90%</span>
+            <span className="absolute right-0">100%</span>
           </div>
         </div>
 

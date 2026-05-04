@@ -231,15 +231,21 @@ export const useTicketStats = () => {
 
       // === ADVANCED METRICS ===
 
-      // SLA Compliance (tickets with due_date resolved before due_date)
+      // SLA Compliance — universo são apenas tickets já avaliáveis:
+      // (a) resolvidos/fechados com due_date  +  (b) abertos/in_progress com prazo vencido (breach garantido)
       const ticketsWithDueDate = allTickets.filter(t => t.due_date);
-      const resolvedWithinSLA = ticketsWithDueDate.filter(t => {
+      const evaluableSLATickets = ticketsWithDueDate.filter(t => {
+        const isClosed = t.status === 'resolved' || t.status === 'closed';
+        if (isClosed) return true;
+        return isBefore(parseISO(t.due_date!), now); // aberto e vencido
+      });
+      const resolvedWithinSLA = evaluableSLATickets.filter(t => {
         if (t.status !== 'resolved' && t.status !== 'closed') return false;
         if (!t.resolved_at) return false;
         return isBefore(parseISO(t.resolved_at), parseISO(t.due_date!));
       }).length;
-      const slaCompliance = ticketsWithDueDate.length > 0 
-        ? Math.round((resolvedWithinSLA / ticketsWithDueDate.length) * 100) 
+      const slaCompliance = evaluableSLATickets.length > 0
+        ? Math.round((resolvedWithinSLA / evaluableSLATickets.length) * 100)
         : 100;
 
       // Overdue tickets (open/in_progress with due_date in the past)
@@ -307,9 +313,11 @@ export const useTicketStats = () => {
         count: data.count
       })).sort((a, b) => b.count - a.count);
 
-      // Helper function to check if ticket was resolved on time
+      // Helper: ticket resolvido dentro do prazo. Sem due_date = não conta como breach.
+      // Resolvido/fechado SEM resolved_at é considerado fora do prazo (dado inconsistente).
       const wasResolvedOnTime = (t: any): boolean => {
-        if (!t.due_date || !t.resolved_at) return true;
+        if (!t.due_date) return true;
+        if (!t.resolved_at) return false;
         return isBefore(parseISO(t.resolved_at), parseISO(t.due_date));
       };
 

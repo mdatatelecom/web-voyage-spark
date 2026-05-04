@@ -1,40 +1,54 @@
-## Padronização, otimização e validação das mensagens WhatsApp de chamados
+# Verificação do Performance SLA
 
-### 1. Padronizar "Criado por" em todos os templates (`src/hooks/useTickets.ts`)
-- Criar helper `creatorLine(name)` que retorna sempre `👤 Criado por: <nome>\n` (mesma posição: logo após "Prioridade", antes de Local/Equipamento/Contato).
-- Aplicar em três templates: `Novo Chamado Aberto`, `Atualização de Chamado` (que hoje só mostra título) e `Chamado Atribuído a Você`. Atualização passa a incluir Categoria + Prioridade + Criado por para ficar consistente.
-- Extrair o template do técnico para uma função `buildTechnicianAssignmentMessage(data, creatorName)` (atualmente é string inline na `updateTicket`).
+Revisei `src/hooks/useTicketStats.ts` (cálculo) e `src/components/dashboard/SLAWidget.tsx` (exibição). A maior parte está coerente, mas há **3 problemas** que afetam a precisão do indicador.
 
-### 2. Otimizar consultas a `profiles.full_name`
-- Adicionar cache em memória `Map<userId, fullName>` no módulo (`creatorNameCache`). Reaproveita o resultado entre os múltiplos envios disparados por um mesmo evento (grupo + contato + técnico) e entre eventos da sessão.
-- Em `createTicket.onSuccess` e `updateTicket.onSuccess`, chamar `fetchCreatorName(data.created_by)` uma única vez no início do bloco e reutilizar a string em todos os envios subsequentes (já é o caso parcialmente; consolidar para evitar a chamada extra que existe antes de `buildTechnicianAssignmentMessage`).
+## Problemas encontrados
 
-### 3. Fallback robusto + logs de depuração
-- `fetchCreatorName` retorna `"Sistema"` quando `created_by` é nulo, quando o `profiles` não existe, quando `full_name` é vazio ou quando há erro na consulta.
-- `console.debug`/`console.warn` para cada caminho de fallback (sem expor PII): `created_by ausente`, `profile sem full_name`, `erro Supabase`.
-- O cache também armazena o fallback para evitar reconsultas que sabidamente vão falhar.
+### 1. Denominador do `slaCompliance` está incorreto (principal)
+Hoje:
+```ts
+const ticketsWithDueDate = allTickets.filter(t => t.due_date);
+const resolvedWithinSLA = ticketsWithDueDate.filter(t =>
+  (t.status === 'resolved' || 'closed') && resolved_at < due_date
+).length;
+const slaCompliance = resolvedWithinSLA / ticketsWithDueDate.length;
+```
+O denominador inclui tickets **abertos/em andamento** que ainda nem venceram. Eles entram como "não-cumpridos", derrubando artificialmente o SLA.
 
-### 4. Validações de campos do template
-- Helper `safeValue(value, fallback)` que aplica trim e devolve fallback se vazio/nulo.
-- Aplicar em `ticket_number` ("sem número"), `title` ("(sem título)"), `category` ("Outro"), `priority` ("Média") nos três templates.
-- `truncateDescription` passa a tratar string só com espaços como vazia.
-- `due_date` envolto em try/catch ao formatar para não quebrar com data inválida.
+**Correção**: o universo deve ser **tickets já avaliáveis**:
+- resolvidos/fechados (com due_date), **mais**
+- tickets em aberto cujo prazo já passou (breach garantido).
 
-### 5. Testes (Vitest)
-- Adicionar `vitest` + `@vitest/ui` como devDependencies e configuração mínima (`vitest.config.ts` com ambiente `node`, sem jsdom — só testamos funções puras).
-- Exportar `buildTicketMessage` e `buildTechnicianAssignmentMessage` do `useTickets.ts` para permitir testes unitários (sem precisar instanciar React Query).
-- Criar `src/hooks/__tests__/useTickets.messages.test.ts` cobrindo:
-  - **criação**: mensagem contém `👤 Criado por: João Silva` quando `creatorName` é fornecido.
-  - **criação sem nome**: cai para `Criado por: Sistema`.
-  - **atualização**: mensagem inclui `Criado por` e o `statusText`.
-  - **atribuição ao técnico**: `buildTechnicianAssignmentMessage` inclui `Criado por`, prioridade e contato quando presentes.
-  - **campos vazios**: `title=""`, `category=null` → template não quebra e usa fallbacks.
-- Adicionar script `"test": "vitest run"` no `package.json`.
+Tickets em aberto ainda dentro do prazo NÃO entram no cálculo.
 
-### Arquivos
-- Editar: `src/hooks/useTickets.ts`, `package.json`
-- Criar: `vitest.config.ts`, `src/hooks/__tests__/useTickets.messages.test.ts`
+### 2. `wasResolvedOnTime` retorna `true` quando falta `resolved_at`
+```ts
+if (!t.due_date || !t.resolved_at) return true;
+```
+Em `slaByCategory`/`slaByTechnician` filtramos por status resolved/closed, mas se algum desses não tiver `resolved_at` preenchido, é contado como "no prazo" indevidamente. Deve retornar `false` (ou excluir esses casos do total) quando o ticket está resolvido sem `resolved_at`.
 
-### Fora do escopo
-- Sem mudanças em edge functions, banco ou na UI da página de tickets.
-- Sem testes E2E ou de componentes React (apenas funções puras de template).
+### 3. Marcador visual "90%" desalinhado no `SLAWidget`
+```tsx
+<span className="border-l ... ml-[80%]">90%</span>
+```
+O marcador da meta de 90% aparece em ~80% da barra. Trocar para `ml-[90%]` (e ajustar layout do flex para posicionar absoluto, evitando o `flex justify-between` empurrar o elemento).
+
+## Itens verificados e OK
+- `overdueTickets`: correto (ignora resolvidos/fechados, compara `due_date < now`).
+- `urgentTickets` + `deadlineStatus` (overdue/critical ≤4h/warning ≤24h/normal ≤72h): correto.
+- Cores/labels do widget (verde ≥90, âmbar ≥80, vermelho <80): coerentes com a meta.
+- `slaTrend` mensal: usa o mesmo critério de "resolvidos no mês com due_date" — esse é um recorte legítimo (SLA dos resolvidos no período), apenas diferente do widget. Manter.
+
+## Plano de implementação
+
+1. **`src/hooks/useTicketStats.ts`**
+   - Ajustar `slaCompliance`: novo universo = `resolvidos/fechados com due_date` ∪ `abertos/in_progress com due_date vencido`. Numerador continua sendo "resolvidos antes do due_date".
+   - Ajustar `wasResolvedOnTime` para retornar `false` quando o ticket está resolvido/fechado mas sem `resolved_at`, e manter `true` apenas quando não há `due_date`.
+
+2. **`src/components/dashboard/SLAWidget.tsx`**
+   - Corrigir posição do marcador "90%" na barra de progresso (usar posicionamento absoluto sobre a `Progress` em 90%).
+
+3. **Testes rápidos**
+   - Conferir via `supabase--read_query` uma amostra de tickets para validar que o novo `slaCompliance` reflete melhor a realidade (sem inflar nem deflar).
+
+Sem mudanças de banco/policies necessárias.
