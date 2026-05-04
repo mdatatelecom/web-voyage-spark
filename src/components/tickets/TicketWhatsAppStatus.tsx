@@ -160,12 +160,14 @@ export function TicketWhatsAppStatus({ ticketId }: Props) {
                 )}
                 {(row.status === 'failed' || row.status === 'retrying') && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
+                    className="gap-1.5 h-8"
                     disabled={retrying === row.id}
                     onClick={() => handleResend(row)}
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${retrying === row.id ? 'animate-spin' : ''}`} />
+                    Reenviar agora
                   </Button>
                 )}
               </div>
