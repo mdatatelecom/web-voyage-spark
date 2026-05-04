@@ -313,9 +313,11 @@ export const useTicketStats = () => {
         count: data.count
       })).sort((a, b) => b.count - a.count);
 
-      // Helper function to check if ticket was resolved on time
+      // Helper: ticket resolvido dentro do prazo. Sem due_date = não conta como breach.
+      // Resolvido/fechado SEM resolved_at é considerado fora do prazo (dado inconsistente).
       const wasResolvedOnTime = (t: any): boolean => {
-        if (!t.due_date || !t.resolved_at) return true;
+        if (!t.due_date) return true;
+        if (!t.resolved_at) return false;
         return isBefore(parseISO(t.resolved_at), parseISO(t.due_date));
       };
 
