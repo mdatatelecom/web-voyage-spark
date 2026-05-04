@@ -163,6 +163,20 @@ export default function TicketDetails() {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Creator profile
+  const [creator, setCreator] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
+  useEffect(() => {
+    if (!ticket?.created_by) return;
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', ticket.created_by)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setCreator(data ?? null); });
+    return () => { cancelled = true; };
+  }, [ticket?.created_by]);
+
   // Aggregate all attachments from ticket + comments
   const allAttachments = useMemo(() => {
     const ticketAtts = ((ticket?.attachments as any[]) || []).map((a: any, idx: number) => ({
