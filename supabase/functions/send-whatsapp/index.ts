@@ -1378,8 +1378,31 @@ serve(async (req) => {
       } catch (fetchError: unknown) {
         console.error('Send-group fetch error:', fetchError);
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
-        
-        // Log failed message - use notification_type if provided
+
+        if (isTransientError(fetchError)) {
+          const { queued, attempts } = await enqueueRetryOnTransientError(supabase, {
+            retryId: _retryId,
+            ticketId,
+            phoneOrGroup: groupId,
+            message,
+            messageType: notification_type || 'group_notification',
+            action: 'send-group',
+            payload: { groupId, message },
+            errorMessage: `Erro ao enviar: ${errorMessage}`,
+          });
+          return new Response(
+            JSON.stringify({
+              success: false,
+              queued,
+              attempts,
+              message: queued
+                ? `Em fila para retry (tentativa ${attempts}): ${errorMessage}`
+                : `Falha definitiva após ${attempts} tentativas: ${errorMessage}`,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         await supabase.from('whatsapp_notifications').insert({
           ticket_id: ticketId || null,
           phone_number: groupId,
@@ -1390,7 +1413,7 @@ serve(async (req) => {
           sent_at: null,
           external_id: null,
         });
-        
+
         return new Response(
           JSON.stringify({ success: false, message: `Erro ao enviar: ${errorMessage}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
