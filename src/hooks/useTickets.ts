@@ -318,9 +318,13 @@ export const useTickets = () => {
     },
     onSuccess: async ({ data, updatedFields }) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      toast({
-        title: 'Chamado atualizado',
-        description: 'O chamado foi atualizado com sucesso.',
+      sonnerToast.success(`Chamado ${data.ticket_number} atualizado`, {
+        description: data.title,
+        duration: TOAST_DURATION.ticketSuccess,
+        action: {
+          label: 'Ver chamado',
+          onClick: () => navigate(`/tickets/${data.id}`),
+        },
       });
 
       // Build notification messages based on what changed
