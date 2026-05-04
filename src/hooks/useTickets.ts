@@ -401,50 +401,26 @@ export const useTickets = () => {
             category: data.category,
           });
           if (groupId) {
-            console.log('✅ [UPDATE] Sending ticket update notification to WhatsApp group:', groupId);
             const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
               body: { action: 'send-group', groupId, message, ticketId: data.id },
             });
-            if (waError || !waData?.success) {
-              const reason = waData?.message || waError?.message || 'Falha desconhecida';
-              sonnerToast.warning('Atualização não enviada ao grupo WhatsApp', {
-                description: reason,
-                duration: 7000,
-              });
-            } else {
-              sonnerToast.success('Atualização enviada ao grupo WhatsApp', { duration: 3500 });
-            }
-          } else {
-            console.log('⚠️ [UPDATE] No WhatsApp group resolved for this ticket.');
+            notifyWhatsAppResult('grupo', waData as WaResult, waError);
           }
         } catch (err) {
-          console.error('❌ [UPDATE] Error sending WhatsApp group notification for ticket update:', err);
-          sonnerToast.warning('Atualização não enviada ao grupo WhatsApp', {
-            description: err instanceof Error ? err.message : 'Erro de rede',
-            duration: 7000,
-          });
+          notifyWhatsAppResult('grupo', null, { message: err instanceof Error ? err.message : 'Erro de rede' });
         }
 
         // Send to individual contact if phone exists
         if (data.contact_phone) {
           try {
             const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
-              body: {
-                action: 'send',
-                phone: data.contact_phone,
-                message,
-                ticketId: data.id,
-              },
+              body: { action: 'send', phone: data.contact_phone, message, ticketId: data.id },
             });
-            if (waError || !waData?.success) {
-              const reason = waData?.message || waError?.message || 'Falha desconhecida';
-              sonnerToast.warning(`WhatsApp para ${data.contact_phone} não enviado`, {
-                description: reason,
-                duration: 7000,
-              });
-            }
+            notifyWhatsAppResult(`contato ${data.contact_phone}`, waData as WaResult, waError);
           } catch (err) {
-            console.error('Error sending WhatsApp notification for ticket update:', err);
+            notifyWhatsAppResult(`contato ${data.contact_phone}`, null, {
+              message: err instanceof Error ? err.message : 'Erro de rede',
+            });
           }
         }
 
@@ -457,9 +433,9 @@ export const useTickets = () => {
             `${getStatusLabel(data.status)}\n\n` +
             `O técnico entrará em contato em breve!\n\n` +
             `💡 Qualquer dúvida, responda esta mensagem.`;
-          
+
           try {
-            const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
+            await supabase.functions.invoke('send-whatsapp', {
               body: {
                 action: 'send',
                 phone: data.contact_phone,
@@ -467,9 +443,6 @@ export const useTickets = () => {
                 ticketId: data.id,
               },
             });
-            if (!waError && waData?.success) {
-              console.log('✅ [UPDATE] Client notified about technician assignment');
-            }
           } catch (err) {
             console.error('Error sending client assignment notification:', err);
           }
@@ -485,7 +458,7 @@ export const useTickets = () => {
             `${data.contact_phone ? `📞 Contato: ${data.contact_phone}\n` : ''}` +
             `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n` +
             `⚡ Por favor, inicie o atendimento o mais breve possível!`;
-          
+
           try {
             const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
               body: {
@@ -495,17 +468,11 @@ export const useTickets = () => {
                 ticketId: data.id,
               },
             });
-            if (waError || !waData?.success) {
-              const reason = waData?.message || waError?.message || 'Falha desconhecida';
-              sonnerToast.warning(`Técnico não notificado (${updatedFields.technician_phone})`, {
-                description: reason,
-                duration: 7000,
-              });
-            } else {
-              sonnerToast.success(`Técnico notificado (${updatedFields.technician_phone})`, { duration: 3500 });
-            }
+            notifyWhatsAppResult(`técnico ${updatedFields.technician_phone}`, waData as WaResult, waError);
           } catch (err) {
-            console.error('Error sending technician assignment notification:', err);
+            notifyWhatsAppResult(`técnico ${updatedFields.technician_phone}`, null, {
+              message: err instanceof Error ? err.message : 'Erro de rede',
+            });
           }
         }
       } // End of changes.length > 0 check
