@@ -49,6 +49,17 @@ const truncateDescription = (text: string, maxLength: number = 200): string => {
   return text.slice(0, maxLength) + '...';
 };
 
+// Helper to fetch creator name
+const fetchCreatorName = async (userId?: string | null): Promise<string> => {
+  if (!userId) return 'Sistema';
+  const { data } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle();
+  return data?.full_name?.trim() || 'Usuário';
+};
+
 // Helper to fetch related entity names
 const fetchRelatedNames = async (buildingId?: string | null, equipmentId?: string | null) => {
   let buildingName = '';
