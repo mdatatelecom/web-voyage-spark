@@ -1369,17 +1369,27 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully to group:', groupId, 'Data:', data);
 
-        // Log successful message - use notification_type if provided
-        await supabase.from('whatsapp_notifications').insert({
-          ticket_id: ticketId || null,
-          phone_number: groupId,
-          message_content: message,
-          message_type: notification_type || 'group_notification',
-          status: 'sent',
-          error_message: null,
-          sent_at: new Date().toISOString(),
-          external_id: data?.key?.id || null,
-        });
+        // Log successful message - update queued row if retry, else insert
+        if (_retryId) {
+          await supabase.from('whatsapp_notifications').update({
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+            last_attempt_at: new Date().toISOString(),
+          }).eq('id', _retryId);
+        } else {
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: groupId,
+            message_content: message,
+            message_type: notification_type || 'group_notification',
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+          });
+        }
 
         return new Response(
           JSON.stringify({ success: true, message: 'Mensagem enviada para o grupo com sucesso', data }),
