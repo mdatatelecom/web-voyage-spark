@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
@@ -7,6 +8,39 @@ import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/type
 import { getCategoryLabel, getPriorityLabel, getStatusLabel } from '@/constants/ticketTypes';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Padronização de toasts
+const TOAST_DURATION = {
+  ticketSuccess: 6000,
+  waSuccess: 3500,
+  waInfo: 4000,
+  waWarning: 7000,
+} as const;
+
+type WaResult = { success?: boolean; queued?: boolean; message?: string } | null | undefined;
+
+const notifyWhatsAppResult = (
+  channel: string,
+  result: WaResult,
+  invokeError?: { message?: string } | null
+) => {
+  if (!invokeError && result?.success) {
+    sonnerToast.success(`Notificação WhatsApp enviada (${channel})`, { duration: TOAST_DURATION.waSuccess });
+    return;
+  }
+  const reason = result?.message || invokeError?.message || 'Falha desconhecida';
+  if (result?.queued) {
+    sonnerToast.info(`WhatsApp em fila (${channel}) — será reenviado automaticamente`, {
+      description: reason,
+      duration: TOAST_DURATION.waInfo,
+    });
+    return;
+  }
+  sonnerToast.warning(`Falha no WhatsApp (${channel})`, {
+    description: reason,
+    duration: TOAST_DURATION.waWarning,
+  });
+};
 
 // Helper to truncate description
 const truncateDescription = (text: string, maxLength: number = 200): string => {
