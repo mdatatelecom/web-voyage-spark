@@ -94,20 +94,107 @@ export const SLAWidget = ({ className }: SLAWidgetProps) => {
         isCritical && 'border-red-500/50 shadow-red-500/20 shadow-lg animate-pulse'
       )}
     >
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-lg flex items-center gap-2">
           <Gauge className="h-5 w-5 text-primary" />
           Performance SLA
         </CardTitle>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => navigate('/tickets/metrics')}
-        >
-          Ver Detalhes
-          <ArrowRight className="h-4 w-4 ml-1" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="Detalhes do cálculo">
+                <Info className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold flex items-center gap-2">
+                  <Info className="h-4 w-4" /> Detalhes do cálculo
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tickets com prazo já avaliáveis (resolvidos/fechados ou em aberto vencidos).
+                </p>
+                <div className="grid grid-cols-2 gap-y-1 pt-1">
+                  <span className="text-muted-foreground">Avaliáveis</span>
+                  <span className="text-right font-medium">{breakdown?.evaluable ?? 0}</span>
+                  <span className="text-green-500">No prazo</span>
+                  <span className="text-right font-medium text-green-500">{breakdown?.onTime ?? 0}</span>
+                  <span className="text-red-500">Fora do prazo</span>
+                  <span className="text-right font-medium text-red-500">{breakdown?.breached ?? 0}</span>
+                  <span className="text-amber-500">Inconsistentes</span>
+                  <span className="text-right font-medium text-amber-500">{breakdown?.inconsistent ?? 0}</span>
+                  <span className="text-muted-foreground">Datas inválidas</span>
+                  <span className="text-right font-medium">{breakdown?.invalidDates ?? 0}</span>
+                  <span className="text-muted-foreground">Compliance (bruto)</span>
+                  <span className="text-right font-medium">
+                    {(breakdown?.complianceRaw ?? slaRaw).toFixed(2)}%
+                  </span>
+                </div>
+                {breakdown?.inconsistent ? (
+                  <div className="mt-2 pt-2 border-t">
+                    <p className="text-xs text-amber-500 font-medium mb-1">
+                      Resolvidos sem data de resolução:
+                    </p>
+                    <ul className="text-xs space-y-0.5 max-h-24 overflow-auto">
+                      {breakdown.inconsistentTickets.slice(0, 5).map((t, i) => (
+                        <li key={i} className="font-mono">
+                          {t.ticket_number || t.id}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Dialog open={targetOpen} onOpenChange={setTargetOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Ajustar meta"
+                onClick={() => setTargetDraft(String(target))}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Ajustar meta de SLA</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="sla-target">Meta (%)</Label>
+                <Input
+                  id="sla-target"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={targetDraft}
+                  onChange={e => setTargetDraft(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Valor entre 1 e 100. Padrão: {DEFAULT_SLA_TARGET}%.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setTargetOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveTarget}>Salvar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => navigate('/tickets/metrics')}
+          >
+            Ver Detalhes
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-3 gap-4">
