@@ -416,6 +416,7 @@ export const useTicketStats = () => {
         ticketsByPriority,
         // Advanced
         slaCompliance,
+        slaBreakdown,
         overdueTickets,
         urgentTickets,
         resolutionByCategory,
