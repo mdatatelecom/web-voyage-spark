@@ -1,50 +1,19 @@
-## Objetivo
-Adicionar `vercel.json` na raiz do projeto para permitir deploy correto na Vercel, cobrindo SPA routing (React Router) e cabeçalhos básicos de segurança/cache.
+## Usar imagem da IW Telecom como preview OG
 
-## Arquivo a criar: `vercel.json`
+1. **Copiar imagem** `user-uploads://iw-2.png` para `public/og-image.png`.
 
-```json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
-      ]
-    }
-  ]
-}
-```
+2. **Atualizar `index.html`** — substituir as duas tags que apontam para `lovable.dev`:
+   ```html
+   <meta property="og:image" content="https://rede.iwtelecomeservicos.com.br/og-image.png" />
+   <meta property="og:image:width" content="1200" />
+   <meta property="og:image:height" content="630" />
+   <meta name="twitter:image" content="https://rede.iwtelecomeservicos.com.br/og-image.png" />
+   ```
+   (Também ajustar `twitter:card` para `summary_large_image` — já está.)
 
-## Por que esta config
+3. **Após deploy na Vercel**, limpar cache do WhatsApp:
+   - WhatsApp cacheia ~7 dias por URL. Use o [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) → cole a URL → "Scrape Again".
+   - Ou compartilhe com query string nova (`?v=2`) para forçar refetch imediato.
 
-- **rewrites**: redireciona qualquer rota (exceto `/assets/*`) para `index.html`, permitindo que o React Router resolva `/auth`, `/dashboard`, etc. sem 404 em refresh/deep link.
-- **headers de cache**: assets do Vite têm hash no nome → cache imutável de 1 ano. HTML continua sem cache (default).
-- **headers de segurança**: equivalentes aos já configurados no `nginx.conf` do projeto, mantendo paridade entre self-host e Vercel.
-- **framework + build/install/output**: explicitados para evitar autodetecção incorreta.
-
-## Lembretes pós-deploy (não envolvem código)
-
-1. Configurar variáveis na Vercel: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`.
-2. No Supabase externo → Auth → URL Configuration: adicionar a URL `*.vercel.app` em Site URL e Redirect URLs.
-
-## Fora de escopo
-
-- Não alterar `nginx.conf`, Dockerfiles ou backend Node (continuam disponíveis para self-host paralelo).
-- Não criar serverless functions na Vercel — o backend Node permanece em outro host (o `vercel.json` só cobre o frontend Vite/React).
+### Observação
+A imagem enviada é horizontal (~2:1), próxima do formato OG ideal (1200x630). Vai renderizar bem no WhatsApp/Facebook/Twitter sem corte significativo.
