@@ -1,54 +1,49 @@
-# Erro ao listar grupos do WhatsApp
 
-## Diagnóstico
+# Confirmação visual de abertura do chamado + envio da notificação
 
-Pelos logs da edge function `send-whatsapp`, a chamada `GET /group/fetchAllGroups/Mdata` está retornando:
+## Comportamento atual
 
-```
-status: 500
-{"status":500,"error":"Internal Server Error","response":{"message":"Connection Closed"}}
-```
+Em `src/hooks/useTickets.ts > createTicket`:
 
-Importante notar:
-- O `connectionState` da instância **Mdata** retorna `state: "open"` (a UI mostra "Conectado" ✅)
-- Mas o endpoint `fetchAllGroups` falha com `Connection Closed` no servidor da Evolution API
-- A instância **Mdata** tem `disconnectionReasonCode: 401` histórico (device_removed em 28/03), porém foi reaberta. O Baileys interno provavelmente está num estado inconsistente onde aceita `connectionState` mas não consegue mais executar queries IQ no WhatsApp (typical Baileys "stream open mas socket morto").
+- O toast `"Chamado criado"` aparece imediatamente após o `INSERT`, **sem indicar se a notificação WhatsApp foi enviada**.
+- A chamada `supabase.functions.invoke('send-whatsapp', ...)` é feita em sequência mas o resultado (`success`/`error`) é **ignorado** (não há leitura de `data.success`, só `try/catch` para erro de rede).
+- Resultado prático: o usuário vê "Chamado criado" mesmo quando o WhatsApp falha (504/timeout/instância travada) e nunca recebe feedback sobre o envio.
 
-Ou seja: **não é bug do nosso código** — é a sessão Baileys da instância `Mdata` que está zumbi no servidor `chat.mdatatelecom.com.br`.
+## O que vamos mudar
 
-## Causa raiz
+Tornar o feedback completo em duas etapas, com toasts distintos:
 
-Evolution API (Baileys) mantém o socket marcado como `open` mesmo quando a conexão WebSocket com o WhatsApp já caiu. Qualquer request que precise tráfego real (fetchAllGroups, sendMessage para grupo) retorna 500 "Connection Closed".
+### 1. Toast imediato — "Chamado #TKT-2026-XXXXX aberto"
+Continua aparecendo logo após o INSERT bem-sucedido, mas:
+- Mostra o **número do chamado** gerado (ex.: `Chamado TKT-2026-00123 aberto com sucesso`)
+- Inclui um botão "Ver chamado" que navega para `/tickets/{id}`
 
-## Plano de correção
+### 2. Toast de notificação WhatsApp — "Notificação enviada / Falha no envio"
+Após chamar `send-whatsapp`, ler `data.success` e exibir:
+- ✅ `"Notificação enviada para o grupo {nome}"` (verde) quando `success: true`
+- ⚠️ `"Chamado aberto, mas notificação WhatsApp falhou: {motivo}"` (amber, não destrutivo) quando `success: false` ou exceção. O motivo vem de `data.message` (ex.: "Sessão travada", "Timeout", "401").
+- 🔕 Quando nenhum grupo está configurado, mostrar info discreta: `"Chamado aberto. Nenhum grupo WhatsApp configurado para esta categoria."`
 
-### 1. Ação imediata (servidor Evolution API — manual)
-Reiniciar a instância `Mdata` no painel da Evolution API:
-- Logout da instância → reconectar via QR Code
-- Ou usar endpoint `POST /instance/restart/Mdata`
+### 3. Mesma lógica para envio individual
+Quando `data.contact_phone` existir, emitir toast paralelo confirmando entrega ao contato (ou aviso se falhar).
 
-### 2. Melhorias no código (`supabase/functions/send-whatsapp/index.ts`)
+### 4. Mesma lógica em `updateTicket`
+Aplicar o mesmo padrão (toast de sucesso da atualização + toast separado do WhatsApp), inclusive nas notificações específicas para técnico atribuído.
 
-**a) Detectar "Connection Closed" e tentar restart automático**
-Quando `list-groups` ou `send-group` recebem 500 com `Connection Closed`, chamar `POST /instance/restart/{instance}` automaticamente e reportar mensagem clara.
+## Arquivos alterados
 
-**b) Mensagem de erro amigável no toast**
-Em vez de "Erro ao listar grupos: 500", mostrar:
-> "A sessão do WhatsApp da instância **Mdata** está travada no servidor (Connection Closed). Clique em **Reconectar** ou tente novamente em alguns segundos — uma reinicialização automática foi disparada."
+- `src/hooks/useTickets.ts` — ler resposta de `send-whatsapp`, emitir toasts diferenciados (sucesso/aviso) tanto no `createTicket.onSuccess` quanto no `updateTicket.onSuccess`. Sem mudança de assinatura pública do hook.
 
-**c) Botão "Reiniciar instância" na UI de WhatsApp** (`/system`)
-Adicionar ação `restart-instance` na edge function + botão na tela de configuração do WhatsApp ao lado de Reconectar, para forçar restart sem precisar reescanear QR.
+## Sem mudanças no banco e sem nova edge function
 
-### 3. Validação
-- Após restart, testar `list-groups` novamente
-- Testar envio para grupo de chamado
-- Confirmar que notificações de novos chamados voltam a chegar
+A edge function `send-whatsapp` já retorna `{ success, message }` com mensagens amigáveis (incluindo casos de "Connection Closed", 401, etc). Só estamos passando a **consumir** essa resposta no front.
 
-## Resumo do que será alterado
+## Resultado para o usuário
 
-- **`supabase/functions/send-whatsapp/index.ts`**: tratar 500 "Connection Closed", auto-restart, novo action `restart-instance`, mensagens de erro melhores
-- **`src/components/system/WhatsAppSettings.tsx`** (ou equivalente): botão "Reiniciar instância" + toast amigável
-- **Sem mudanças no banco**
+Ao abrir um chamado, em vez de um único toast genérico, o usuário verá:
 
-## O que você precisa fazer agora
-Enquanto ajusto o código, reinicie a instância **Mdata** no painel Evolution API (`https://chat.mdatatelecom.com.br`) — Logout + reconectar via QR. Isso destrava as notificações imediatamente.
+1. ✅ "Chamado **TKT-2026-00124** aberto" — confirma criação no banco
+2. ✅ "Notificação enviada ao grupo **Rede**" — confirma WhatsApp
+   *(ou ⚠️ "Notificação WhatsApp falhou: sessão travada — verifique a instância")*
+
+Assim fica claro o que efetivamente saiu, mesmo quando a Evolution API está com problema.
