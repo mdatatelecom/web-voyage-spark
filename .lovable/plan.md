@@ -1,54 +1,71 @@
-# Verificação do Performance SLA
+# Hardening do SLA: testes, telemetria, configuração e UX
 
-Revisei `src/hooks/useTicketStats.ts` (cálculo) e `src/components/dashboard/SLAWidget.tsx` (exibição). A maior parte está coerente, mas há **3 problemas** que afetam a precisão do indicador.
+Vou centralizar a lógica de SLA num utilitário puro, cobri-la com testes, expor um detalhamento no widget, tratar edge cases e permitir configurar a meta.
 
-## Problemas encontrados
+## 1. Novo utilitário puro `src/lib/sla-utils.ts`
 
-### 1. Denominador do `slaCompliance` está incorreto (principal)
-Hoje:
+Função `computeSLA(tickets, now)` retornando:
 ```ts
-const ticketsWithDueDate = allTickets.filter(t => t.due_date);
-const resolvedWithinSLA = ticketsWithDueDate.filter(t =>
-  (t.status === 'resolved' || 'closed') && resolved_at < due_date
-).length;
-const slaCompliance = resolvedWithinSLA / ticketsWithDueDate.length;
+{ evaluable, onTime, breached, inconsistent, invalidDates, compliance, complianceRaw }
 ```
-O denominador inclui tickets **abertos/em andamento** que ainda nem venceram. Eles entram como "não-cumpridos", derrubando artificialmente o SLA.
+Regras:
+- Sem `due_date` → ignorado.
+- `due_date` inválido (parse falha) → conta em `invalidDates` e ignorado.
+- `status` resolved/closed sem `resolved_at` → conta em `inconsistent` **e** como breach (numerador correto).
+- Aberto/in_progress com prazo vencido → breach garantido.
+- Aberto dentro do prazo → ignorado.
+- `compliance = round(onTime / evaluable * 100)` (100% se denominador 0).
 
-**Correção**: o universo deve ser **tickets já avaliáveis**:
-- resolvidos/fechados (com due_date), **mais**
-- tickets em aberto cujo prazo já passou (breach garantido).
+Helpers: `getSlaTarget()` / `setSlaTarget()` lendo de `localStorage` (default 90, clamp 1-100).
 
-Tickets em aberto ainda dentro do prazo NÃO entram no cálculo.
+## 2. Refatorar `src/hooks/useTicketStats.ts`
 
-### 2. `wasResolvedOnTime` retorna `true` quando falta `resolved_at`
-```ts
-if (!t.due_date || !t.resolved_at) return true;
-```
-Em `slaByCategory`/`slaByTechnician` filtramos por status resolved/closed, mas se algum desses não tiver `resolved_at` preenchido, é contado como "no prazo" indevidamente. Deve retornar `false` (ou excluir esses casos do total) quando o ticket está resolvido sem `resolved_at`.
+- Substituir o cálculo manual atual por `computeSLA(allTickets, now)`.
+- Expor no `TicketStats`:
+  ```ts
+  slaCompliance: number;
+  slaBreakdown: SLABreakdown;     // novo
+  inconsistentTickets: SLATicketLike[]; // resolved/closed sem resolved_at (max 20)
+  ```
+- Adicionar `console.warn` (uma vez por execução do query) listando IDs/`ticket_number` inconsistentes para depuração.
 
-### 3. Marcador visual "90%" desalinhado no `SLAWidget`
-```tsx
-<span className="border-l ... ml-[80%]">90%</span>
-```
-O marcador da meta de 90% aparece em ~80% da barra. Trocar para `ml-[90%]` (e ajustar layout do flex para posicionar absoluto, evitando o `flex justify-between` empurrar o elemento).
+## 3. Atualizar `src/components/dashboard/SLAWidget.tsx`
 
-## Itens verificados e OK
-- `overdueTickets`: correto (ignora resolvidos/fechados, compara `due_date < now`).
-- `urgentTickets` + `deadlineStatus` (overdue/critical ≤4h/warning ≤24h/normal ≤72h): correto.
-- Cores/labels do widget (verde ≥90, âmbar ≥80, vermelho <80): coerentes com a meta.
-- `slaTrend` mensal: usa o mesmo critério de "resolvidos no mês com due_date" — esse é um recorte legítimo (SLA dos resolvidos no período), apenas diferente do widget. Manter.
+- Ler meta com `getSlaTarget()` (default 90).
+- Status (good/warning/critical) e mensagem "X% abaixo da meta" passam a usar a meta configurada.
+- Marcador da régua passa a ficar em `${target}%` (já corrigi para 90 antes — agora dinâmico).
+- **Tooltip/popover "Ver detalhes do cálculo"** (botão pequeno no header do card) abrindo um `Popover` shadcn com:
+  - Total avaliável
+  - Resolvidos no prazo (verde)
+  - Fora do prazo / vencidos abertos (vermelho)
+  - Tickets inconsistentes (âmbar) com lista dos `ticket_number` (até 5)
+  - Datas inválidas ignoradas
+- Pequeno botão "Ajustar meta" abrindo dialog simples com input (1-100) que chama `setSlaTarget` e força refetch.
 
-## Plano de implementação
+## 4. Testes unitários `src/lib/__tests__/sla-utils.test.ts`
 
-1. **`src/hooks/useTicketStats.ts`**
-   - Ajustar `slaCompliance`: novo universo = `resolvidos/fechados com due_date` ∪ `abertos/in_progress com due_date vencido`. Numerador continua sendo "resolvidos antes do due_date".
-   - Ajustar `wasResolvedOnTime` para retornar `false` quando o ticket está resolvido/fechado mas sem `resolved_at`, e manter `true` apenas quando não há `due_date`.
+Cobrir:
+- Apenas resolvidos no prazo → 100%.
+- Resolvidos parte no prazo, parte fora → percentual correto + breakdown.
+- Aberto vencido → entra como breach.
+- Aberto dentro do prazo → ignorado.
+- Resolved sem `resolved_at` → `inconsistent` + breach.
+- `due_date` inválido → `invalidDates`, não afeta percentual.
+- Sem nenhum ticket avaliável → 100%.
+- `getSlaTarget` / `setSlaTarget`: default, clamp e persistência (mockando `localStorage`).
 
-2. **`src/components/dashboard/SLAWidget.tsx`**
-   - Corrigir posição do marcador "90%" na barra de progresso (usar posicionamento absoluto sobre a `Progress` em 90%).
+Manter o setup atual de Vitest (`vitest.config.ts` + `__tests__`).
 
-3. **Testes rápidos**
-   - Conferir via `supabase--read_query` uma amostra de tickets para validar que o novo `slaCompliance` reflete melhor a realidade (sem inflar nem deflar).
+## 5. Telemetria de inconsistências
 
-Sem mudanças de banco/policies necessárias.
+- Em `useTicketStats`: `console.warn('[SLA] Tickets inconsistentes (resolved/closed sem resolved_at):', list)` quando `inconsistent > 0`.
+- Expor a lista no widget (tooltip) para o admin agir.
+- Sem novas tabelas no banco.
+
+## Arquivos afetados
+- novo: `src/lib/sla-utils.ts`
+- novo: `src/lib/__tests__/sla-utils.test.ts`
+- editar: `src/hooks/useTicketStats.ts`
+- editar: `src/components/dashboard/SLAWidget.tsx`
+
+Sem migrações nem mudanças de policies.
