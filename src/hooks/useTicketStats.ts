@@ -233,22 +233,19 @@ export const useTicketStats = () => {
 
       // === ADVANCED METRICS ===
 
-      // SLA Compliance — universo são apenas tickets já avaliáveis:
-      // (a) resolvidos/fechados com due_date  +  (b) abertos/in_progress com prazo vencido (breach garantido)
+      // SLA Compliance — delegated to pure helper (see src/lib/sla-utils.ts)
       const ticketsWithDueDate = allTickets.filter(t => t.due_date);
-      const evaluableSLATickets = ticketsWithDueDate.filter(t => {
-        const isClosed = t.status === 'resolved' || t.status === 'closed';
-        if (isClosed) return true;
-        return isBefore(parseISO(t.due_date!), now); // aberto e vencido
-      });
-      const resolvedWithinSLA = evaluableSLATickets.filter(t => {
-        if (t.status !== 'resolved' && t.status !== 'closed') return false;
-        if (!t.resolved_at) return false;
-        return isBefore(parseISO(t.resolved_at), parseISO(t.due_date!));
-      }).length;
-      const slaCompliance = evaluableSLATickets.length > 0
-        ? Math.round((resolvedWithinSLA / evaluableSLATickets.length) * 100)
-        : 100;
+      const slaBreakdown = computeSLA(allTickets as any, now);
+      const slaCompliance = slaBreakdown.compliance;
+      if (slaBreakdown.inconsistent > 0) {
+        console.warn(
+          '[SLA] Tickets resolvidos/fechados sem resolved_at:',
+          slaBreakdown.inconsistentTickets.map(t => t.ticket_number || t.id),
+        );
+      }
+      if (slaBreakdown.invalidDates > 0) {
+        console.warn('[SLA] Tickets com due_date inválido ignorados:', slaBreakdown.invalidDates);
+      }
 
       // Overdue tickets (open/in_progress with due_date in the past)
       const overdueTickets = allTickets.filter(t => {
