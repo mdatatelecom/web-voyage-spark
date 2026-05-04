@@ -16,6 +16,8 @@ import { SLATrendChart } from '@/components/tickets/SLATrendChart';
 import { SLAByCategoryChart } from '@/components/tickets/SLAByCategoryChart';
 import { SLAByTechnicianChart } from '@/components/tickets/SLAByTechnicianChart';
 import { SLAReportExport } from '@/components/tickets/SLAReportExport';
+import { SLAComplianceCard } from '@/components/tickets/SLAComplianceCard';
+import { SLAInconsistencyBanner } from '@/components/tickets/SLAInconsistencyBanner';
 import { 
   BarChart3, 
   Clock, 
