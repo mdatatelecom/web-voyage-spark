@@ -64,14 +64,11 @@ export default function Auth() {
             ) : (
               <>
                 {branding.logoUrl ? (
-                  <>
-                    <img 
-                      src={branding.logoUrl} 
-                      alt={branding.systemName} 
-                      className="h-16 w-auto object-contain"
-                    />
-                    <h1 className="text-xl font-semibold text-foreground mt-4">{branding.systemName}</h1>
-                  </>
+                  <img 
+                    src={branding.logoUrl} 
+                    alt={branding.systemName} 
+                    className="h-20 w-auto object-contain"
+                  />
                 ) : (
                   <>
                     <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">

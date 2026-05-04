@@ -1,28 +1,27 @@
-## Versionar OG image + validar prévia
+## Problemas identificados
 
-### 1. Versionar a imagem OG (busting de cache)
-- Copiar `public/og-image.png` → `public/og-image-v2.png` (já feito).
-- Atualizar `index.html` trocando as duas referências de `og-image.png` para `og-image-v2.png` nas tags `og:image` e `twitter:image`.
-- Sempre que a arte mudar no futuro, incrementar o sufixo (`-v3`, `-v4`...) — WhatsApp, Facebook e Telegram só refazem fetch quando a URL muda.
+1. **Nome "Mdata Telecom" aparece** (imagem 1): o fallback padrão em `useSystemSettings.ts` e o cache do localStorage usam `"Mdata Telecom"`. Quando não há configuração salva no banco (ou o cache antigo é lido), aparece esse nome em vez de "IW Telecom".
 
-### 2. Validação manual após o deploy
-Não posso executar essas validações automaticamente (são serviços externos com login/captcha). Após publicar na Vercel, faça:
+2. **"Duas telas de login" / cabeçalho duplicado** (imagem 2): em `src/pages/Auth.tsx` o componente exibe **a logo (imagem)** e logo abaixo **o `systemName` em texto**. Como a logo enviada (Guarulhos) já contém texto próprio, visualmente parece dois títulos empilhados antes do card de login.
 
-**Facebook / WhatsApp** → https://developers.facebook.com/tools/debug/
-- Cole `https://rede.iwtelecomeservicos.com.br`
-- Clique em **"Depurar"** → **"Coletar Novamente"** (Scrape Again).
-- Confirme que `og:image` aponta para `og-image-v2.png` e que a prévia mostra a arte da IW Telecom.
-- WhatsApp usa o mesmo cache do Facebook na maioria dos casos — após o scrape, o preview no chat já vem atualizado.
+## Correções propostas
 
-**Twitter / X** → https://cards-dev.twitter.com/validator
-- (Atualmente requer login dev.) Alternativa: postar/preview em rascunho no X e verificar o card.
-- Confirme `summary_large_image` com a nova imagem.
+### 1. `src/hooks/useSystemSettings.ts`
+- Trocar o fallback padrão de `systemName` de `"Mdata Telecom"` para `"IW Telecom"` (nas duas funções: `getBrandingFromCache` e o objeto retornado quando não há cache).
+- Manter `document.title` usando o nome do branding (já correto).
 
-**LinkedIn** (bônus) → https://www.linkedin.com/post-inspector/
-- Cole a URL e clique em "Inspect" para forçar re-fetch.
+### 2. `src/pages/Auth.tsx`
+Ajustar o bloco do cabeçalho para evitar duplicação:
+- **Se houver `logoUrl`**: mostrar **apenas a imagem da logo** (sem repetir o `systemName` abaixo, já que muitas logos já contêm o nome da empresa).
+- **Se não houver `logoUrl`**: manter o ícone padrão + texto `systemName`.
 
-### 3. Checklist pós-deploy
-- [ ] `https://rede.iwtelecomeservicos.com.br/og-image-v2.png` retorna 200 e abre a imagem correta.
-- [ ] `view-source` da home mostra as meta tags `-v2`.
-- [ ] Facebook Debugger não reporta warnings (tamanho mínimo, formato).
-- [ ] Compartilhamento no WhatsApp em chat de teste mostra a nova arte.
+### 3. Atualizar branding salvo no banco
+Executar um update em `system_settings` (chave `branding`) para definir `systemName = "IW Telecom"`, garantindo que instâncias que já têm registro recebam o nome correto. (Migration de UPDATE no jsonb `setting_value`.)
+
+### 4. Limpar cache local
+Após o deploy, o usuário deve dar refresh; o listener já existente atualiza o `document.title` quando o cache muda. Sem mudança de código adicional.
+
+## Arquivos afetados
+- `src/hooks/useSystemSettings.ts` (default fallback)
+- `src/pages/Auth.tsx` (não exibir nome duplicado quando há logo)
+- Nova migration SQL para atualizar `system_settings.setting_value->>'systemName'` para `"IW Telecom"`
