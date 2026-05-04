@@ -1194,17 +1194,27 @@ serve(async (req) => {
         const data = await response.json();
         console.log('Message sent successfully to:', formattedPhone, 'Data:', data);
 
-        // Log successful message - always log regardless of ticketId
-        await supabase.from('whatsapp_notifications').insert({
-          ticket_id: ticketId || null,
-          phone_number: formattedPhone,
-          message_content: message,
-          message_type: messageType,
-          status: 'sent',
-          error_message: null,
-          sent_at: new Date().toISOString(),
-          external_id: data?.key?.id || null,
-        });
+        // Log successful message - update queued row if retry, else insert
+        if (_retryId) {
+          await supabase.from('whatsapp_notifications').update({
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+            last_attempt_at: new Date().toISOString(),
+          }).eq('id', _retryId);
+        } else {
+          await supabase.from('whatsapp_notifications').insert({
+            ticket_id: ticketId || null,
+            phone_number: formattedPhone,
+            message_content: message,
+            message_type: messageType,
+            status: 'sent',
+            error_message: null,
+            sent_at: new Date().toISOString(),
+            external_id: data?.key?.id || null,
+          });
+        }
 
         return new Response(
           JSON.stringify({ success: true, message: 'Mensagem enviada com sucesso', data }),
