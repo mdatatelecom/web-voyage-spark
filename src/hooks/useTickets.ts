@@ -237,10 +237,14 @@ export const useTickets = () => {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
 
-      // 1) Toast principal — confirma criação no banco com o número gerado
+      // 1) Toast principal — confirma criação no banco com o número gerado + ação rápida
       sonnerToast.success(`Chamado ${data.ticket_number} aberto`, {
         description: data.title,
-        duration: 5000,
+        duration: TOAST_DURATION.ticketSuccess,
+        action: {
+          label: 'Ver chamado',
+          onClick: () => navigate(`/tickets/${data.id}`),
+        },
       });
 
       // Fetch related names for detailed message
@@ -251,69 +255,36 @@ export const useTickets = () => {
 
       const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName);
 
-      // 2) Notificação para grupo do WhatsApp — com feedback de envio
+      // 2) Notificação para grupo do WhatsApp
       try {
         const groupId = await resolveTicketWhatsAppGroup({
           whatsapp_group_id: (data as any).whatsapp_group_id,
           category: data.category,
         });
         if (groupId) {
-          console.log('✅ [CREATE] Sending ticket notification to WhatsApp group:', groupId);
           const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
             body: { action: 'send-group', groupId, message, ticketId: data.id },
           });
-          if (waError || !waData?.success) {
-            const reason = waData?.message || waError?.message || 'Falha desconhecida';
-            sonnerToast.warning('Notificação WhatsApp não enviada (grupo)', {
-              description: reason,
-              duration: 7000,
-            });
-          } else {
-            sonnerToast.success('Notificação enviada ao grupo WhatsApp', {
-              duration: 3500,
-            });
-          }
+          notifyWhatsAppResult('grupo', waData as WaResult, waError);
         } else {
-          console.log('⚠️ [CREATE] No WhatsApp group resolved for this ticket.');
           sonnerToast.info('Nenhum grupo WhatsApp configurado para este chamado', {
-            duration: 4000,
+            duration: TOAST_DURATION.waInfo,
           });
         }
       } catch (err) {
-        console.error('❌ [CREATE] Error sending WhatsApp group notification for new ticket:', err);
-        sonnerToast.warning('Notificação WhatsApp não enviada (grupo)', {
-          description: err instanceof Error ? err.message : 'Erro de rede',
-          duration: 7000,
-        });
+        notifyWhatsAppResult('grupo', null, { message: err instanceof Error ? err.message : 'Erro de rede' });
       }
 
-      // 3) Envio individual para o contato — também com feedback
+      // 3) Envio individual para o contato
       if (data.contact_phone) {
         try {
           const { data: waData, error: waError } = await supabase.functions.invoke('send-whatsapp', {
-            body: {
-              action: 'send',
-              phone: data.contact_phone,
-              message,
-              ticketId: data.id,
-            },
+            body: { action: 'send', phone: data.contact_phone, message, ticketId: data.id },
           });
-          if (waError || !waData?.success) {
-            const reason = waData?.message || waError?.message || 'Falha desconhecida';
-            sonnerToast.warning(`WhatsApp para ${data.contact_phone} não enviado`, {
-              description: reason,
-              duration: 7000,
-            });
-          } else {
-            sonnerToast.success(`Notificação enviada a ${data.contact_phone}`, {
-              duration: 3500,
-            });
-          }
+          notifyWhatsAppResult(`contato ${data.contact_phone}`, waData as WaResult, waError);
         } catch (err) {
-          console.error('Error sending WhatsApp notification for new ticket:', err);
-          sonnerToast.warning(`WhatsApp para ${data.contact_phone} não enviado`, {
-            description: err instanceof Error ? err.message : 'Erro de rede',
-            duration: 7000,
+          notifyWhatsAppResult(`contato ${data.contact_phone}`, null, {
+            message: err instanceof Error ? err.message : 'Erro de rede',
           });
         }
       }
