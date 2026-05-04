@@ -54,6 +54,7 @@ export interface TicketStats {
   ticketsByPriority: { priority: string; count: number; label: string }[];
   // Advanced metrics
   slaCompliance: number;
+  slaBreakdown: SLABreakdown;
   overdueTickets: number;
   urgentTickets: UrgentTicket[];
   resolutionByCategory: { category: string; label: string; avgMinutes: number; count: number }[];
