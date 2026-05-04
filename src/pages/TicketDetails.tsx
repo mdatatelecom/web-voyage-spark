@@ -65,6 +65,7 @@ import { useWhatsApp } from '@/hooks/useWhatsApp';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import { useWhatsAppProfilePicture } from '@/hooks/useWhatsAppProfilePicture';
 import { WhatsAppButton } from '@/components/tickets/WhatsAppButton';
+import { TicketWhatsAppStatus } from '@/components/tickets/TicketWhatsAppStatus';
 import {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
