@@ -80,7 +80,6 @@ export default function Auth() {
               </>
             )}
           </div>
-          </div>
           
           {/* Login Card */}
           <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150 fill-mode-both border-border/50 shadow-lg">
