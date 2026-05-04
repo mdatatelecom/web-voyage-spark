@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSlaTarget, setSlaTarget, DEFAULT_SLA_TARGET } from '@/lib/sla-utils';
+import { getSlaStatus } from '@/lib/sla-status';
 
 interface SLAWidgetProps {
   className?: string;
