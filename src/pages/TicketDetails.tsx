@@ -916,6 +916,22 @@ export default function TicketDetails() {
                   </div>
                 </div>
 
+                {ticket.created_by && (
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={creator?.avatar_url || undefined} alt={creator?.full_name || 'Criador'} />
+                      <AvatarFallback className="bg-muted text-xs">
+                        {(creator?.full_name || 'U').slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="text-sm font-medium">Criado por</div>
+                      <div className="text-sm text-muted-foreground">
+                        {creator?.full_name || 'Usuário'}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {ticket.updated_at && (
                   <div className="flex items-center gap-3">
                     <Clock className="h-4 w-4 text-muted-foreground" />
