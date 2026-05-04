@@ -77,14 +77,9 @@ export default function Auth() {
                     <h1 className="text-2xl font-bold text-foreground mt-4">{branding.systemName}</h1>
                   </>
                 )}
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <Network className="h-8 w-8 text-primary" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-foreground mt-4">{branding.systemName}</h1>
-                  </>
-                )}
               </>
             )}
+          </div>
           </div>
           
           {/* Login Card */}
