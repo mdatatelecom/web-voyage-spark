@@ -16,6 +16,7 @@ import { ConnectionStatusChart } from '@/components/dashboard/ConnectionStatusCh
 import { PortUsageChart } from '@/components/dashboard/PortUsageChart';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { SLAWidget } from '@/components/dashboard/SLAWidget';
+import { SLAInconsistencyBanner } from '@/components/tickets/SLAInconsistencyBanner';
 import { usePortUsageStats, useDashboardCounts } from '@/hooks/useDashboardStats';
 import { DashboardFilters as DashboardFiltersType } from '@/hooks/useDashboardFilters';
 import { useEffect, useMemo, useState } from 'react';
