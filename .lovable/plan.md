@@ -1,49 +1,109 @@
+## Objetivo
 
-# Confirmação visual de abertura do chamado + envio da notificação
+Tornar o feedback de criação/atualização de chamados consistente, visível e resiliente — com toasts padronizados, ação rápida para abrir o chamado, status do envio WhatsApp visível na própria página do ticket e fila de retry automático.
 
-## Comportamento atual
+## 1. Botão "Ver chamado" no toast
 
-Em `src/hooks/useTickets.ts > createTicket`:
+Adicionar `action` no `sonnerToast.success` de criação e atualização para navegar até `/tickets/:id`.
 
-- O toast `"Chamado criado"` aparece imediatamente após o `INSERT`, **sem indicar se a notificação WhatsApp foi enviada**.
-- A chamada `supabase.functions.invoke('send-whatsapp', ...)` é feita em sequência mas o resultado (`success`/`error`) é **ignorado** (não há leitura de `data.success`, só `try/catch` para erro de rede).
-- Resultado prático: o usuário vê "Chamado criado" mesmo quando o WhatsApp falha (504/timeout/instância travada) e nunca recebe feedback sobre o envio.
+- Em `useTickets.ts`, importar `useNavigate` no hook `useTickets`.
+- Atualizar o toast principal de `createTicket.onSuccess`:
+  - Título: `Chamado {ticket_number} aberto`
+  - Descrição: `data.title`
+  - `action: { label: 'Ver chamado', onClick: () => navigate(`/tickets/${data.id}`) }`
+  - `duration: 6000`
+- Mesmo padrão no `updateTicket.onSuccess` (título: `Chamado {ticket_number} atualizado`).
 
-## O que vamos mudar
+## 2. Status de WhatsApp visível no ticket
 
-Tornar o feedback completo em duas etapas, com toasts distintos:
+Exibir, na página do chamado, o status da última notificação enviada para grupo e contato (enviado / falhou + motivo + horário).
 
-### 1. Toast imediato — "Chamado #TKT-2026-XXXXX aberto"
-Continua aparecendo logo após o INSERT bem-sucedido, mas:
-- Mostra o **número do chamado** gerado (ex.: `Chamado TKT-2026-00123 aberto com sucesso`)
-- Inclui um botão "Ver chamado" que navega para `/tickets/{id}`
+### Backend (migration)
 
-### 2. Toast de notificação WhatsApp — "Notificação enviada / Falha no envio"
-Após chamar `send-whatsapp`, ler `data.success` e exibir:
-- ✅ `"Notificação enviada para o grupo {nome}"` (verde) quando `success: true`
-- ⚠️ `"Chamado aberto, mas notificação WhatsApp falhou: {motivo}"` (amber, não destrutivo) quando `success: false` ou exceção. O motivo vem de `data.message` (ex.: "Sessão travada", "Timeout", "401").
-- 🔕 Quando nenhum grupo está configurado, mostrar info discreta: `"Chamado aberto. Nenhum grupo WhatsApp configurado para esta categoria."`
+A tabela `whatsapp_notifications` já registra envios. Adicionar:
+- política RLS de SELECT para o `created_by` do ticket relacionado (além de admin/técnico que já têm).
+- Habilitar realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_notifications;`
 
-### 3. Mesma lógica para envio individual
-Quando `data.contact_phone` existir, emitir toast paralelo confirmando entrega ao contato (ou aviso se falhar).
+### Frontend
 
-### 4. Mesma lógica em `updateTicket`
-Aplicar o mesmo padrão (toast de sucesso da atualização + toast separado do WhatsApp), inclusive nas notificações específicas para técnico atribuído.
+- Novo componente `src/components/tickets/TicketWhatsAppStatus.tsx`:
+  - Recebe `ticketId`.
+  - Consulta `whatsapp_notifications` filtrando por `ticket_id`, ordenado por `created_at desc`.
+  - Agrupa por `message_type` (grupo vs contato) e mostra o último de cada:
+    - Badge verde "Enviado" quando `status='sent'`
+    - Badge vermelho "Falhou" + tooltip com `error_message`
+    - Badge amarelo "Pendente / Em fila"
+    - Horário relativo (`date-fns formatDistanceToNow`)
+  - Botão "Reenviar" em caso de falha (chama `send-whatsapp` novamente).
+  - Subscrição realtime no canal `whatsapp_notifications` filtrando `ticket_id=eq.{id}`.
+- Inserir o componente em `src/pages/TicketDetails.tsx` em um card "Notificações WhatsApp" abaixo dos metadados do chamado.
 
-## Arquivos alterados
+## 3. Fila de notificações com retry automático
 
-- `src/hooks/useTickets.ts` — ler resposta de `send-whatsapp`, emitir toasts diferenciados (sucesso/aviso) tanto no `createTicket.onSuccess` quanto no `updateTicket.onSuccess`. Sem mudança de assinatura pública do hook.
+Reaproveitar `whatsapp_notifications` como fila persistente.
 
-## Sem mudanças no banco e sem nova edge function
+### Migration
 
-A edge function `send-whatsapp` já retorna `{ success, message }` com mensagens amigáveis (incluindo casos de "Connection Closed", 401, etc). Só estamos passando a **consumir** essa resposta no front.
+Adicionar colunas em `whatsapp_notifications`:
+- `attempts integer not null default 0`
+- `next_retry_at timestamptz`
+- `last_attempt_at timestamptz`
+- `payload jsonb` (action, groupId/phone, message, ticketId)
 
-## Resultado para o usuário
+Status passa a usar: `pending | sent | failed | retrying`.
 
-Ao abrir um chamado, em vez de um único toast genérico, o usuário verá:
+### Edge function `send-whatsapp` (mudanças mínimas)
 
-1. ✅ "Chamado **TKT-2026-00124** aberto" — confirma criação no banco
-2. ✅ "Notificação enviada ao grupo **Rede**" — confirma WhatsApp
-   *(ou ⚠️ "Notificação WhatsApp falhou: sessão travada — verifique a instância")*
+- Antes de cada `INSERT` em `whatsapp_notifications`, definir `payload` e atualizar `attempts`.
+- Em falhas de rede / timeout / `disconnectionReasonCode != null` / status HTTP 5xx ou 504:
+  - status `retrying`, `next_retry_at = now() + backoff` (15s, 60s, 5min — máx 5 tentativas).
+  - retorna ao cliente `{ success: false, queued: true, message }` para o toast informar "em fila".
+- Em sucesso: `status='sent'`, `sent_at=now()`.
+- Em falha definitiva (>5 tentativas ou erro permanente — instância removida): `status='failed'`.
 
-Assim fica claro o que efetivamente saiu, mesmo quando a Evolution API está com problema.
+### Nova edge function `whatsapp-retry-worker`
+
+- Roda manualmente / via cron (configurável depois). Por enquanto:
+  - Seleciona até 20 registros com `status='retrying' AND next_retry_at <= now()`.
+  - Reenvia chamando a mesma lógica interna.
+- Adicionada também trigger client-side: quando `TicketWhatsAppStatus` carrega, dispara `whatsapp-retry-worker` (no-op se vazio).
+
+## 4. Padronização de toasts (createTicket vs updateTicket)
+
+Criar helper interno em `useTickets.ts` para uniformizar mensagens, ícones e durações:
+
+```ts
+const TOAST = {
+  ticketSuccess: 5000,
+  waSuccess: 3500,
+  waWarning: 7000,
+  waInfo: 4000,
+};
+
+const notifyWhatsApp = (
+  channel: 'grupo' | 'contato' | 'técnico',
+  result: { success: boolean; reason?: string; queued?: boolean }
+) => { /* warning/success/info padronizados */ };
+```
+
+Mensagens padrão:
+- Sucesso grupo: `Notificação enviada ao grupo WhatsApp`
+- Sucesso contato: `WhatsApp enviado a {phone}`
+- Em fila: `Notificação WhatsApp em fila — será reenviada automaticamente`
+- Falha: `Falha no WhatsApp ({canal}) — {motivo}`
+
+Aplicar o helper em todos os 4 pontos de envio (createTicket grupo+contato, updateTicket grupo+contato+técnico+cliente).
+
+## Arquivos afetados
+
+- `src/hooks/useTickets.ts` — toasts padronizados, `useNavigate`, action "Ver chamado", helper `notifyWhatsApp`.
+- `src/components/tickets/TicketWhatsAppStatus.tsx` — novo.
+- `src/pages/TicketDetails.tsx` — inserir o componente.
+- `supabase/functions/send-whatsapp/index.ts` — gravar `payload`, `attempts`, marcar `retrying` com backoff em vez de falha direta em timeouts.
+- `supabase/functions/whatsapp-retry-worker/index.ts` — nova função.
+- Migration: colunas extras em `whatsapp_notifications`, RLS extra, realtime publication.
+
+## Fora de escopo
+
+- Cron automático do worker (pode ser ativado depois via `pg_cron` se desejar).
+- Reescrita do tratamento de "instância zumbi" (continua funcionando como já implementado).

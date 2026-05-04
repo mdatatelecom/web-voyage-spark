@@ -1923,36 +1923,48 @@ export type Database = {
       }
       whatsapp_notifications: {
         Row: {
+          attempts: number
           created_at: string | null
           error_message: string | null
           external_id: string | null
           id: string
+          last_attempt_at: string | null
           message_content: string
           message_type: string
+          next_retry_at: string | null
+          payload: Json | null
           phone_number: string
           sent_at: string | null
           status: string | null
           ticket_id: string | null
         }
         Insert: {
+          attempts?: number
           created_at?: string | null
           error_message?: string | null
           external_id?: string | null
           id?: string
+          last_attempt_at?: string | null
           message_content: string
           message_type: string
+          next_retry_at?: string | null
+          payload?: Json | null
           phone_number: string
           sent_at?: string | null
           status?: string | null
           ticket_id?: string | null
         }
         Update: {
+          attempts?: number
           created_at?: string | null
           error_message?: string | null
           external_id?: string | null
           id?: string
+          last_attempt_at?: string | null
           message_content?: string
           message_type?: string
+          next_retry_at?: string | null
+          payload?: Json | null
           phone_number?: string
           sent_at?: string | null
           status?: string | null
