@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInHours, differenceInMinutes, startOfDay, subDays, subMonths, isAfter, isBefore, parseISO, format, startOfMonth, endOfMonth } from 'date-fns';
+import { computeSLA, type SLABreakdown } from '@/lib/sla-utils';
 
 export type DeadlineStatus = 'overdue' | 'critical' | 'warning' | 'normal';
 
