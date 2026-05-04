@@ -49,6 +49,17 @@ const truncateDescription = (text: string, maxLength: number = 200): string => {
   return text.slice(0, maxLength) + '...';
 };
 
+// Helper to fetch creator name
+const fetchCreatorName = async (userId?: string | null): Promise<string> => {
+  if (!userId) return 'Sistema';
+  const { data } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle();
+  return data?.full_name?.trim() || 'Usuário';
+};
+
 // Helper to fetch related entity names
 const fetchRelatedNames = async (buildingId?: string | null, equipmentId?: string | null) => {
   let buildingName = '';
@@ -81,7 +92,8 @@ const buildTicketMessage = (
   type: 'new' | 'update',
   statusText?: string,
   buildingName?: string,
-  equipmentName?: string
+  equipmentName?: string,
+  creatorName?: string
 ): string => {
   if (type === 'new') {
     let message = `🔔 *Novo Chamado Aberto*\n\n`;
@@ -89,7 +101,10 @@ const buildTicketMessage = (
     message += `📝 Título: ${data.title}\n`;
     message += `🏷️ Categoria: ${getCategoryLabel(data.category)}\n`;
     message += `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n`;
-    
+    if (creatorName) {
+      message += `👤 Criado por: ${creatorName}\n`;
+    }
+
     if (buildingName) {
       message += `📍 Local: ${buildingName}\n`;
     }
@@ -102,18 +117,21 @@ const buildTicketMessage = (
     if (data.contact_phone) {
       message += `📞 Contato: ${data.contact_phone}\n`;
     }
-    
+
     message += `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n`;
     message += `🔗 Para mais detalhes, acesse o sistema.`;
-    
+
     return message;
   } else {
     let message = `🔔 *Atualização de Chamado*\n\n`;
     message += `📋 Chamado: *${data.ticket_number}*\n`;
     message += `📝 Título: ${data.title}\n`;
+    if (creatorName) {
+      message += `👤 Criado por: ${creatorName}\n`;
+    }
     message += `\n${statusText}\n\n`;
     message += `🔗 Para mais detalhes, acesse o sistema.`;
-    
+
     return message;
   }
 };
@@ -248,12 +266,12 @@ export const useTickets = () => {
       });
 
       // Fetch related names for detailed message
-      const { buildingName, equipmentName } = await fetchRelatedNames(
-        data.related_building_id,
-        data.related_equipment_id
-      );
+      const [{ buildingName, equipmentName }, creatorName] = await Promise.all([
+        fetchRelatedNames(data.related_building_id, data.related_equipment_id),
+        fetchCreatorName(data.created_by),
+      ]);
 
-      const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName);
+      const message = buildTicketMessage(data, 'new', undefined, buildingName, equipmentName, creatorName);
 
       // 2) Notificação para grupo do WhatsApp
       try {
@@ -392,7 +410,8 @@ export const useTickets = () => {
       // Only send notification if there are changes to report
       if (changes.length > 0) {
         const statusText = changes.join('\n');
-        const message = buildTicketMessage(data, 'update', statusText);
+        const creatorName = await fetchCreatorName(data.created_by);
+        const message = buildTicketMessage(data, 'update', statusText, undefined, undefined, creatorName);
 
         // Resolve grupo do WhatsApp (chamado → categoria → padrão global)
         try {
@@ -450,11 +469,13 @@ export const useTickets = () => {
 
         // Send direct notification to assigned technician
         if (updatedFields.assigned_to && updatedFields.technician_phone) {
+          const techCreatorName = await fetchCreatorName(data.created_by);
           const technicianMessage = `🔧 *Chamado Atribuído a Você!*\n\n` +
             `📋 Chamado: *${data.ticket_number}*\n` +
             `📝 Título: ${data.title}\n` +
             `🏷️ Categoria: ${getCategoryLabel(data.category)}\n` +
             `⚠️ Prioridade: ${getPriorityLabel(data.priority)}\n` +
+            `👤 Criado por: ${techCreatorName}\n` +
             `${data.contact_phone ? `📞 Contato: ${data.contact_phone}\n` : ''}` +
             `\n📄 *Descrição:*\n${truncateDescription(data.description)}\n\n` +
             `⚡ Por favor, inicie o atendimento o mais breve possível!`;
