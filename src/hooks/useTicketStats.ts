@@ -231,15 +231,21 @@ export const useTicketStats = () => {
 
       // === ADVANCED METRICS ===
 
-      // SLA Compliance (tickets with due_date resolved before due_date)
+      // SLA Compliance — universo são apenas tickets já avaliáveis:
+      // (a) resolvidos/fechados com due_date  +  (b) abertos/in_progress com prazo vencido (breach garantido)
       const ticketsWithDueDate = allTickets.filter(t => t.due_date);
-      const resolvedWithinSLA = ticketsWithDueDate.filter(t => {
+      const evaluableSLATickets = ticketsWithDueDate.filter(t => {
+        const isClosed = t.status === 'resolved' || t.status === 'closed';
+        if (isClosed) return true;
+        return isBefore(parseISO(t.due_date!), now); // aberto e vencido
+      });
+      const resolvedWithinSLA = evaluableSLATickets.filter(t => {
         if (t.status !== 'resolved' && t.status !== 'closed') return false;
         if (!t.resolved_at) return false;
         return isBefore(parseISO(t.resolved_at), parseISO(t.due_date!));
       }).length;
-      const slaCompliance = ticketsWithDueDate.length > 0 
-        ? Math.round((resolvedWithinSLA / ticketsWithDueDate.length) * 100) 
+      const slaCompliance = evaluableSLATickets.length > 0
+        ? Math.round((resolvedWithinSLA / evaluableSLATickets.length) * 100)
         : 100;
 
       // Overdue tickets (open/in_progress with due_date in the past)
