@@ -100,6 +100,7 @@ export function TicketWhatsAppStatus({ ticketId }: Props) {
 
   const handleResend = async (row: NotificationRow) => {
     setRetrying(row.id);
+    toast.info('Reenviando notificação...');
     try {
       const payload = row.payload || {};
       const action = payload.action || (row.message_type?.includes('group') ? 'send-group' : 'send');
