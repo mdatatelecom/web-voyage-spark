@@ -133,8 +133,6 @@ export default function AISettings() {
       <Card>
         <CardHeader>
           <CardTitle>Provedor</CardTitle>
-          <CardDescription>
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2">
