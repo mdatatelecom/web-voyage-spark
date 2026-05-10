@@ -52,6 +52,9 @@ import FloorPlanSelector from "./pages/FloorPlanSelector";
 import MonitoringDashboard from "./pages/MonitoringDashboard";
 import MonitoringSettings from "./pages/MonitoringSettings";
 import MonitoringPanelView from "./pages/MonitoringPanelView";
+import AISettings from "./pages/AISettings";
+import AIAnalyses from "./pages/AIAnalyses";
+import AIAnalysisDetails from "./pages/AIAnalysisDetails";
 import NotFound from "./pages/NotFound";
 
 const FloorPlan = lazy(() => import("./pages/FloorPlan"));
@@ -248,6 +251,30 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <System />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/system/ai" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AISettings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/ai-analyses" 
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <AIAnalyses />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/ai-analyses/:id" 
+              element={
+                <ProtectedRoute requiredRole={['admin', 'technician']}>
+                  <AIAnalysisDetails />
                 </ProtectedRoute>
               } 
             />
