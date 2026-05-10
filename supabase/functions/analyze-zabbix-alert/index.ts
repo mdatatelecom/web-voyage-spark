@@ -14,23 +14,26 @@ const ANALYSIS_TOOL = {
   type: "function",
   function: {
     name: "submit_analysis",
-    description: "Retorna a análise estruturada do alerta Zabbix.",
+    description: "Retorna a análise estruturada do alerta Zabbix. TODOS os campos devem estar em português do Brasil.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
-        summary: { type: "string", description: "Resumo do problema em 1-2 frases" },
-        translation: { type: "string", description: "Tradução do alerta para PT-BR" },
+        summary: { type: "string", description: "Resumo do problema em 1-2 frases, em PT-BR" },
+        translation: { type: "string", description: "Tradução completa do alerta para PT-BR" },
         category: {
           type: "string",
           enum: ["linux", "rede", "mikrotik", "camera", "banco_dados", "docker", "vmware", "windows", "outro"],
         },
         priority: { type: "string", enum: ["baixa", "media", "alta", "critica"] },
-        causes: { type: "array", items: { type: "string" }, description: "Possíveis causas" },
-        commands: { type: "array", items: { type: "string" }, description: "Comandos de diagnóstico" },
-        checklist: { type: "array", items: { type: "string" }, description: "Checklist de verificação" },
-        recommendations: { type: "array", items: { type: "string" }, description: "Ações preventivas recomendadas" },
-        whatsapp_message: { type: "string", description: "Mensagem pronta formatada para WhatsApp com emojis" },
+        causes: { type: "array", items: { type: "string" }, description: "Possíveis causas (PT-BR), com a causa raiz provável em primeiro" },
+        commands: { type: "array", items: { type: "string" }, description: "Comandos Linux/rede/diagnóstico sugeridos" },
+        checklist: { type: "array", items: { type: "string" }, description: "Checklist passo a passo de resolução em PT-BR" },
+        recommendations: { type: "array", items: { type: "string" }, description: "Verificações no Zabbix e ações preventivas em PT-BR" },
+        whatsapp_message: {
+          type: "string",
+          description: "Mensagem completa pronta para WhatsApp em PT-BR. DEVE seguir EXATAMENTE o template com separadores ━━━ e emojis (🚨 🕒 🌐 📍 🔥 📡 📈 📌 📖 ⚠️ 🔍 💻 📊 🎥 ✅ 📲) definido no prompt do sistema, incluindo Data/Hora, Host, IP, Severidade, Serviço Afetado, Impacto, Tradução, Explicação técnica, Causa raiz, Diagnóstico, Comandos, Verificações Zabbix, Análise CFTV/Rede, Plano de ação numerado e Resumo.",
+        },
       },
       required: [
         "summary", "translation", "category", "priority",
