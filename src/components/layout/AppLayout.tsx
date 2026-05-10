@@ -170,6 +170,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       items: [
         { label: 'Lista de Alertas', icon: Bell, path: '/alerts', visible: true },
         { label: 'Dashboard', icon: BarChart3, path: '/alerts/dashboard', visible: true },
+        { label: 'Análises IA', icon: Activity, path: '/ai-analyses', visible: true },
       ],
     },
     {
@@ -190,6 +191,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       visible: isAdmin && !isNetworkViewer,
       items: [
         { label: 'Configurações', icon: Settings, path: '/system', visible: true },
+        { label: 'IA Gemini', icon: Activity, path: '/system/ai', visible: true },
         { label: 'Usuários', icon: Users, path: '/users', visible: true },
         { label: 'WhatsApp', icon: MessageCircle, path: '/whatsapp-history', visible: true },
       ],

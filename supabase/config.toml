@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.zabbix-webhook]
 verify_jwt = false
+
+[functions.analyze-zabbix-alert]
+verify_jwt = true
+
+[functions.test-ai-connection]
+verify_jwt = true

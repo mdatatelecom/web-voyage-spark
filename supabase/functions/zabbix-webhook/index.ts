@@ -807,6 +807,39 @@ serve(async (req) => {
 
     console.log('Alert created successfully:', alertData.id, '- Severity:', alertSeverity);
 
+    // Disparar análise IA em background se auto_analyze estiver habilitado
+    try {
+      const { data: aiSettings } = await supabase
+        .from('ai_settings')
+        .select('enabled, auto_analyze')
+        .limit(1)
+        .maybeSingle();
+
+      if (aiSettings?.enabled && aiSettings?.auto_analyze) {
+        const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-zabbix-alert`;
+        const triggerPromise = fetch(fnUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            alert_id: alertData.id,
+            host,
+            trigger_name: trigger,
+            severity: String(severity),
+            last_value: itemValue,
+            message: detailedMessage,
+            payload,
+          }),
+        }).catch((e) => console.error('AI analyze trigger error:', e));
+        // @ts-ignore EdgeRuntime is available in Deno deploy
+        if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(triggerPromise);
+      }
+    } catch (e) {
+      console.error('Error scheduling AI analysis:', e);
+    }
+
     // Buscar configurações específicas do Zabbix para notificações
     const { data: zabbixSettings } = await supabase
       .from('alert_settings')
