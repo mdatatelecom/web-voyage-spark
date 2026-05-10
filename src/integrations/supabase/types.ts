@@ -56,6 +56,45 @@ export type Database = {
           },
         ]
       }
+      ai_settings: {
+        Row: {
+          auto_analyze: boolean
+          created_at: string
+          enabled: boolean
+          id: string
+          max_tokens: number
+          model: string
+          prompt_template: string
+          temperature: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_analyze?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_tokens?: number
+          model?: string
+          prompt_template?: string
+          temperature?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_analyze?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          max_tokens?: number
+          model?: string
+          prompt_template?: string
+          temperature?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       alert_settings: {
         Row: {
           description: string | null
@@ -2039,6 +2078,86 @@ export type Database = {
           variables?: string[] | null
         }
         Relationships: []
+      }
+      zabbix_ai_analysis: {
+        Row: {
+          alert_id: string | null
+          category: string | null
+          causes: Json | null
+          checklist: Json | null
+          commands: Json | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          host: string | null
+          id: string
+          model_used: string | null
+          original_alert: Json | null
+          priority: string | null
+          recommendations: Json | null
+          severity: string | null
+          status: string
+          summary: string | null
+          tokens_used: number | null
+          translation: string | null
+          trigger_name: string | null
+          whatsapp_message: string | null
+        }
+        Insert: {
+          alert_id?: string | null
+          category?: string | null
+          causes?: Json | null
+          checklist?: Json | null
+          commands?: Json | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          host?: string | null
+          id?: string
+          model_used?: string | null
+          original_alert?: Json | null
+          priority?: string | null
+          recommendations?: Json | null
+          severity?: string | null
+          status?: string
+          summary?: string | null
+          tokens_used?: number | null
+          translation?: string | null
+          trigger_name?: string | null
+          whatsapp_message?: string | null
+        }
+        Update: {
+          alert_id?: string | null
+          category?: string | null
+          causes?: Json | null
+          checklist?: Json | null
+          commands?: Json | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          host?: string | null
+          id?: string
+          model_used?: string | null
+          original_alert?: Json | null
+          priority?: string | null
+          recommendations?: Json | null
+          severity?: string | null
+          status?: string
+          summary?: string | null
+          tokens_used?: number | null
+          translation?: string | null
+          trigger_name?: string | null
+          whatsapp_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zabbix_ai_analysis_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
