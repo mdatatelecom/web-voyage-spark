@@ -134,7 +134,6 @@ export default function AISettings() {
         <CardHeader>
           <CardTitle>Provedor</CardTitle>
           <CardDescription>
-            Conectado via <Badge variant="secondary">Lovable AI Gateway</Badge> — sem necessidade de chave de API.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
