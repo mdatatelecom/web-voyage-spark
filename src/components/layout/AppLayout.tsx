@@ -170,6 +170,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
       items: [
         { label: 'Lista de Alertas', icon: Bell, path: '/alerts', visible: true },
         { label: 'Dashboard', icon: BarChart3, path: '/alerts/dashboard', visible: true },
+        { label: 'Análises IA', icon: Activity, path: '/ai-analyses', visible: true },
       ],
     },
     {
