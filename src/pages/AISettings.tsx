@@ -126,7 +126,7 @@ export default function AISettings() {
         <Sparkles className="h-7 w-7 text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Configurações de IA</h1>
-          <p className="text-muted-foreground text-sm">Análise inteligente de alertas Zabbix com Gemini via Lovable AI</p>
+          <p className="text-muted-foreground text-sm">Análise inteligente de alertas Zabbix com Gemini AI</p>
         </div>
       </div>
 
