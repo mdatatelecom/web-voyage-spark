@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const DEFAULT_PROMPT = `Você é um especialista em Infraestrutura Linux, Redes, CFTV, Câmeras IP, Mikrotik, Zabbix e monitoramento corporativo.
 
