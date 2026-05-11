@@ -68,6 +68,7 @@ export type Database = {
           temperature: number
           updated_at: string
           updated_by: string | null
+          whatsapp_max_length: number
         }
         Insert: {
           auto_analyze?: boolean
@@ -80,6 +81,7 @@ export type Database = {
           temperature?: number
           updated_at?: string
           updated_by?: string | null
+          whatsapp_max_length?: number
         }
         Update: {
           auto_analyze?: boolean
@@ -92,6 +94,7 @@ export type Database = {
           temperature?: number
           updated_at?: string
           updated_by?: string | null
+          whatsapp_max_length?: number
         }
         Relationships: []
       }
