@@ -80,6 +80,7 @@ FORMATO OBRIGATÓRIO do campo whatsapp_message (use exatamente este template, co
 ...`;
 
 export default function AISettings() {
+  const navigate = useNavigate();
   const { data, isLoading, update } = useAISettings();
   const test = useTestAIConnection();
   const [form, setForm] = useState({
@@ -89,6 +90,7 @@ export default function AISettings() {
     prompt_template: DEFAULT_PROMPT,
     enabled: true,
     auto_analyze: false,
+    whatsapp_max_length: 3500,
   });
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
 
@@ -101,6 +103,7 @@ export default function AISettings() {
         prompt_template: data.prompt_template,
         enabled: data.enabled,
         auto_analyze: data.auto_analyze,
+        whatsapp_max_length: data.whatsapp_max_length ?? 3500,
       });
     }
   }, [data]);
@@ -123,6 +126,10 @@ export default function AISettings() {
 
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => navigate('/system')} className="-ml-2">
+        <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+      </Button>
+
       <div className="flex items-center gap-3">
         <Sparkles className="h-7 w-7 text-primary" />
         <div>
