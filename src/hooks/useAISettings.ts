@@ -10,6 +10,7 @@ export interface AISettings {
   prompt_template: string;
   enabled: boolean;
   auto_analyze: boolean;
+  whatsapp_max_length: number;
   updated_at: string;
 }
 

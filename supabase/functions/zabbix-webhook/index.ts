@@ -809,10 +809,23 @@ serve(async (req) => {
 
     // Disparar análise IA e aguardar resposta para usar whatsapp_message no envio
     let aiWhatsAppMessage: string | null = null;
+
+    function safeTruncateWhatsApp(msg: string, max: number): string {
+      if (msg.length <= max) return msg;
+      const SUFFIX = '\n\n_…mensagem truncada_';
+      const budget = Math.max(100, max - SUFFIX.length);
+      const slice = msg.slice(0, budget);
+      const lastDouble = slice.lastIndexOf('\n\n');
+      const lastSingle = slice.lastIndexOf('\n');
+      const lastBreak = Math.max(lastDouble, lastSingle);
+      const cut = lastBreak > budget * 0.7 ? slice.slice(0, lastBreak) : slice;
+      return cut.trimEnd() + SUFFIX;
+    }
+
     try {
       const { data: aiSettings } = await supabase
         .from('ai_settings')
-        .select('enabled, auto_analyze')
+        .select('enabled, auto_analyze, whatsapp_max_length')
         .limit(1)
         .maybeSingle();
 
@@ -841,8 +854,9 @@ serve(async (req) => {
         } else {
           const msg = aiResult?.data?.analysis?.whatsapp_message;
           if (typeof msg === 'string' && msg.trim().length > 0) {
-            aiWhatsAppMessage = msg.trim();
-            console.log('Mensagem WhatsApp da IA obtida (', aiWhatsAppMessage.length, 'chars)');
+            const maxLen = Number(aiSettings.whatsapp_max_length) || 3500;
+            aiWhatsAppMessage = safeTruncateWhatsApp(msg.trim(), maxLen);
+            console.log(`Mensagem WhatsApp da IA obtida (${aiWhatsAppMessage.length}/${maxLen} chars${aiWhatsAppMessage.length < msg.trim().length ? ', truncada' : ''})`);
           } else {
             console.warn('IA respondeu sem whatsapp_message válido');
           }

@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const DEFAULT_PROMPT = `Você é um especialista em Infraestrutura Linux, Redes, CFTV, Câmeras IP, Mikrotik, Zabbix e monitoramento corporativo.
 
@@ -79,6 +80,7 @@ FORMATO OBRIGATÓRIO do campo whatsapp_message (use exatamente este template, co
 ...`;
 
 export default function AISettings() {
+  const navigate = useNavigate();
   const { data, isLoading, update } = useAISettings();
   const test = useTestAIConnection();
   const [form, setForm] = useState({
@@ -88,6 +90,7 @@ export default function AISettings() {
     prompt_template: DEFAULT_PROMPT,
     enabled: true,
     auto_analyze: false,
+    whatsapp_max_length: 3500,
   });
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
 
@@ -100,6 +103,7 @@ export default function AISettings() {
         prompt_template: data.prompt_template,
         enabled: data.enabled,
         auto_analyze: data.auto_analyze,
+        whatsapp_max_length: data.whatsapp_max_length ?? 3500,
       });
     }
   }, [data]);
@@ -122,6 +126,10 @@ export default function AISettings() {
 
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-6">
+      <Button variant="ghost" size="sm" onClick={() => navigate('/system')} className="-ml-2">
+        <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+      </Button>
+
       <div className="flex items-center gap-3">
         <Sparkles className="h-7 w-7 text-primary" />
         <div>
@@ -160,6 +168,12 @@ export default function AISettings() {
             </div>
           </div>
 
+          <div className="grid gap-2">
+            <Label>Tamanho máximo da mensagem WhatsApp (caracteres)</Label>
+            <Input type="number" min="500" max="4096" value={form.whatsapp_max_length}
+              onChange={(e) => setForm({ ...form, whatsapp_max_length: parseInt(e.target.value) || 3500 })} />
+            <p className="text-xs text-muted-foreground">A mensagem da IA será truncada se exceder este limite. WhatsApp aceita até 4096.</p>
+          </div>
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>
               <Label>Habilitar IA</Label>

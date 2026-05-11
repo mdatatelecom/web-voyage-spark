@@ -1,45 +1,60 @@
-## Problema
+## 1. Truncar `whatsapp_message` da IA com limite configurável
 
-As notificações de alertas Zabbix no WhatsApp usam um **template fixo no código** (`zabbix-webhook/index.ts` linha 897), e não a mensagem `whatsapp_message` gerada pela IA seguindo o prompt configurado em `/system/ai`.
+### Schema
+Adicionar coluna em `ai_settings`:
+```sql
+ALTER TABLE public.ai_settings
+  ADD COLUMN IF NOT EXISTS whatsapp_max_length integer NOT NULL DEFAULT 3500;
+```
+Limite default 3500 (WhatsApp aceita ~4096; deixa margem para sufixo de truncamento).
 
-A análise IA até é disparada (linha 818-838), mas roda em background, sem aguardar resposta, e o resultado nunca é usado para o envio do WhatsApp.
+### UI — `src/pages/AISettings.tsx`
+Novo campo `Input type="number"` (mín 500, máx 4096) ao lado de "Limite de tokens": **"Tamanho máximo da mensagem WhatsApp (caracteres)"**.
 
-## Solução
+### Hook — `src/hooks/useAISettings.ts`
+Incluir `whatsapp_max_length` no tipo `AISettings` e no payload de `update`.
 
-Alterar `supabase/functions/zabbix-webhook/index.ts` para, quando IA estiver habilitada e `auto_analyze = true`:
-
-1. **Aguardar** o retorno de `analyze-zabbix-alert` (em vez de fire-and-forget).
-2. Usar `analysis.whatsapp_message` como conteúdo da notificação WhatsApp (em vez do template hardcoded da linha 897).
-3. **Fallback**: se a IA falhar, demorar muito (timeout ~12s), estiver desabilitada, ou retornar mensagem vazia, manter o template atual como backup, garantindo que o alerta nunca deixe de ser enviado.
-
-Aplicar a mesma lógica para o caminho de **recovery** (linha 659) é opcional — sugiro manter o template fixo de recuperação por enquanto, pois recovery não passa pela IA hoje.
-
-## Detalhes técnicos
-
-Trecho a alterar (resumido):
+### Webhook — `supabase/functions/zabbix-webhook/index.ts`
+Após obter `aiWhatsAppMessage`:
 
 ```ts
-// Após inserir o alerta, ANTES do envio WhatsApp:
-let aiWhatsAppMessage: string | null = null;
-if (aiSettings?.enabled && aiSettings?.auto_analyze) {
-  try {
-    const { data: aiResp } = await supabase.functions.invoke(
-      'analyze-zabbix-alert',
-      { body: { alert_id: alertData.id, host, trigger_name: trigger,
-                severity: String(severity), last_value: itemValue,
-                message: detailedMessage, payload } }
-    );
-    aiWhatsAppMessage = aiResp?.analysis?.whatsapp_message ?? null;
-  } catch (e) { console.error('AI analyze failed, using fallback:', e); }
+function safeTruncateWhatsApp(msg: string, max: number): string {
+  if (msg.length <= max) return msg;
+  // Cortar em uma quebra de linha próxima para preservar formatação
+  const slice = msg.slice(0, max - 30);
+  const lastBreak = Math.max(slice.lastIndexOf('\n\n'), slice.lastIndexOf('\n'));
+  const cut = lastBreak > max * 0.7 ? slice.slice(0, lastBreak) : slice;
+  return cut.trimEnd() + '\n\n_…mensagem truncada_';
 }
-
-const notificationMessage = aiWhatsAppMessage?.trim()
-  || `${emoji} *ALERTA ZABBIX (...)*\n...`; // template atual como fallback
 ```
 
-Risco: aguardar IA aumenta o tempo da requisição do webhook (~3-10s típico Gemini Flash). Aceitável já que o Zabbix faz retry e a função tem timeout adequado. Caso o usuário queira velocidade máxima, oferecer alternativa: continuar em background mas só enviar WhatsApp depois (em duas mensagens), porém isso é mais complexo e fora deste escopo.
+Buscar `whatsapp_max_length` junto com `enabled, auto_analyze` (mesma query) e aplicar:
+```ts
+aiWhatsAppMessage = safeTruncateWhatsApp(msg.trim(), aiSettings.whatsapp_max_length ?? 3500);
+```
+
+A função preserva os separadores `━━━` e blocos do template porque corta em quebras de linha.
+
+## 2. Botão "Voltar" em `/system/ai`
+
+Em `src/pages/AISettings.tsx`, adicionar antes do título:
+
+```tsx
+<Button variant="ghost" size="sm" onClick={() => navigate('/system')}>
+  <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+</Button>
+```
+
+Importar `useNavigate` de `react-router-dom` e `ArrowLeft` de `lucide-react`. Destino fixo `/system` (página pai do módulo de configurações), consistente com o padrão das outras telas de settings.
+
+## Arquivos alterados
+
+- `supabase/migrations/<nova>.sql` — coluna `whatsapp_max_length`
+- `src/hooks/useAISettings.ts` — tipo + update
+- `src/pages/AISettings.tsx` — campo do limite + botão voltar
+- `supabase/functions/zabbix-webhook/index.ts` — função `safeTruncateWhatsApp` e uso
 
 ## Verificação
 
-- Após implementação, disparar um alerta de teste do Zabbix (ou simular via curl no webhook) e confirmar nos logs que a mensagem enviada contém os separadores `━━━` e blocos do template do prompt.
-- Build e lint são validados automaticamente pela plataforma após o edit.
+- Abrir `/system/ai`: novo campo aparece com 3500, botão "Voltar" leva para `/system`.
+- Disparar alerta longo no Zabbix → log `Mensagem WhatsApp da IA obtida (N chars)` deve refletir N ≤ limite, e o WhatsApp recebe sufixo `…mensagem truncada` quando aplicável.
