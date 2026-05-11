@@ -906,7 +906,9 @@ serve(async (req) => {
         const settings = whatsappSettings.setting_value;
         const targetType = settings.targetType || 'individual';
         
-        const notificationMessage = `${emoji} *ALERTA ZABBIX (${alertSeverity.toUpperCase()})*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Severidade:* ${severity}\n*Mensagem:* ${message}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`;
+        const fallbackMessage = `${emoji} *ALERTA ZABBIX (${alertSeverity.toUpperCase()})*\n\n*Host:* ${host}\n*Trigger:* ${trigger}\n*Severidade:* ${severity}\n*Mensagem:* ${message}\n${ip ? `*IP:* ${ip}\n` : ''}\n_Evento #${eventId}_`;
+        const notificationMessage = aiWhatsAppMessage || fallbackMessage;
+        console.log('Usando mensagem WhatsApp:', aiWhatsAppMessage ? 'IA (formato do prompt)' : 'fallback hardcoded');
 
         try {
           if (targetType === 'group' && settings.selectedGroupId) {
