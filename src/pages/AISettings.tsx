@@ -168,6 +168,12 @@ export default function AISettings() {
             </div>
           </div>
 
+          <div className="grid gap-2">
+            <Label>Tamanho máximo da mensagem WhatsApp (caracteres)</Label>
+            <Input type="number" min="500" max="4096" value={form.whatsapp_max_length}
+              onChange={(e) => setForm({ ...form, whatsapp_max_length: parseInt(e.target.value) || 3500 })} />
+            <p className="text-xs text-muted-foreground">A mensagem da IA será truncada se exceder este limite. WhatsApp aceita até 4096.</p>
+          </div>
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>
               <Label>Habilitar IA</Label>
