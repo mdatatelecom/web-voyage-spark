@@ -807,7 +807,8 @@ serve(async (req) => {
 
     console.log('Alert created successfully:', alertData.id, '- Severity:', alertSeverity);
 
-    // Disparar análise IA em background se auto_analyze estiver habilitado
+    // Disparar análise IA e aguardar resposta para usar whatsapp_message no envio
+    let aiWhatsAppMessage: string | null = null;
     try {
       const { data: aiSettings } = await supabase
         .from('ai_settings')
@@ -816,14 +817,9 @@ serve(async (req) => {
         .maybeSingle();
 
       if (aiSettings?.enabled && aiSettings?.auto_analyze) {
-        const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-zabbix-alert`;
-        const triggerPromise = fetch(fnUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          },
-          body: JSON.stringify({
+        console.log('Invocando análise IA (aguardando resposta)...');
+        const aiInvokePromise = supabase.functions.invoke('analyze-zabbix-alert', {
+          body: {
             alert_id: alertData.id,
             host,
             trigger_name: trigger,
@@ -831,13 +827,29 @@ serve(async (req) => {
             last_value: itemValue,
             message: detailedMessage,
             payload,
-          }),
-        }).catch((e) => console.error('AI analyze trigger error:', e));
-        // @ts-ignore EdgeRuntime is available in Deno deploy
-        if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(triggerPromise);
+          },
+        });
+
+        // Timeout de 25s para não bloquear o webhook indefinidamente
+        const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: new Error('AI timeout 25s') }), 25000)
+        );
+
+        const aiResult = await Promise.race([aiInvokePromise, timeoutPromise]) as any;
+        if (aiResult?.error) {
+          console.error('AI analyze error:', aiResult.error?.message ?? aiResult.error);
+        } else {
+          const msg = aiResult?.data?.analysis?.whatsapp_message;
+          if (typeof msg === 'string' && msg.trim().length > 0) {
+            aiWhatsAppMessage = msg.trim();
+            console.log('Mensagem WhatsApp da IA obtida (', aiWhatsAppMessage.length, 'chars)');
+          } else {
+            console.warn('IA respondeu sem whatsapp_message válido');
+          }
+        }
       }
     } catch (e) {
-      console.error('Error scheduling AI analysis:', e);
+      console.error('Erro ao executar análise IA:', e);
     }
 
     // Buscar configurações específicas do Zabbix para notificações

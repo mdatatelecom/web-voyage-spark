@@ -1,28 +1,45 @@
-## Atualizar prompt do sistema da IA Zabbix
+## Problema
 
-Substituir o `prompt_template` padrão da IA pelo prompt detalhado fornecido (especialista em Linux/Redes/CFTV/Mikrotik/Zabbix), com formato de saída padronizado em PT-BR e regras adicionais (nível do incidente, causa raiz, correlações).
+As notificações de alertas Zabbix no WhatsApp usam um **template fixo no código** (`zabbix-webhook/index.ts` linha 897), e não a mensagem `whatsapp_message` gerada pela IA seguindo o prompt configurado em `/system/ai`.
 
-### Mudanças
+A análise IA até é disparada (linha 818-838), mas roda em background, sem aguardar resposta, e o resultado nunca é usado para o envio do WhatsApp.
 
-**1. `src/pages/AISettings.tsx`**
-- Substituir a constante `DEFAULT_PROMPT` pelo novo prompt completo enviado pelo usuário (regras + padrão de resposta + formato obrigatório).
-- Botão "Restaurar padrão" passa a aplicar o novo texto.
+## Solução
 
-**2. Banco de dados — `ai_settings`**
-- Migration `UPDATE` no registro singleton para gravar o novo `prompt_template`, garantindo que a IA já use o novo prompt sem precisar do usuário clicar em "Restaurar padrão" + "Salvar".
+Alterar `supabase/functions/zabbix-webhook/index.ts` para, quando IA estiver habilitada e `auto_analyze = true`:
 
-**3. `supabase/functions/analyze-zabbix-alert/index.ts`**
-- Ajuste mínimo no schema da tool `submit_analysis` para reforçar (via `description`) que todos os campos devem ser em **PT-BR** e que `whatsapp_message` deve seguir o template visual com separadores `━━━` e emojis (🚨 🕒 🌐 📍 🔥 📡 📈 📌 📖 ⚠️ 🔍 💻 📊 🎥 ✅ 📲).
-- Adicionar campos opcionais ao schema: `incident_level` (`baixo|medio|alto|critico`) e `operational_impact` (string), persistidos em `original_alert.meta` ou — se você preferir — em colunas novas (ver pergunta 2).
+1. **Aguardar** o retorno de `analyze-zabbix-alert` (em vez de fire-and-forget).
+2. Usar `analysis.whatsapp_message` como conteúdo da notificação WhatsApp (em vez do template hardcoded da linha 897).
+3. **Fallback**: se a IA falhar, demorar muito (timeout ~12s), estiver desabilitada, ou retornar mensagem vazia, manter o template atual como backup, garantindo que o alerta nunca deixe de ser enviado.
 
-### Pontos a confirmar antes de implementar
+Aplicar a mesma lógica para o caminho de **recovery** (linha 659) é opcional — sugiro manter o template fixo de recuperação por enquanto, pois recovery não passa pela IA hoje.
 
-1. **Persistência do nível do incidente**: criar colunas dedicadas `incident_level` e `operational_impact` em `zabbix_ai_analysis` (mais limpo, filtrável) ou só embutir no `summary`/`whatsapp_message`?
-2. **Reanalisar histórico**: deseja um botão "Reanalisar com novo prompt" para reprocessar análises antigas, ou o novo prompt vale só para alertas futuros?
+## Detalhes técnicos
 
-### Arquivos afetados
+Trecho a alterar (resumido):
 
-- `src/pages/AISettings.tsx` (DEFAULT_PROMPT)
-- `supabase/migrations/<novo>.sql` (UPDATE em `ai_settings`)
-- `supabase/functions/analyze-zabbix-alert/index.ts` (descrições do schema + opcional `incident_level`/`operational_impact`)
-- `supabase/migrations/<novo>.sql` (ALTER TABLE se confirmar pergunta 1)
+```ts
+// Após inserir o alerta, ANTES do envio WhatsApp:
+let aiWhatsAppMessage: string | null = null;
+if (aiSettings?.enabled && aiSettings?.auto_analyze) {
+  try {
+    const { data: aiResp } = await supabase.functions.invoke(
+      'analyze-zabbix-alert',
+      { body: { alert_id: alertData.id, host, trigger_name: trigger,
+                severity: String(severity), last_value: itemValue,
+                message: detailedMessage, payload } }
+    );
+    aiWhatsAppMessage = aiResp?.analysis?.whatsapp_message ?? null;
+  } catch (e) { console.error('AI analyze failed, using fallback:', e); }
+}
+
+const notificationMessage = aiWhatsAppMessage?.trim()
+  || `${emoji} *ALERTA ZABBIX (...)*\n...`; // template atual como fallback
+```
+
+Risco: aguardar IA aumenta o tempo da requisição do webhook (~3-10s típico Gemini Flash). Aceitável já que o Zabbix faz retry e a função tem timeout adequado. Caso o usuário queira velocidade máxima, oferecer alternativa: continuar em background mas só enviar WhatsApp depois (em duas mensagens), porém isso é mais complexo e fora deste escopo.
+
+## Verificação
+
+- Após implementação, disparar um alerta de teste do Zabbix (ou simular via curl no webhook) e confirmar nos logs que a mensagem enviada contém os separadores `━━━` e blocos do template do prompt.
+- Build e lint são validados automaticamente pela plataforma após o edit.
